@@ -1,7 +1,15 @@
 import { Router } from "express";
 import { apiRateLimit } from "../middleware/http.js";
-import { csrfProtection, sessionCookie } from "../middleware/auth.js";
-export function authRouter(service, config, { authLimit } = {}) {
+import {
+  csrfProtection,
+  sessionCookie,
+  requireUser,
+} from "../middleware/auth.js";
+export function authRouter(
+  service,
+  config,
+  { authLimit, redis, recovery } = {},
+) {
   const router = Router();
   const send = (res, result) => {
     sessionCookie(res, config, result.raw, result.seconds);
@@ -28,8 +36,30 @@ export function authRouter(service, config, { authLimit } = {}) {
       });
     send(res, await service.issue({ id: null }, null));
   });
-  router.use(apiRateLimit(authLimit || { max: 15, windowMs: 900000 }));
+  router.use(
+    apiRateLimit({
+      max: 15,
+      windowMs: 900000,
+      ...authLimit,
+      store: redis,
+      bucket: "auth-ip",
+      exemptMedia: false,
+    }),
+  );
   router.use(csrfProtection(config));
+  router.use(
+    apiRateLimit({
+      max: 10,
+      windowMs: 900000,
+      store: redis,
+      bucket: "auth-account",
+      exemptMedia: false,
+      key: (req) =>
+        typeof req.body?.email === "string" && req.body.email.length <= 254
+          ? req.body.email.trim().toLowerCase()
+          : null,
+    }),
+  );
   router.post("/demo", async (req, res) => {
     if (req.user)
       return res.status(409).json({
@@ -74,6 +104,66 @@ export function authRouter(service, config, { authLimit } = {}) {
       };
       send(res, await service[action](input, req.sessionHash));
     });
+
+  router.post("/forgot-password", async (req, res) => {
+    const email = req.body?.email;
+    if (
+      typeof email !== "string" ||
+      email.length > 254 ||
+      !/^\S+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      Object.keys(req.body).some((k) => k !== "email")
+    )
+      return res
+        .status(400)
+        .json({ error: { message: "A valid email is required." } });
+    await recovery.requestReset(email.trim().toLowerCase());
+    res
+      .status(202)
+      .json({ message: "If this account exists, a reset link will be sent." });
+  });
+  router.post("/request-verification", requireUser, async (req, res) => {
+    if (req.user.kind !== "registered")
+      return res
+        .status(403)
+        .json({ error: { message: "Create an account to verify an email." } });
+    await recovery.requestVerification(req.user.id);
+    res
+      .status(202)
+      .json({ message: "If verification is needed, a link will be sent." });
+  });
+  router.post("/verify-email", async (req, res) => {
+    if (!req.body || Object.keys(req.body).some((k) => k !== "token"))
+      return res
+        .status(400)
+        .json({ error: { message: "A verification token is required." } });
+    await recovery.verify(req.body.token);
+    res.json({
+      message:
+        "Email verified. Refresh your account to see the updated status.",
+    });
+  });
+  router.post("/reset-password", async (req, res) => {
+    const body = req.body;
+    if (
+      !body ||
+      Object.keys(body).some((k) => !["token", "password"].includes(k)) ||
+      typeof body.password !== "string" ||
+      body.password.length < 12 ||
+      Buffer.byteLength(body.password) > 256
+    )
+      return res.status(400).json({
+        error: {
+          message:
+            "Use a password of at least 12 characters and at most 256 bytes.",
+        },
+      });
+    await recovery.reset(body.token, body.password);
+    sessionCookie(res, config, "");
+    res.json({
+      message:
+        "Password reset. Sign in with your new password; previous sessions were revoked.",
+    });
+  });
   router.post("/logout", async (req, res) => {
     if (req.sessionHash) await service.logout(req.sessionHash);
     sessionCookie(res, config, "");

@@ -95,6 +95,25 @@ export function analyticsRouter(db) {
       .status(result.changes ? 201 : 200)
       .json({ eventId: id, duplicate: !result.changes });
   });
+  router.get("/analytics/rollups", async (req, res) => {
+    const days = req.query.days === undefined ? 7 : Number(req.query.days);
+    if (
+      (req.query.days !== undefined && typeof req.query.days !== "string") ||
+      !Number.isInteger(days) ||
+      days < 1 ||
+      days > 90
+    )
+      return fail(res, "days must be an integer from 1 to 90.");
+    const since = new Date(Date.now() - (days - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const rollups = await db
+      .prepare(
+        "SELECT day,genre,listening_seconds,interval_count,updated_at FROM analytics_rollups WHERE user_id=? AND day>=? ORDER BY day,genre",
+      )
+      .all(req.user.id, since);
+    res.json({ source: "background-snapshot", rollups });
+  });
   router.get("/analytics/overview", async (req, res) => {
     res.json(await analyticsOverview(db, req.user.id));
   });

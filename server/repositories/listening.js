@@ -1,5 +1,6 @@
+import { jobQueue } from "../jobs/queue.js";
 import { randomUUID } from "node:crypto";
-export function recordEvent(
+export async function recordEvent(
   db,
   {
     user,
@@ -11,20 +12,35 @@ export function recordEvent(
     playbackRate = 1,
   },
 ) {
-  return db
-    .prepare(
-      `INSERT INTO listening_events(event_id,user_id,story_id,chapter_id,event_type,listening_seconds,metadata)
+  return db.transaction(async () => {
+    const result = await db
+      .prepare(
+        `INSERT INTO listening_events(event_id,user_id,story_id,chapter_id,event_type,listening_seconds,metadata)
     VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id,event_id) DO NOTHING`,
-    )
-    .run(
-      id,
-      user,
-      storyId,
-      chapterId,
-      type,
-      listeningSeconds,
-      JSON.stringify({ playbackRate }),
-    );
+      )
+      .run(
+        id,
+        user,
+        storyId,
+        chapterId,
+        type,
+        listeningSeconds,
+        JSON.stringify({ playbackRate }),
+      );
+    if (result.changes) {
+      const stored = await db
+        .prepare(
+          "SELECT created_at FROM listening_events WHERE user_id=? AND event_id=?",
+        )
+        .get(user, id);
+      await jobQueue(db).enqueue("analytics_rollup", {
+        owner: user,
+        payload: { day: stored.created_at.slice(0, 10) },
+        key: `event:${user}:${id}`,
+      });
+    }
+    return result;
+  });
 }
 export async function saveFavorite(db, user, storyId) {
   await db.transaction(async () => {

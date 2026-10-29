@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { catalog } from "../content/catalog.js";
 export async function seedCatalog(db) {
@@ -8,6 +9,9 @@ export async function seedCatalog(db) {
     ),
   );
   await db.transaction(async () => {
+    await db
+      .prepare("UPDATE catalog_revision SET revision=? WHERE id=1")
+      .run(randomUUID());
     for (const { chapters, ...story } of catalog) {
       await db
         .prepare(

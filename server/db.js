@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { mkdirSync, readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { readdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -105,6 +105,16 @@ export function seedDatabase(db) {
     VALUES (@id,@story_id,@chapter_number,@title,@audio_url,@duration_seconds)
     ON CONFLICT(id) DO UPDATE SET title=excluded.title, audio_url=excluded.audio_url, duration_seconds=excluded.duration_seconds`);
   db.transaction(() => {
+    if (
+      db
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='catalog_revision'",
+        )
+        .get()
+    )
+      db.prepare("UPDATE catalog_revision SET revision=? WHERE id=1").run(
+        randomUUID(),
+      );
     for (const story of catalog) {
       const { chapters, ...row } = story;
       insertStory.run(row);

@@ -17,7 +17,7 @@ export function identityRepository(db) {
     session: (hash) =>
       db
         .prepare(
-          `SELECT s.*,u.email,u.display_name,u.kind FROM sessions s LEFT JOIN users u ON u.id=s.user_id
+          `SELECT s.*,u.email,u.display_name,u.kind,u.email_verified_at FROM sessions s LEFT JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=? AND s.expires_at>? AND (s.user_id IS NULL OR u.kind IN ('registered','guest'))`,
         )
         .get(hash, new Date().toISOString()),

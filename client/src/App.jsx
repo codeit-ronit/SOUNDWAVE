@@ -17,6 +17,7 @@ import {
   AudioLines,
   X,
 } from "lucide-react";
+import AccountRecovery from "./AccountRecovery";
 import { Account } from "./AuthContext";
 import Analytics from "./Analytics";
 import { Downloads, PwaStatus } from "./Downloads";
@@ -152,6 +153,7 @@ export default function App() {
           </div>
           <Routes>
             <Route path="/" element={<Discover />} />
+            <Route path="/account" element={<AccountRecovery />} />
             <Route path="/library" element={<MyLibrary />} />
             <Route path="/downloads" element={<Downloads />} />
             <Route path="/analytics" element={<Analytics />} />

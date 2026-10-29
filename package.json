@@ -22,7 +22,12 @@
     "db:migrate": "node server/scripts/migrate.js",
     "db:import:sqlite": "node server/scripts/migrate.js",
     "test:auth:browser": "npm run build && node scripts/auth-smoke.mjs",
-    "test:keyboard": "npm run build && node scripts/keyboard-smoke.mjs"
+    "test:keyboard": "npm run build && node scripts/keyboard-smoke.mjs",
+    "worker": "node server/scripts/worker.js",
+    "jobs": "node server/scripts/jobs.js",
+    "db:backup": "node server/scripts/backup.js",
+    "test:systems": "npm run build && node scripts/systems-smoke.mjs",
+    "bench:cache": "node scripts/cache-benchmark.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",

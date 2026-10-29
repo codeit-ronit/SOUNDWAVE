@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 // An explicit administrative operation. Source is read-only, held at one SQLite
 // snapshot; target is one PostgreSQL transaction. No sessions are copied.
@@ -44,6 +45,9 @@ export async function importSqlite(db, path) {
           known.add(row.user_id);
         }
     await db.transaction(async () => {
+      await db
+        .prepare("UPDATE catalog_revision SET revision=? WHERE id=1")
+        .run(randomUUID());
       for (const [table, data] of [
         ["users", users],
         ...tables.map((t) => [t, rows[t]]),

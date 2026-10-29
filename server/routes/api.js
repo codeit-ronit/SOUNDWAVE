@@ -9,9 +9,9 @@ const fail = (res, message, status = 400) =>
 const validId = (value) =>
   typeof value === "string" && /^[1-9]\d{0,8}$/.test(value);
 
-export function apiRouter(db) {
+export function apiRouter(db, { cache } = {}) {
   const api = Router();
-  const repo = catalogRepository(db);
+  const repo = catalogRepository(db, cache);
   const getStory = repo.story;
   api.get("/health", async (req, res) => {
     await repo.health();

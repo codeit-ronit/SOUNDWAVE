@@ -2789,3 +2789,23 @@ input[type="range"]::-moz-range-thumb {
     display: none;
   }
 }
+
+.account-recovery {
+  max-width: 480px;
+  margin: 50px auto;
+  padding: 24px;
+}
+.account-recovery form,
+.account-recovery label {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.account-recovery input {
+  width: 100%;
+  padding: 12px;
+  background: #15161d;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 8px;
+}

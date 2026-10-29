@@ -1,19 +1,16 @@
-import {
-  createHash,
-  randomBytes,
-  randomUUID,
-  timingSafeEqual,
-} from "node:crypto";
+import { hashToken } from "./tokens.js";
+import { accountRecovery } from "./accountRecovery.js";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { identityRepository } from "../repositories/identity.js";
 import { hashPassword, verifyPassword } from "./passwords.js";
 const token = () => randomBytes(32).toString("hex");
-export const hashToken = (value) =>
-  createHash("sha256").update(value).digest("hex");
+export { hashToken } from "./tokens.js";
 export const publicUser = (row) => ({
   id: row.user_id || row.id,
   email: row.email,
   displayName: row.display_name,
   kind: row.kind,
+  emailVerified: !!row.email_verified_at,
 });
 export const sameToken = (a, b) =>
   typeof a === "string" &&
@@ -23,6 +20,7 @@ export const sameToken = (a, b) =>
   timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export function authService(db, config) {
   const repo = identityRepository(db);
+  const recovery = accountRecovery(db, config);
   const issue = async (user, previous) => {
     const raw = token();
     const csrf = token();
@@ -95,6 +93,7 @@ export function authService(db, config) {
               throw conflict;
             }
           } else await repo.createUser(user);
+          await recovery.issue(user, "verify_email");
           return issue(user, previous);
         });
       } catch (error) {
@@ -118,7 +117,18 @@ export function authService(db, config) {
         error.status = 401;
         throw error;
       }
-      return issue(user, previous);
+      return db.transaction(async () => {
+        const latest = await db
+          .prepare(
+            `SELECT password_hash FROM users WHERE id=? ${db.dialect === "postgres" ? "FOR UPDATE" : ""}`,
+          )
+          .get(user.id);
+        if (latest?.password_hash !== user.password_hash)
+          throw Object.assign(Error("Invalid email or password."), {
+            status: 401,
+          });
+        return issue(user, previous);
+      });
     },
   };
 }

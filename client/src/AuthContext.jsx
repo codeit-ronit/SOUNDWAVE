@@ -108,7 +108,9 @@ export function AuthProvider({ children }) {
 }
 export function Account() {
   const auth = useAuth();
-  const [open, setOpen] = useState(false),
+  const [open, setOpen] = useState(
+      () => new URLSearchParams(location.search).get("signin") === "1",
+    ),
     [register, setRegister] = useState(false),
     [error, setError] = useState("");
   async function submit(event) {
@@ -143,6 +145,22 @@ export function Account() {
       ) : (
         <button className="button secondary" onClick={() => setOpen(!open)}>
           Sign in
+        </button>
+      )}
+      {auth.user?.kind === "registered" && !auth.user.emailVerified && (
+        <button
+          onClick={async () => {
+            try {
+              const result = await request("/auth/request-verification", {
+                method: "POST",
+              });
+              setError(result.message);
+            } catch (e) {
+              setError(e.message);
+            }
+          }}
+        >
+          Verify email
         </button>
       )}
       {open && (
@@ -208,6 +226,7 @@ export function Account() {
               Try demo
             </button>
           )}
+          <a href="/account">Forgot password?</a>
           <button onClick={() => setOpen(false)}>Close</button>
         </section>
       )}

@@ -1,3 +1,4 @@
+import { accountRecovery } from "./services/accountRecovery.js";
 import { sqliteAdapter } from "./database/adapter.js";
 import { loadConfig } from "./config.js";
 import { authService } from "./services/auth.js";
@@ -22,12 +23,15 @@ export function createApp(
     identity: injectedIdentity,
     csrf: injectedCsrf,
     authLimit,
+    redis,
   } = {},
 ) {
   db = sqliteAdapter(db);
   const app = express();
   const service = authService(db, config);
   app.disable("x-powered-by");
+  if (config.trustedProxies?.length)
+    app.set("trust proxy", config.trustedProxies);
   app.use(requestContext(logger));
   const origins = new Set([
     config.origin,
@@ -48,14 +52,35 @@ export function createApp(
       methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
     }),
   );
-  app.use("/api", apiRateLimit(rateLimit));
+  app.get("/api/ready", async (_req, res) => {
+    await db.prepare("SELECT 1").get();
+    const ready = !redis || redis.ready();
+    res
+      .status(ready ? 200 : 503)
+      .set("Cache-Control", "no-store")
+      .json({
+        database: "ok",
+        redis: redis ? (ready ? "ready" : "unavailable") : "not-configured",
+      });
+  });
+  app.use("/api", apiRateLimit({ ...rateLimit, store: redis }));
   app.use(express.json({ limit: "8kb" }));
   app.use("/api", injectedIdentity || identityMiddleware(service, config));
-  app.use("/api/auth", authRouter(service, config, { authLimit }));
+  app.use(
+    "/api/auth",
+    authRouter(service, config, {
+      authLimit,
+      redis,
+      recovery: accountRecovery(db, config),
+    }),
+  );
   app.use("/api", injectedCsrf || csrfProtection(config));
   app.use("/api", streamRouter(db));
   app.use("/api", analyticsRouter(db));
-  app.use("/api", apiRouter(db));
+  app.use(
+    "/api",
+    apiRouter(db, { cache: config.catalogCacheEnabled ? redis : null }),
+  );
   app.use("/api", (_req, res) =>
     res.status(404).json({ error: { message: "API route not found." } }),
   );

@@ -5,8 +5,8 @@ export const sorts = Object.freeze({
   newest: "s.id DESC",
 });
 const literalLike = (value) => value.replace(/[\\%_]/g, "\\$&");
-export function catalogRepository(db) {
-  return {
+export function catalogRepository(db, cache = null) {
+  const repo = {
     health: () => db.prepare("SELECT 1").get(),
     story: (user, id) =>
       db.prepare(`${storySelect} WHERE s.id=@id`).get({ user, id }),
@@ -95,4 +95,54 @@ export function catalogRepository(db) {
         )
         .all(user),
   };
+  if (cache) {
+    const original = { ...repo };
+    const revision = async () =>
+      (
+        await db
+          .prepare("SELECT revision FROM catalog_revision WHERE id=1")
+          .get()
+      ).revision;
+    const favoriteIds = async (user) =>
+      new Set(
+        user
+          ? (
+              await db
+                .prepare("SELECT story_id FROM favorites WHERE user_id=?")
+                .all(user)
+            ).map((r) => r.story_id)
+          : [],
+      );
+    repo.stories = async (user, params = {}) => {
+      const input = {
+        q: (params.q || "").trim(),
+        genre: (params.genre || "").trim(),
+        sort: params.sort || "trending",
+      };
+      if (!Object.hasOwn(sorts, input.sort))
+        throw Error("Invalid repository sort");
+      const rows = await cache.cached(
+        await revision(),
+        JSON.stringify(["stories", input]),
+        () => original.stories(null, input),
+      );
+      const favorites = await favoriteIds(user);
+      return rows.map((row) => ({
+        ...row,
+        is_favorite: favorites.has(row.id),
+      }));
+    };
+    repo.story = async (user, id) => {
+      const row = await cache.cached(
+        await revision(),
+        JSON.stringify(["story", id]),
+        async () => (await original.story(null, id)) || null,
+      );
+      if (!row) return undefined;
+      return { ...row, is_favorite: (await favoriteIds(user)).has(row.id) };
+    };
+    repo.genres = async () =>
+      cache.cached(await revision(), "genres", original.genres);
+  }
+  return repo;
 }

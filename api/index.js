@@ -8,7 +8,15 @@ module.exports = async function handler(req, res) {
       ...process.env,
       DATABASE_PATH: "/tmp/soundwave-demo.sqlite",
     });
-    return createApp(db);
+    const { loadConfig } = await import("../server/config.js");
+    const { redisInfrastructure } =
+      await import("../server/infrastructure/redis.js");
+    const config = loadConfig();
+    const redis = config.redisUrl
+      ? redisInfrastructure(config.redisUrl, { prefix: config.redisPrefix })
+      : null;
+    redis?.start();
+    return createApp(db, { config, redis });
   })();
   appPromise = appPromise.catch((error) => {
     appPromise = null;
