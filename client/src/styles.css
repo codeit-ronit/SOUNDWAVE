@@ -2742,3 +2742,50 @@ input[type="range"]::-moz-range-thumb {
     font-size: 9px;
   }
 }
+
+.account-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+.account-panel {
+  position: absolute;
+  z-index: 100;
+  top: 48px;
+  right: 0;
+  width: min(330px, calc(100vw - 32px));
+  padding: 20px;
+  background: var(--surface, #171820);
+  color: var(--text, #eee);
+  border: 1px solid #43434a;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px #0008;
+}
+.account-panel form,
+.account-panel label {
+  display: grid;
+  gap: 8px;
+}
+.account-panel form {
+  gap: 14px;
+  margin: 14px 0;
+}
+.account-panel input {
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #555;
+  background: #101117;
+  color: #fff;
+}
+.account-panel > button {
+  display: block;
+  margin-top: 12px;
+}
+@media (max-width: 600px) {
+  .account-controls > span {
+    display: none;
+  }
+}

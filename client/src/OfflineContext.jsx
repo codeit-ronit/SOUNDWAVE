@@ -6,8 +6,12 @@ import {
   useState,
 } from "react";
 import { api } from "./api";
+import {
+  publicStory as sanitizeStory,
+  publicChapter as sanitizeChapter,
+} from "./offlineMetadata";
 const AUDIO_CACHE = "soundwave-audio-v1";
-const DATA_CACHE = "soundwave-data-v1";
+const DATA_CACHE = "soundwave-data-v2";
 const OfflineContext = createContext(null);
 export const useOffline = () => useContext(OfflineContext);
 export function OfflineProvider({ children }) {
@@ -109,20 +113,26 @@ export function OfflineProvider({ children }) {
           "The download was incomplete or invalid. Please retry.",
         );
       // Save metadata needed for offline play before publishing the audio download.
-      const chapterData = await api.chapters(story.id);
+      const original = await api.chapters(story.id);
+      const chapterData = { chapters: original.chapters.map(sanitizeChapter) };
+      const publicStory = sanitizeStory(story);
+      const publicChapter = sanitizeChapter(chapter);
       const metadata = await caches.open(DATA_CACHE);
       await metadata.put(
         `/api/stories/${story.id}/chapters`,
         Response.json(chapterData),
       );
-      await metadata.put(`/api/stories/${story.id}`, Response.json({ story }));
+      await metadata.put(
+        `/api/stories/${story.id}`,
+        Response.json({ story: publicStory }),
+      );
       const headers = new Headers(response.headers);
       headers.set(
         "X-SoundWave-Metadata",
         encodeURIComponent(
           JSON.stringify({
-            story,
-            chapter,
+            story: publicStory,
+            chapter: publicChapter,
             bytes: size,
             downloadedAt: new Date().toISOString(),
           }),

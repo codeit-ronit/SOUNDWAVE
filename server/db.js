@@ -1,5 +1,7 @@
 import Database from "better-sqlite3";
 import { mkdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { catalog } from "./content/catalog.js";
@@ -57,6 +59,32 @@ export function openDatabase(
     CREATE INDEX IF NOT EXISTS chapters_story_idx ON chapters(story_id);
     CREATE INDEX IF NOT EXISTS progress_recency_idx ON listening_progress(user_id, updated_at DESC);
   `);
+  db.transaction(() => {
+    db.exec(
+      "CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)",
+    );
+    const dir = new URL("./migrations/sqlite/", import.meta.url);
+    for (const version of readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()) {
+      const sql = readFileSync(new URL(version, dir), "utf8");
+      const checksum = createHash("sha256").update(sql).digest("hex");
+      const old = db
+        .prepare("SELECT checksum FROM schema_migrations WHERE version=?")
+        .get(version);
+      if (old) {
+        if (old.checksum !== checksum)
+          throw Error(`Migration checksum mismatch: ${version}`);
+        continue;
+      }
+      db.exec(sql);
+      db.prepare("INSERT INTO schema_migrations VALUES(?,?,?)").run(
+        version,
+        checksum,
+        new Date().toISOString(),
+      );
+    }
+  })();
   return db;
 }
 

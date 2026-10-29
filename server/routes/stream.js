@@ -31,7 +31,7 @@ export function createAudioHandler(db) {
         return res
           .status(400)
           .json({ error: { message: "Invalid chapter ID." } });
-      const chapter = db
+      const chapter = await db
         .prepare("SELECT audio_url FROM chapters WHERE id=?")
         .get(Number(req.params.id));
       if (!chapter)
@@ -127,8 +127,8 @@ export function streamRouter(db) {
 export function legacyAudioRouter(db) {
   const router = Router();
   const serve = createAudioHandler(db);
-  const legacy = (req, res, next) => {
-    const chapter = db
+  const legacy = async (req, res, next) => {
+    const chapter = await db
       .prepare("SELECT id FROM chapters WHERE audio_url=?")
       .get(`/audio/${req.params.filename}`);
     if (!chapter)
@@ -139,7 +139,7 @@ export function legacyAudioRouter(db) {
     return serve(req, res, next);
   };
   router.route("/:filename").get(legacy).head(legacy);
-  router.use((_req, res) =>
+  router.use((req, res) =>
     res.status(404).json({ error: { message: "Audio file not found." } }),
   );
   return router;

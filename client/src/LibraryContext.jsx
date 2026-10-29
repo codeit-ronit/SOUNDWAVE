@@ -9,13 +9,19 @@ import { api } from "./api";
 import { usePlayer } from "./PlayerContext";
 const LibraryContext = createContext(null);
 export const useLibrary = () => useContext(LibraryContext);
-export function LibraryProvider({ children }) {
+export function LibraryProvider({ children, session }) {
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(new Set());
   const { notify } = usePlayer();
   const refresh = useCallback(async () => {
+    if (session && !session.user) {
+      setStories([]);
+      setError("");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const data = await api.library();
@@ -26,7 +32,7 @@ export function LibraryProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session]);
   useEffect(() => {
     void refresh();
   }, [refresh]);

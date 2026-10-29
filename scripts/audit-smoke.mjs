@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
 import { openDatabase } from "../server/db.js";
+import { connectDatabase } from "../server/database/index.js";
 const folder = mkdtempSync(join(tmpdir(), "soundwave-independent-audit-"));
 const databasePath = join(folder, "audit.sqlite");
 const reservation = createServer().listen(0, "127.0.0.1");
@@ -20,6 +21,9 @@ let child,
   browser,
   checks = 0;
 let childErrors = "";
+let cookies = "",
+  csrf = "",
+  savedCookies = [];
 const pass = (name) => console.log(`PASS ${++checks}: ${name}`);
 async function start() {
   child = spawn(process.execPath, ["server/index.js"], {
@@ -28,6 +32,8 @@ async function start() {
       ...process.env,
       PORT: String(port),
       DATABASE_PATH: databasePath,
+      DATABASE_URL: process.env.DATABASE_URL || "",
+      NODE_ENV: "development",
       HTTP_LOG: "0",
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -61,7 +67,7 @@ async function stop() {
   child = null;
 }
 async function get(path) {
-  const response = await fetch(base + path);
+  const response = await fetch(base + path, { headers: { Cookie: cookies } });
   assert.equal(response.status, 200);
   return response.json();
 }
@@ -144,6 +150,11 @@ try {
   pass(
     "80 slider changes persist the latest position with at most two writes, without throttling normal playback",
   );
+  savedCookies = await page.context().cookies();
+  cookies = savedCookies.map((c) => `${c.name}=${c.value}`).join("; ");
+  csrf = (
+    await page.evaluate(() => fetch("/api/auth/session").then((r) => r.json()))
+  ).csrfToken;
   const before = await get("/api/analytics/overview");
   const pid = child.pid;
   await stop();
@@ -173,7 +184,11 @@ try {
   );
   const replay = await fetch(base + "/api/analytics/events", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: cookies,
+      "X-CSRF-Token": csrf,
+    },
     body: JSON.stringify({
       id: paused.event_id,
       type: "playback_paused",
@@ -205,7 +220,11 @@ try {
   ]) {
     const response = await fetch(base + "/api/progress/101", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: cookies,
+        "X-CSRF-Token": csrf,
+      },
       body: JSON.stringify({ clientId, sequence, positionSeconds, completed }),
     });
     assert.equal(response.status, 200);
@@ -222,6 +241,7 @@ try {
   await start();
   browser = await chromium.launch(browserOptions);
   page = await browser.newPage();
+  await page.context().addCookies(savedCookies);
   page.on("pageerror", (err) => errors.push(err.message));
   await page.goto(base);
   await page.waitForFunction(() =>
@@ -233,10 +253,12 @@ try {
   pass(
     "stale saves cannot undo completion; one completion event and next-chapter restore survive another restart",
   );
-  const db = openDatabase(databasePath);
+  const db = process.env.DATABASE_URL
+    ? await connectDatabase()
+    : openDatabase(databasePath);
   const payload = '<img src=x onerror="window.auditInjected=true">';
-  db.prepare("UPDATE stories SET title=? WHERE id=1").run(payload);
-  db.close();
+  await db.prepare("UPDATE stories SET title=? WHERE id=1").run(payload);
+  await db.close();
   await page.goto(base + "/stories/1");
   await page.getByRole("heading", { name: payload, exact: true }).waitFor();
   assert.equal(await page.locator("img").count(), 0);

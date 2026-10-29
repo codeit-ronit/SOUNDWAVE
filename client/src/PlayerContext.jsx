@@ -17,7 +17,7 @@ import {
 const PlayerContext = createContext(null);
 export const usePlayer = () => useContext(PlayerContext);
 
-export function PlayerProvider({ children }) {
+export function PlayerProvider({ children, session }) {
   const audioRef = useRef(null);
   const activeRef = useRef(null);
   const queueRef = useRef([]);
@@ -62,7 +62,14 @@ export function PlayerProvider({ children }) {
       const version = nextProgressVersion();
       // Snapshot before switching sources; serialize writes so an older save cannot overwrite a newer one.
       const send = () =>
-        api.save(chapterId, positionSeconds, completed, keepalive, version);
+        api.save(
+          chapterId,
+          positionSeconds,
+          completed,
+          keepalive,
+          version,
+          ...(session ? [session] : []),
+        );
       const pending = keepalive
         ? send()
         : saveQueue.current.catch(() => {}).then(send);
@@ -96,6 +103,7 @@ export function PlayerProvider({ children }) {
             playbackRate: speedRef.current,
           },
           keepalive,
+          ...(session ? [session] : []),
         )
         .catch(() => {});
     },
@@ -314,8 +322,10 @@ export function PlayerProvider({ children }) {
     // Restore from SQLite without attempting autoplay on page load.
     const controller = new AbortController();
     const version = requestVersion.current;
-    api
-      .progress(controller.signal)
+    (session && !session.user
+      ? Promise.resolve({ continueListening: [] })
+      : api.progress(controller.signal)
+    )
       .then(async ({ continueListening }) => {
         const latest = continueListening[0];
         if (!latest) return;

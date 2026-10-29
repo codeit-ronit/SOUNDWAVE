@@ -17,6 +17,7 @@ import {
   AudioLines,
   X,
 } from "lucide-react";
+import { Account } from "./AuthContext";
 import Analytics from "./Analytics";
 import { Downloads, PwaStatus } from "./Downloads";
 import { Brand, Player } from "./components";
@@ -119,13 +120,7 @@ export default function App() {
               ↵
             </button>
           </form>
-          <div className="demo-profile">
-            <div className="avatar">D</div>
-            <div>
-              <strong>Demo listener</strong>
-              <small>Your personal escape</small>
-            </div>
-          </div>
+          <Account />
         </header>
         <nav className="mobile-nav" aria-label="Mobile navigation">
           <NavLink to="/" end>

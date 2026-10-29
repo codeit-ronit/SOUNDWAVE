@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { openDatabase, seedDatabase } from "../db.js";
-import { createApp } from "../app.js";
+import { createApp } from "./helpers.js";
 let db, app;
 beforeEach(() => {
   db = openDatabase(":memory:");

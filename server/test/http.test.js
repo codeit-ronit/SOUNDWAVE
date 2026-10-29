@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { createApp } from "../app.js";
+import { createApp } from "./helpers.js";
 import { openDatabase, seedDatabase } from "../db.js";
 test("request IDs and structured logs cover successful and invalid requests without logging bodies", async () => {
   const db = openDatabase(":memory:");

@@ -2,11 +2,17 @@
 let appPromise;
 module.exports = async function handler(req, res) {
   appPromise ||= (async () => {
-    const { openDatabase, seedDatabase } = await import("../server/db.js");
+    const { connectDatabase } = await import("../server/database/index.js");
     const { createApp } = await import("../server/app.js");
-    const db = openDatabase("/tmp/soundwave-demo.sqlite");
-    seedDatabase(db);
+    const db = await connectDatabase({
+      ...process.env,
+      DATABASE_PATH: "/tmp/soundwave-demo.sqlite",
+    });
     return createApp(db);
   })();
+  appPromise = appPromise.catch((error) => {
+    appPromise = null;
+    throw error;
+  });
   return (await appPromise)(req, res);
 };

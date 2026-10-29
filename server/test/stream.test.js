@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import request from "supertest";
 import { openDatabase, seedDatabase } from "../db.js";
-import { createApp } from "../app.js";
+import { createApp } from "./helpers.js";
 let db, app;
 const audio = readFileSync(new URL("../public/audio/1-1.wav", import.meta.url));
 beforeEach(() => {

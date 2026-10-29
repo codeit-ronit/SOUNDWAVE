@@ -18,7 +18,11 @@
     "format": "prettier --write \"client/src/**/*.{js,jsx,css}\" \"client/*.{js,html,json}\" \"client/public/*.js\" \"client/public/*.html\" \"client/public/*.webmanifest\" \"server/**/*.js\" \"api/*.js\" \"scripts/*.mjs\" \"*.{json,md}\"",
     "format:check": "prettier --check \"client/src/**/*.{js,jsx,css}\" \"client/*.{js,html,json}\" \"client/public/*.js\" \"client/public/*.html\" \"client/public/*.webmanifest\" \"server/**/*.js\" \"api/*.js\" \"scripts/*.mjs\" \"*.{json,md}\"",
     "test:offline": "npm run build && node scripts/offline-smoke.mjs",
-    "test:audit": "npm run build && node scripts/audit-smoke.mjs"
+    "test:audit": "npm run build && node scripts/audit-smoke.mjs",
+    "db:migrate": "node server/scripts/migrate.js",
+    "db:import:sqlite": "node server/scripts/migrate.js",
+    "test:auth:browser": "npm run build && node scripts/auth-smoke.mjs",
+    "test:keyboard": "npm run build && node scripts/keyboard-smoke.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",

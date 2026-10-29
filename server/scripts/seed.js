@@ -4,10 +4,7 @@ dotenv.config({
   path: fileURLToPath(new URL("../../.env", import.meta.url)),
   quiet: true,
 });
-import { openDatabase, seedDatabase } from "../db.js";
-const db = openDatabase();
-seedDatabase(db);
-console.log(
-  "Seeded 6 original stories and 12 chapters. Listener data preserved.",
-);
-db.close();
+import { connectDatabase } from "../database/index.js";
+const db = await connectDatabase();
+console.log("Migrations and catalog seed complete. Listener data preserved.");
+await db.close();

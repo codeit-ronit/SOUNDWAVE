@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import request from "supertest";
-import { createApp } from "../app.js";
+import { createApp } from "./helpers.js";
 import { openDatabase, seedDatabase } from "../db.js";
 let db, app;
 beforeEach(() => {
@@ -20,7 +20,7 @@ test("health endpoint and configured local CORS", async () => {
     .set("Origin", "http://127.0.0.1:5173")
     .expect(200);
   assert.equal(res.body.status, "ok");
-  assert.equal(res.body.user, "demo-user");
+  assert.equal(res.body.database, "sqlite");
   assert.equal(
     res.headers["access-control-allow-origin"],
     "http://127.0.0.1:5173",

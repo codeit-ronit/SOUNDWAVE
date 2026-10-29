@@ -1,7 +1,7 @@
 /* Shell list is replaced by the Vite build. No audio is precached. */
 const SHELL_FILES = /* PRECACHE */ [];
 const SHELL = "soundwave-shell-BUILD_HASH";
-const DATA = "soundwave-data-v1";
+const DATA = "soundwave-data-v2";
 const AUDIO = "soundwave-audio-v1";
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -85,6 +85,9 @@ self.addEventListener("fetch", (event) => {
           }),
       ),
     );
+  } else if (url.pathname.startsWith("/api/auth/")) {
+    // Session identities and CSRF tokens are never cached or served offline.
+    return;
   } else if (url.pathname.startsWith("/api/")) {
     // Only successful JSON reads are cached. Mutations and partial audio are never cached here.
     event.respondWith(
@@ -92,11 +95,9 @@ self.addEventListener("fetch", (event) => {
         const cache = await caches.open(DATA).catch(() => null);
         try {
           const response = await fetch(request);
-          if (
-            response.ok &&
-            response.headers.get("Content-Type")?.includes("application/json")
-          )
-            await cache?.put(request, response.clone()).catch(() => {});
+          // Personal JSON is intentionally not persisted. Only sanitized public
+          // chapter metadata is written explicitly by the download flow.
+
           return response;
         } catch {
           return (
