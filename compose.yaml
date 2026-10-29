@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: soundwave
+      POSTGRES_USER: soundwave
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soundwave -d soundwave"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  app:
+    build: .
+    init: true
+    restart: on-failure:5
+    environment:
+      NODE_ENV: ${APP_NODE_ENV:-development}
+      PORT: 3001
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3001}
+      DATABASE_URL: postgres://soundwave:${POSTGRES_PASSWORD}@postgres:5432/soundwave
+      DEMO_MODE: ${DEMO_MODE:-true}
+      DB_POOL_MAX: 5
+    ports:
+      - "127.0.0.1:3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  postgres_data:

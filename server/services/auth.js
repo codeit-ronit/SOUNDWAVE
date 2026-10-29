@@ -54,7 +54,7 @@ export function authService(db, config) {
     lookup: (raw) =>
       /^[a-f0-9]{64}$/.test(raw || "") ? repo.session(hashToken(raw)) : null,
     logout: (hash) => repo.deleteSession(hash),
-    guest: async () => {
+    guest: async (previous) => {
       if (!config.demoEnabled) {
         const error = Error("Demo mode is disabled.");
         error.status = 403;
@@ -69,7 +69,7 @@ export function authService(db, config) {
       };
       return db.transaction(async () => {
         await repo.createUser(user);
-        return issue(user);
+        return issue(user, previous);
       });
     },
     register: async ({ email, password, displayName }, previous) => {

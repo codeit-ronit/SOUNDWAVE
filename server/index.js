@@ -6,7 +6,8 @@ dotenv.config({
 });
 import { createApp } from "./app.js";
 import { connectDatabase } from "./database/index.js";
-const db = await connectDatabase();
+import { retryConnection } from "./database/retry.js";
+const db = await retryConnection(() => connectDatabase());
 const port = Number(process.env.PORT || 3001);
 const server = createApp(db).listen(port, () =>
   console.log(`SoundWave API + production app: http://127.0.0.1:${port}`),

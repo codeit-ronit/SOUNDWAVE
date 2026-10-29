@@ -35,8 +35,7 @@ export function authRouter(service, config, { authLimit } = {}) {
       return res.status(409).json({
         error: { message: "Sign out before starting another session." },
       });
-    const guest = await service.guest();
-    if (req.sessionHash) await service.logout(req.sessionHash);
+    const guest = await service.guest(req.sessionHash);
     send(res, guest);
   });
   for (const action of ["register", "login"])
