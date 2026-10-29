@@ -4,7 +4,16 @@
 
 Built as a product-focused software engineering portfolio project. This is a single-listener demo, with no claims about real users or production-scale performance.
 
-**Live demo:** [soundwave-codeit-ronit.vercel.app](https://soundwave-codeit-ronit.vercel.app) · [Source](https://github.com/codeit-ronit/SOUNDWAVE) · [Independent audit](FINAL_AUDIT.md)
+**[Open the live demo](https://soundwave-codeit-ronit.vercel.app/)** · **[Source code](https://github.com/codeit-ronit/SOUNDWAVE)** · **[Independent engineering audit](FINAL_AUDIT.md)**
+
+| Try it                                  | Link                                                             |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| Discover and start listening            | [Live app](https://soundwave-codeit-ronit.vercel.app/)           |
+| Save stories                            | [My Library](https://soundwave-codeit-ronit.vercel.app/library)  |
+| Download chapters for offline listening | [Downloads](https://soundwave-codeit-ronit.vercel.app/downloads) |
+| Review recorded listening activity      | [Insights](https://soundwave-codeit-ronit.vercel.app/analytics)  |
+
+The submitted resume URL, [zippy-nitrogen-wd3scr3.tmp.now](https://zippy-nitrogen-wd3scr3.tmp.now/), redirects to the live app. Use the main demo URL for future submissions.
 
 The Vercel demo uses temporary SQLite storage; data can reset or differ between function instances. The normal Node server supports a persistent database path and has been tested across process restarts.
 
@@ -15,6 +24,8 @@ The Vercel demo uses temporary SQLite storage; data can reset or differ between 
 Requires **Node.js 22.x and npm** (pinned for native SQLite runtime compatibility). The verified environment used Node 22.21.1. All twelve audio files are included; no external audio service, API key, or macOS speech tooling is needed to run the app.
 
 ```bash
+git clone https://github.com/codeit-ronit/SOUNDWAVE.git
+cd SOUNDWAVE
 npm ci
 npm run dev
 ```
@@ -32,6 +43,7 @@ cp .env.example .env
 | `PORT`          | `3001`; Express port                                                             |
 | `CLIENT_ORIGIN` | Localhost and 127.0.0.1 on port 5173; comma-separated CORS origins               |
 | `DATABASE_PATH` | `server/data/soundwave.sqlite`; use an absolute persistent-volume path on a host |
+| `HTTP_LOG`      | `0` in `.env.example`; set `1` for structured request logs                       |
 
 The Vite development proxy targets port 3001. If changing the API port for development, also update `client/vite.config.js`. Vite prints another port if 5173 is occupied; use the printed address and add it to `CLIENT_ORIGIN` when calling the API cross-origin.
 
@@ -47,7 +59,7 @@ npm start
 
 - **Discovery:** six original stories across five genres, spotlight, story details, twelve ordered chapters, responsive cover artwork, and mobile navigation.
 - **Persistent audio player:** one HTML5 audio element above the router's pages; play/pause, seeking, ±10 seconds, next/previous chapter, volume/mute, duration, buffering, and recoverable playback errors. Navigating between pages keeps playback running.
-- **Advanced controls:** 0.75×, 1×, 1.25×, 1.5× and 2× playback speed with a device-local preference; 5/15/30-minute sleep timer with cancellation; Space to play/pause and arrow keys to seek when focus is outside interactive fields; animation-frame progress updates with cleanup.
+- **Advanced controls:** 0.75×, 1×, 1.25×, 1.5× and 2× playback speed with a device-local preference; 5/15/30-minute sleep timer with cancellation; Space to play/pause and arrow keys to seek, including after clicking Start listening or player buttons; editable fields and sliders keep their native keyboard behavior; animation-frame progress updates with cleanup.
 - **Media delivery:** a dedicated disk-streaming endpoint with correct full, partial, unsatisfiable and HEAD responses.
 - **PWA and downloads:** versioned app-shell caching, manifest/icons, native install affordance when the browser offers it, selected-chapter downloads, offline seeking, removal, storage errors, and offline status. No automatic catalog-wide audio downloads.
 - **Listening insights:** SQLite events, measured playback intervals, seven-day listening chart, genre bars, completion/favorite totals and recent activity.
@@ -60,12 +72,14 @@ npm start
 
 ### A three-minute demo
 
+For a repeatable persistence demonstration, use the local production server. The public Vercel demo shares one listener and uses temporary storage.
+
 1. Start a story from Discover. Navigate to its detail page while audio continues.
 2. Seek or pause, refresh, and press play: the same chapter resumes at the saved position.
 3. Finish chapter one or seek close to its end; chapter two starts automatically. Completed chapters are marked in the chapter list.
 4. Heart a Mystery story, open My Library, and refresh. Discover now favors the other Mystery story in its recommendations.
 5. Search `mystery`, sort by title, then try an unmatched search to show the empty state.
-6. Set speed to 1.5×; refresh to show the preference survives. Set a sleep timer and cancel it. Use Space and arrow keys while focus is outside inputs.
+6. Set speed to 1.5×; refresh to show the preference survives. Set a sleep timer and cancel it. Click Start listening or the player, then use Space to play/pause and ← / → to seek ten seconds. Search fields, selects and sliders retain their native controls.
 7. In production mode, open a story, click **Save offline** for one chapter, open Downloads, disable the network in Chrome, and play/seek that chapter. Re-enable the network when finished.
 8. Open **Insights** to see measured listening time, actual favorite/completion counts and recorded activity. Seeking toward the end does not add the skipped time.
 
@@ -79,9 +93,11 @@ Express REST API ── better-sqlite3 ── SQLite (WAL + foreign keys)
        │
        ├── /api/chapters/:id/stream → bounded disk stream with HTTP ranges
        ├── /api/analytics/* → idempotent playback events and SQL aggregates
-       ├── service worker → versioned shell + selected full audio cache
-       ├── /audio/* → retained legacy static audio URLs
+       ├── /audio/* → legacy URLs through the same validated streaming handler
        └── production → client/dist + SPA deep-link fallback
+
+Browser service worker → versioned shell + selected full audio cache
+Vercel api/index.js → Express adapter + temporary /tmp SQLite
 ```
 
 ```text
@@ -93,16 +109,16 @@ client/
     PlayerContext.jsx       Audio lifecycle, restore, autosave, transitions
     LibraryContext.jsx      Shared favorites state and mutation feedback
     OfflineContext.jsx      Registration, install prompt, verified selected downloads
+    api.js                  Centralized REST client
+    playback.js             Resume selection, time formatting and save versions
+    *.test.*                Player lifecycle and resume tests
     Downloads.jsx           Download controls, offline status and download library
     Analytics.jsx           Metrics, seven-day chart, genre bars and activity
   public/
     sw.js                   Shell/data caching and range-aware downloaded playback
     manifest.webmanifest    Install metadata and 192/512px icons
-    api.js                  Centralized REST client
-    playback.js             Resume selection and time formatting
-    *.test.*                Player lifecycle and resume tests
 server/
-  app.js                    Testable Express app, CORS, static audio, SPA serving
+  app.js                    Testable Express app, CORS, media routes, SPA serving
   index.js                  Environment loading and server lifecycle
   db.js                     Relational schema, prepared statements, seed transaction
   routes/api.js             Validated REST endpoints and recommendation rules
@@ -113,22 +129,27 @@ server/
   public/audio/             Twelve WAV files and measured duration manifest
   scripts/                  Idempotent seed and optional audio generation
   test/*.test.js            API, streaming, analytics and request-middleware tests
+api/index.js                Vercel function adapter; temporary SQLite storage
+vercel.json                 Remote build, audio inclusion and SPA/API rewrites
 scripts/browser-smoke.mjs    Real production playback and analytics smoke scenario
 scripts/offline-smoke.mjs    Speed, sleep, offline reload/play/seek and quota checks
+scripts/audit-smoke.mjs      Real process restarts, save ordering and HTML escaping
+scripts/keyboard-smoke.mjs   Focused controls, Space/arrows and search protection
+scripts/public-smoke.mjs     Live HTTP, resume redirect, playback and offline checks
 ```
 
 The API uses prepared SQL statements. Sort expressions come exclusively from a fixed allowlist. Search escapes SQL wildcard characters to treat user input literally. SQLite foreign keys, composite unique keys, and check constraints enforce relationships and valid progress. Listener writes use the fixed `demo-user` identity. There is no client-provided user selector.
 
 ### Database schema
 
-| Table                | Key and important columns                                                                                               |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `stories`            | `id` PK; title, genre, author, tagline, description, color, symbol, popularity                                          |
-| `chapters`           | `id` PK; `story_id` FK → stories; chapter_number, title, audio_url, duration_seconds; unique (story_id, chapter_number) |
-| `favorites`          | Composite PK (user_id, story_id); story_id FK → stories; created_at                                                     |
-| `listening_progress` | Composite PK (user_id, chapter_id); chapter_id FK → chapters; position_seconds, completed, updated_at                   |
-
-| `listening_events` | `event_id` TEXT PK; user_id, story_id FK, optional chapter_id FK, event_type, listening_seconds (0–60), metadata JSON, created_at |
+| Table                     | Key and important columns                                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `stories`                 | `id` PK; title, genre, author, tagline, description, color, symbol, popularity                                                    |
+| `chapters`                | `id` PK; `story_id` FK → stories; chapter_number, title, audio_url, duration_seconds; unique (story_id, chapter_number)           |
+| `favorites`               | Composite PK (user_id, story_id); story_id FK → stories; created_at                                                               |
+| `listening_progress`      | Composite PK (user_id, chapter_id); chapter_id FK → chapters; position_seconds, completed, updated_at                             |
+| `listening_events`        | `event_id` TEXT PK; user_id, story_id FK, optional chapter_id FK, event_type, listening_seconds (0–60), metadata JSON, created_at |
+| `progress_write_versions` | Composite PK (user_id, chapter_id, client_id); chapter_id FK → chapters; positive sequence                                        |
 
 Schema initialization is additive: it creates event and progress-ordering tables/indexes without deleting or rewriting existing progress and favorites. Event indexes support user/time and user/story queries.
 
@@ -228,10 +249,15 @@ npm run test:browser  # build + 14 real playback / analytics browser checks
 npm run test:offline  # build + 13 advanced player / PWA / offline checks
 npm run test:audit    # build + 7 independent restart/security/browser checks
 node scripts/keyboard-smoke.mjs # 3 focused-control keyboard checks (run build first)
+# Optional live checks: these create real playback activity for the shared demo user.
+node scripts/public-smoke.mjs https://soundwave-codeit-ronit.vercel.app
+node scripts/keyboard-smoke.mjs https://soundwave-codeit-ronit.vercel.app
 npm run format:check
 ```
 
 **Verified results:** **40 API tests + 21 client/player tests passed (61 total, zero failures)**. Production build passed. **14 core/analytics, 13 player/offline, 7 independent restart/security, and 3 focused-control keyboard checks passed (37 local smoke checks)** in headless Google Chrome. Existing playback, refresh restoration, favorites, recommendations, search and chapter transitions remain covered. All twelve original audio files still contain nonzero PCM and support HTTP byte ranges.
+
+**Public verification:** five HTTPS deployment checks passed, covering public routes, streaming, the submitted resume redirect, real audio playback, offline downloads/playback/ranges and removal. Three additional keyboard checks passed against the live app after the focused-button fix. See [FINAL_AUDIT.md](FINAL_AUDIT.md) for the dated results and remaining gaps.
 
 New API coverage includes exact full/range file bytes; bounded/open/suffix/clamped and invalid ranges; HEAD and If-Range; server path restrictions; event validation/idempotency/conflicts; interval-based metrics excluding seek positions; atomic favorite/completion events; request IDs, logs, 429 and media exemptions. Player tests verify speed persistence, timer expiry/cancel/cleanup, shortcuts and editable-field protection, rerender-safe events, and exclusion of buffering/seek time.
 
@@ -273,7 +299,7 @@ To redeploy the demo with the authenticated owner account:
 ```bash
 npx vercel login
 npx vercel link --yes --project zippy-nitrogen-wd3scr3 --scope ronit-choudharys-projects
-npx vercel deploy --prod --yes
+npx vercel deploy --prod --yes --scope ronit-choudharys-projects
 ```
 
 Use a remote Linux build for `better-sqlite3`. Uploading a Mac prebuilt function packages a Mach-O binary that fails on Linux; this failure was observed and repaired. Node 22.x is pinned in package metadata. `.vercel/` stays ignored. CLI deployment is configured; automatic deployment on GitHub pushes has not been configured or verified.
@@ -287,25 +313,23 @@ Scope limits:
 - One shared `demo-user`, intentionally no authentication or per-visitor privacy. All clients pointed at a server share its library/history.
 - A small seeded catalog, synthesized short narration, and simple LIKE search; no uploads, subscriptions, or production content pipeline. Offline audio is limited to explicitly selected chapters on one device.
 - Rule-based recommendations over a tiny catalog; no claim of ML personalization or recommendation quality measurements.
-- Pause/seek/transition saves are acknowledged by the API; unload/visibility saves are best effort. A crash or network failure can lose recent unsaved seconds. Errors are surfaced, with a retry action; there is no offline write queue. Concurrent tabs use last-arriving writes.
+- Pause/seek/transition saves are acknowledged by the API; unload/visibility saves are best effort. A crash or network failure can lose recent unsaved seconds. Errors are surfaced, with a retry action; there is no offline write queue. Same-tab snapshots carry sequence numbers to reject stale writes; independent tabs/clients still use last-arriving writes.
 - No production authentication, distributed abuse controls, monitoring service, load benchmarks, or cross-browser certification. No real-user or performance-scale claims.
 
-## Publish to GitHub
+## Repository workflow
 
-The repository is published at https://github.com/codeit-ronit/SOUNDWAVE. For a new clone or your own fork:
+The repository is published at [codeit-ronit/SOUNDWAVE](https://github.com/codeit-ronit/SOUNDWAVE). From an existing clone, review and publish verified changes with:
 
 ```bash
-# If the checkout has not already been initialized:
-git init -b main
-git add .
-git commit -m "Build SoundWave audio streaming demo"
-
-# Replace the URL with your own empty repository:
-git remote add origin https://github.com/YOUR_USERNAME/soundwave.git
-git push -u origin main
+git status
+git diff
+# Stage only the files you reviewed:
+git add <changed-files>
+git commit -m "Describe the verified change"
+git push origin main
 ```
 
-Never add `.env`, SQLite runtime files, or credentials. The included `.gitignore` excludes them.
+GitHub pushes and Vercel CLI deployments are separate steps; pushing alone is not verified to update the live app. Never commit `.env`, SQLite runtime files, `.vercel/`, or credentials. The included `.gitignore` excludes them.
 
 All four feature priorities are implemented. Remaining gaps are durable public hosting, native installation verification, and Safari/mobile hardware coverage. See [FINAL_AUDIT.md](FINAL_AUDIT.md) for the explicit PASS / FAIL / NOT VERIFIED assessment.
 
