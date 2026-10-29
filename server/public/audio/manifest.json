@@ -1,0 +1,50 @@
+{
+  "1-1": {
+    "durationSeconds": 35.15546485260771,
+    "audioUrl": "/audio/1-1.wav"
+  },
+  "1-2": {
+    "durationSeconds": 35.472743764172336,
+    "audioUrl": "/audio/1-2.wav"
+  },
+  "2-1": {
+    "durationSeconds": 32.398049886621315,
+    "audioUrl": "/audio/2-1.wav"
+  },
+  "2-2": {
+    "durationSeconds": 35.7784126984127,
+    "audioUrl": "/audio/2-2.wav"
+  },
+  "3-1": {
+    "durationSeconds": 32.37401360544218,
+    "audioUrl": "/audio/3-1.wav"
+  },
+  "3-2": {
+    "durationSeconds": 32.794104308390025,
+    "audioUrl": "/audio/3-2.wav"
+  },
+  "4-1": {
+    "durationSeconds": 35.39927437641723,
+    "audioUrl": "/audio/4-1.wav"
+  },
+  "4-2": {
+    "durationSeconds": 36.323083900226756,
+    "audioUrl": "/audio/4-2.wav"
+  },
+  "5-1": {
+    "durationSeconds": 34.830385487528346,
+    "audioUrl": "/audio/5-1.wav"
+  },
+  "5-2": {
+    "durationSeconds": 36.93936507936508,
+    "audioUrl": "/audio/5-2.wav"
+  },
+  "6-1": {
+    "durationSeconds": 33.03863945578231,
+    "audioUrl": "/audio/6-1.wav"
+  },
+  "6-2": {
+    "durationSeconds": 34.26095238095238,
+    "audioUrl": "/audio/6-2.wav"
+  }
+}
