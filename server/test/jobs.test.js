@@ -172,3 +172,29 @@ for (const kind of backends) {
     }
   });
 }
+
+if (process.env.TEST_DATABASE_URL)
+  test("PostgreSQL connection loss during async transaction rolls back without an uncaught client error", async () => {
+    const f = await fixture("postgres");
+    try {
+      await assert.rejects(
+        f.db.transaction(async () => {
+          await f.db
+            .prepare("INSERT INTO favorites(user_id,story_id) VALUES(?,?)")
+            .run("demo-user", 1);
+          const { pid } = await f.db
+            .prepare("SELECT pg_backend_pid() AS pid")
+            .get();
+          await f.db.pool.query("SELECT pg_terminate_backend($1)", [pid]);
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }),
+      );
+      assert.equal(
+        (await f.db.prepare("SELECT COUNT(*) AS n FROM favorites").get()).n,
+        0,
+      );
+      assert.equal((await f.db.prepare("SELECT 1 AS alive").get()).alive, 1);
+    } finally {
+      await f.close();
+    }
+  });

@@ -26,7 +26,7 @@ export default function AccountRecovery() {
       setMessage("");
       setError("");
       history.replaceState(
-        null,
+        history.state,
         "",
         window.location.pathname + window.location.search,
       );

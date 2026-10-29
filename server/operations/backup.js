@@ -24,13 +24,20 @@ const tables = [
   "schema_migrations",
   "catalog_revision",
 ];
-const pool = (url) =>
-  new pg.Pool({
+const pool = (url) => {
+  const value = new pg.Pool({
     connectionString: url,
+    ssl:
+      process.env.PGSSL === "true" ? { rejectUnauthorized: true } : undefined,
     max: 1,
     options: "-c timezone=UTC",
     connectionTimeoutMillis: 5000,
   });
+  // Idle/disconnecting sockets can error during scratch cleanup. Active query
+  // failures still reject; do not turn a completed cleanup into an uncaught event.
+  value.on("error", () => {});
+  return value;
+};
 async function fingerprint(client) {
   const result = {};
   for (const table of tables)
@@ -107,8 +114,19 @@ function tooling(kind, url, args, { container, input, output } = {}) {
   });
 }
 export async function backupDatabase(url, path, { container } = {}) {
-  const db = pool(url),
+  const db = pool(url);
+  let client;
+  try {
     client = await db.connect();
+  } catch (error) {
+    await db.end();
+    throw error;
+  }
+  let connectionError;
+  const onError = (error) => {
+    connectionError = error;
+  };
+  client.on("error", onError);
   let fd,
     created = false;
   try {
@@ -132,6 +150,7 @@ export async function backupDatabase(url, path, { container } = {}) {
     );
     closeSync(fd);
     fd = undefined;
+    if (connectionError) throw connectionError;
     const metadata = {
       version: 1,
       scope: "public",
@@ -152,6 +171,7 @@ export async function backupDatabase(url, path, { container } = {}) {
     throw error;
   } finally {
     client.release();
+    client.off("error", onError);
     await db.end();
   }
 }
@@ -202,7 +222,7 @@ export async function verifyBackup(url, path, { container } = {}) {
       await restored.end();
     }
   } finally {
-    if (created) await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
+    if (created) await admin.query(`DROP DATABASE ${name}`);
     await admin.end();
   }
 }

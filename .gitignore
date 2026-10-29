@@ -8,3 +8,11 @@ server/data/*
 coverage/
 
 .vercel/
+
+# Deployment secrets and sensitive database archives.
+.env.*
+!.env.example
+*.dump
+*.dump.json
+*.backup
+/backups/

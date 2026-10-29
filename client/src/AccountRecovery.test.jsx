@@ -26,6 +26,7 @@ it("exchanges a verification fragment over POST and removes it from browser hist
     </BrowserRouter>,
   );
   expect(location.hash).toBe("");
+  expect(history.state?.idx).toBe(0);
   fireEvent.click(screen.getByRole("button", { name: "Verify email" }));
   await screen.findByText("Email verified.");
   expect(request).toHaveBeenCalledWith("/auth/verify-email", {

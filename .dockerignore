@@ -8,3 +8,12 @@ server/data
 client/dist
 docs
 *.log
+*.dump
+*.dump.json
+*.backup
+backups
+**/*.dump
+**/*.dump.json
+**/*.backup
+**/.env
+**/.env.*

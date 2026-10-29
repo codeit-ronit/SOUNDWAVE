@@ -115,16 +115,23 @@ export function postgresAdapter(
     transaction: async (fn) => {
       if (scope.getStore()) return fn();
       const client = await pool.connect();
+      let connectionError;
+      const onError = (error) => {
+        connectionError = error;
+      };
+      client.on("error", onError);
       try {
         await client.query("BEGIN");
         const result = await scope.run(client, fn);
+        if (connectionError) throw connectionError;
         await client.query("COMMIT");
         return result;
       } catch (error) {
-        await client.query("ROLLBACK");
+        await client.query("ROLLBACK").catch(() => {});
         throw error;
       } finally {
         client.release();
+        client.off("error", onError);
       }
     },
     // All progress transitions for one owner/chapter share a transaction lock.
