@@ -15,6 +15,7 @@ const url = `http://127.0.0.1:${server.address().port}`;
 let browser,
   checks = 0;
 const errors = [];
+let streamedRanges = 0;
 const check = (name) => {
   checks++;
   console.log(`PASS ${checks}: ${name}`);
@@ -29,6 +30,13 @@ try {
     viewport: { width: 1440, height: 1000 },
   });
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("response", (response) => {
+    if (
+      /\/api\/chapters\/\d+\/stream$/.test(response.url()) &&
+      response.status() === 206
+    )
+      streamedRanges++;
+  });
   const response = await page.goto(url);
   assert.equal(response.status(), 200);
   await page
@@ -39,6 +47,7 @@ try {
   check("production SPA renders the catalog from the API");
   mkdirSync("docs", { recursive: true });
   await page.screenshot({ path: "docs/soundwave-desktop.png", fullPage: true });
+  const playbackStartedAt = Date.now();
   await page
     .getByRole("button", { name: "Start listening", exact: true })
     .click();
@@ -49,6 +58,8 @@ try {
   );
   assert.equal(await page.locator("audio").evaluate((a) => a.paused), false);
   check("actual local chapter audio decodes and playback time advances");
+  assert.ok(streamedRanges > 0);
+  check("native audio playback uses HTTP 206 streaming responses");
   await page
     .locator(".player")
     .getByRole("button", { name: "Pause", exact: true })
@@ -152,6 +163,35 @@ try {
     .locator(".player")
     .getByRole("button", { name: "Pause", exact: true })
     .click();
+  await page.waitForFunction(async () => {
+    const data = await fetch("/api/analytics/overview").then((r) => r.json());
+    return (
+      data.totalListeningSeconds > 0 &&
+      data.completedChapters === 1 &&
+      data.favoriteStories === 1 &&
+      data.recentActivity.some((e) => e.event_type === "chapter_completed")
+    );
+  });
+  const insights = await page.evaluate(async () =>
+    fetch("/api/analytics/overview").then((r) => r.json()),
+  );
+  assert.ok(
+    insights.totalListeningSeconds <=
+      (Date.now() - playbackStartedAt) / 1000 + 0.2,
+  );
+  assert.equal(insights.genres[0].genre, "Mystery");
+  await page.goto(`${url}/analytics`);
+  await page
+    .getByRole("heading", { name: "Your listening insights.", exact: true })
+    .waitFor();
+  await page.getByText("Chapter completed", { exact: true }).waitFor();
+  await page.screenshot({
+    path: "docs/soundwave-analytics.png",
+    fullPage: true,
+  });
+  check(
+    "analytics UI shows recorded playback, favorites and completion without counting seek distance",
+  );
   const search = page.getByRole("textbox", {
     name: "Search story titles or genres",
   });

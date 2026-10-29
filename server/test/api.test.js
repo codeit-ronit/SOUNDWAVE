@@ -41,7 +41,7 @@ test("story catalog, details, genres and ordered playable chapters", async () =>
   );
   assert.ok(
     chapters.body.chapters.every(
-      (c) => c.duration_seconds > 20 && c.audio_url.endsWith(".wav"),
+      (c) => c.duration_seconds > 20 && c.audio_url.endsWith("/stream"),
     ),
   );
   const genres = await request(app).get("/api/genres").expect(200);

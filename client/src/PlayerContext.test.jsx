@@ -4,7 +4,12 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { PlayerProvider, usePlayer } from "./PlayerContext";
 import { api } from "./api";
 vi.mock("./api", () => ({
-  api: { progress: vi.fn(), chapters: vi.fn(), save: vi.fn() },
+  api: {
+    progress: vi.fn(),
+    chapters: vi.fn(),
+    save: vi.fn(),
+    analyticsEvent: vi.fn(),
+  },
 }));
 const story = { id: 1, title: "Test story" };
 const chapters = [
@@ -45,6 +50,7 @@ beforeEach(() => {
   api.progress.mockResolvedValue({ progress: [], continueListening: [] });
   api.chapters.mockResolvedValue({ chapters });
   api.save.mockResolvedValue({});
+  api.analyticsEvent.mockResolvedValue({});
   const paused = new WeakMap();
   vi.spyOn(HTMLMediaElement.prototype, "readyState", "get").mockReturnValue(1);
   vi.spyOn(HTMLMediaElement.prototype, "duration", "get").mockReturnValue(30);
@@ -173,5 +179,130 @@ describe("persistent audio player", () => {
     });
     expect(player.active.story.id).toBe(2);
     expect(player.active.chapter.id).toBe(201);
+  });
+});
+
+describe("advanced playback controls", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
+  });
+  it("applies and persists only supported playback speeds", async () => {
+    const { audio } = setup();
+    await act(async () => player.playStory(story));
+    act(() => player.setSpeed(1.5));
+    expect(audio.playbackRate).toBe(1.5);
+    expect(localStorage.getItem("soundwave.playbackSpeed")).toBe("1.5");
+    act(() => player.setSpeed(9));
+    expect(audio.playbackRate).toBe(1.5);
+    await act(async () => player.move(1));
+    expect(audio.playbackRate).toBe(1.5);
+  });
+  it("restores the preferred speed on a fresh mount", () => {
+    localStorage.setItem("soundwave.playbackSpeed", "1.25");
+    const { audio } = setup();
+    expect(audio.playbackRate).toBe(1.25);
+  });
+  it("pauses and saves when a sleep deadline expires; cancelling clears it", async () => {
+    const { audio } = setup();
+    await act(async () => player.playStory(story));
+    vi.useFakeTimers();
+    act(() => player.setSleepTimer(5));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300000);
+    });
+    expect(audio.paused).toBe(true);
+    expect(player.sleepDeadline).toBe(null);
+    expect(api.save).toHaveBeenCalled();
+    act(() => player.setSleepTimer(15));
+    expect(player.sleepRemaining).toBe(900);
+    act(() => player.setSleepTimer(0));
+    expect(player.sleepDeadline).toBe(null);
+  });
+  it("keyboard shortcuts control playback but do not hijack editable fields", async () => {
+    const { audio, container } = setup();
+    await act(async () => player.playStory(story));
+    await act(async () =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: " ", code: "Space" }),
+      ),
+    );
+    expect(audio.paused).toBe(true);
+    await act(async () =>
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" })),
+    );
+    expect(audio.currentTime).toBe(10);
+    const input = document.createElement("input");
+    container.append(input);
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+      ),
+    );
+    expect(audio.currentTime).toBe(10);
+  });
+  it("cleans up sleep and keyboard listeners on unmount", async () => {
+    const { unmount } = setup();
+    await act(async () => player.playStory(story));
+    vi.useFakeTimers();
+    act(() => player.setSleepTimer(5));
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+  });
+});
+
+describe("playback analytics", () => {
+  it("records native play/pause once and does not count seek distance as time", async () => {
+    const { audio, rerender } = setup();
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    await act(async () => player.playStory(story));
+    act(() => audio.dispatchEvent(new Event("playing")));
+    expect(
+      api.analyticsEvent.mock.calls.filter(
+        ([e]) => e.type === "playback_started",
+      ),
+    ).toHaveLength(1);
+    rerender(
+      <PlayerProvider>
+        <Probe />
+      </PlayerProvider>,
+    );
+    expect(
+      api.analyticsEvent.mock.calls.filter(
+        ([e]) => e.type === "playback_started",
+      ),
+    ).toHaveLength(1);
+    now.mockReturnValue(3000);
+    await act(async () => {
+      audio.currentTime = 28;
+      player.toggle();
+    });
+    const paused = api.analyticsEvent.mock.calls.find(
+      ([e]) => e.type === "playback_paused",
+    )[0];
+    expect(paused.listeningSeconds).toBe(2);
+    expect(paused.chapterId).toBe(101);
+    expect(paused.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+  it("does not count buffering or the duration of a seek", async () => {
+    const { audio } = setup();
+    const now = vi.spyOn(performance, "now").mockReturnValue(0);
+    await act(async () => player.playStory(story));
+    now.mockReturnValue(2000);
+    act(() => audio.dispatchEvent(new Event("waiting")));
+    now.mockReturnValue(7000);
+    act(() => audio.dispatchEvent(new Event("playing")));
+    now.mockReturnValue(8000);
+    act(() => audio.dispatchEvent(new Event("seeking")));
+    now.mockReturnValue(12000);
+    act(() => audio.dispatchEvent(new Event("seeked")));
+    now.mockReturnValue(13000);
+    await act(async () => player.toggle());
+    const total = api.analyticsEvent.mock.calls.reduce(
+      (sum, [event]) => sum + event.listeningSeconds,
+      0,
+    );
+    expect(total).toBe(4);
   });
 });

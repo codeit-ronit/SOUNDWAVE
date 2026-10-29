@@ -10,11 +10,15 @@ import {
 import {
   Compass,
   LibraryBig,
+  Download,
+  BarChart3,
   Search,
   ArrowUpRight,
   AudioLines,
   X,
 } from "lucide-react";
+import Analytics from "./Analytics";
+import { Downloads, PwaStatus } from "./Downloads";
 import { Brand, Player } from "./components";
 import { Discover, MyLibrary, StoryDetails, NotFound } from "./pages";
 import { useLibrary } from "./LibraryContext";
@@ -50,6 +54,14 @@ export default function App() {
             <LibraryBig size={20} />
             My library
             <span className="nav-count">{library.stories.length}</span>
+          </NavLink>
+          <NavLink to="/downloads">
+            <Download size={20} />
+            Downloads
+          </NavLink>
+          <NavLink to="/analytics">
+            <BarChart3 size={20} />
+            Insights
           </NavLink>
         </nav>
         <div className="sidebar-card">
@@ -124,8 +136,17 @@ export default function App() {
             <LibraryBig size={17} />
             My library
           </NavLink>
+          <NavLink to="/downloads">
+            <Download size={17} />
+            Downloads
+          </NavLink>
+          <NavLink to="/analytics">
+            <BarChart3 size={17} />
+            Insights
+          </NavLink>
         </nav>
         <main id="main-content">
+          <PwaStatus />
           <div className="library-alert">
             {library.error && location.pathname !== "/library" && (
               <div role="alert">
@@ -137,6 +158,8 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Discover />} />
             <Route path="/library" element={<MyLibrary />} />
+            <Route path="/downloads" element={<Downloads />} />
+            <Route path="/analytics" element={<Analytics />} />
             <Route path="/stories/:id" element={<StoryDetails />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

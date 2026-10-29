@@ -184,6 +184,63 @@ export function Player() {
           <button onClick={p.error ? p.retry : p.retrySave}>Retry</button>
         </div>
       )}
+      <div className="player-options">
+        <span className="keyboard-hint">
+          Space to play / pause · ← → seek 10s
+        </span>
+        <div className="mobile-skip">
+          <button
+            aria-label="Back 10 seconds"
+            onClick={() => p.seek(p.position - 10)}
+            disabled={!p.active}
+          >
+            ↶ 10s
+          </button>
+          <button
+            aria-label="Forward 10 seconds"
+            onClick={() => p.seek(p.position + 10)}
+            disabled={!p.active}
+          >
+            10s ↷
+          </button>
+        </div>
+        <label>
+          Speed{" "}
+          <select
+            aria-label="Playback speed"
+            value={p.speed}
+            onChange={(e) => p.setSpeed(Number(e.target.value))}
+          >
+            {[0.75, 1, 1.25, 1.5, 2].map((speed) => (
+              <option key={speed} value={speed}>
+                {speed}×
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Sleep{" "}
+          <select
+            aria-label="Sleep timer"
+            value={p.sleepDeadline ? "active" : "0"}
+            onChange={(e) => p.setSleepTimer(Number(e.target.value))}
+            disabled={!p.active}
+          >
+            <option value="0">Off</option>
+            {p.sleepDeadline && (
+              <option value="active">{timeLabel(p.sleepRemaining)} left</option>
+            )}
+            <option value="5">5 min</option>
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+          </select>
+        </label>
+        {p.sleepDeadline && (
+          <button className="cancel-timer" onClick={() => p.setSleepTimer(0)}>
+            Cancel timer
+          </button>
+        )}
+      </div>
       <div className="player">
         <div className="now-playing">
           {p.active ? (

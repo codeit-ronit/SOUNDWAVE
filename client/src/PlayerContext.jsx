@@ -7,7 +7,12 @@ import {
   useState,
 } from "react";
 import { api } from "./api";
-import { resumeChapter, resumePosition } from "./playback";
+import {
+  resumeChapter,
+  resumePosition,
+  preferredSpeed,
+  PLAYBACK_SPEEDS,
+} from "./playback";
 const PlayerContext = createContext(null);
 export const usePlayer = () => useContext(PlayerContext);
 
@@ -21,6 +26,14 @@ export function PlayerProvider({ children }) {
   const lastSave = useRef(0);
   const saveQueue = useRef(Promise.resolve());
   const mounted = useRef(true);
+  const segmentStart = useRef(null);
+  const analyticsPlaying = useRef(false);
+  const buffering = useRef(false);
+  const [speed, setSpeedState] = useState(preferredSpeed);
+  const speedRef = useRef(speed);
+  const [sleepDeadline, setSleepDeadline] = useState(null);
+  const [sleepRemaining, setSleepRemaining] = useState(0);
+  const keyboardRef = useRef(null);
   const [active, setActive] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -64,6 +77,41 @@ export function PlayerProvider({ children }) {
     [notify],
   );
 
+  const emitPlayback = useCallback(
+    (type, listeningSeconds = 0, keepalive = false) => {
+      const current = activeRef.current;
+      if (!current || !navigator.onLine) return;
+      void api
+        .analyticsEvent(
+          {
+            id: crypto.randomUUID(),
+            type,
+            chapterId: current.chapter.id,
+            listeningSeconds,
+            playbackRate: speedRef.current,
+          },
+          keepalive,
+        )
+        .catch(() => {});
+    },
+    [],
+  );
+  const flushListening = useCallback(
+    (type = "listening_interval", keepalive = false) => {
+      const seconds =
+        segmentStart.current === null
+          ? 0
+          : Math.min(
+              60,
+              Math.max(0, (performance.now() - segmentStart.current) / 1000),
+            );
+      segmentStart.current = null;
+      if (seconds > 0 || type === "playback_paused")
+        emitPlayback(type, seconds, keepalive);
+    },
+    [emitPlayback],
+  );
+
   const tryPlay = useCallback(async () => {
     const audio = audioRef.current;
     if (!audio || !desiredPlay.current) return;
@@ -89,6 +137,8 @@ export function PlayerProvider({ children }) {
       const audio = audioRef.current;
       requestVersion.current++;
       desiredPlay.current = false;
+      if (analyticsPlaying.current) flushListening("playback_paused");
+      analyticsPlaying.current = false;
       audio.pause();
       const current = { story, chapter };
       activeRef.current = current;
@@ -108,7 +158,7 @@ export function PlayerProvider({ children }) {
       // Calling play in the user's click gesture helps browsers with strict autoplay policies.
       if (autoplay) void tryPlay();
     },
-    [tryPlay],
+    [tryPlay, flushListening],
   );
 
   const playStory = useCallback(
@@ -153,6 +203,7 @@ export function PlayerProvider({ children }) {
     const audio = audioRef.current;
     audio.volume = 0.8;
     const onMetadata = () => {
+      audio.playbackRate = speedRef.current;
       audio.currentTime = Math.min(
         selectionRef.current,
         Number.isFinite(audio.duration) ? audio.duration : selectionRef.current,
@@ -174,26 +225,43 @@ export function PlayerProvider({ children }) {
       ) {
         lastSave.current = Date.now();
         void save();
+        flushListening();
+        if (!audio.paused && !audio.seeking && !buffering.current)
+          segmentStart.current = performance.now();
       }
     };
     const onPause = () => {
+      if (analyticsPlaying.current) flushListening("playback_paused");
+      analyticsPlaying.current = false;
       setPlaying(false);
       if (!audio.ended) void save();
     };
     const onPlay = () => {
+      buffering.current = false;
+      if (!analyticsPlaying.current) emitPlayback("playback_started");
+      analyticsPlaying.current = true;
+      segmentStart.current ??= performance.now();
       setPlaying(true);
       setLoading(false);
       setError("");
     };
-    const onWaiting = () => setLoading(true);
+    const onWaiting = () => {
+      flushListening();
+      buffering.current = true;
+      setLoading(true);
+    };
     const onCanPlay = () => setLoading(false);
     const onError = () => {
+      flushListening();
+      analyticsPlaying.current = false;
       setLoading(false);
       setPlaying(false);
       setError("The audio file could not load. Press retry to load it again.");
     };
     const onEnded = async () => {
       const current = activeRef.current;
+      flushListening();
+      analyticsPlaying.current = false;
       desiredPlay.current = false;
       setPlaying(false);
       await save(true);
@@ -206,10 +274,16 @@ export function PlayerProvider({ children }) {
       if (next) select(current.story, next, queueRef.current);
     };
     const onPageHide = () => {
+      flushListening("listening_interval", true);
       void save(false, true);
     };
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") void save(false, true);
+      if (document.visibilityState === "hidden") {
+        flushListening("listening_interval", true);
+        if (!audio.paused && !audio.seeking && !buffering.current)
+          segmentStart.current = performance.now();
+        void save(false, true);
+      }
     };
     const events = {
       loadedmetadata: onMetadata,
@@ -220,6 +294,11 @@ export function PlayerProvider({ children }) {
       canplay: onCanPlay,
       error: onError,
       ended: onEnded,
+      seeking: () => flushListening(),
+      seeked: () => {
+        if (!audio.paused && !audio.ended && !buffering.current)
+          segmentStart.current = performance.now();
+      },
     };
     for (const [name, listener] of Object.entries(events))
       audio.addEventListener(name, listener);
@@ -252,7 +331,7 @@ export function PlayerProvider({ children }) {
       document.removeEventListener("visibilitychange", onVisibility);
       audio.pause();
     };
-  }, [save, select]);
+  }, [save, select, emitPlayback, flushListening]);
 
   const toggle = () => {
     const audio = audioRef.current;
@@ -290,12 +369,103 @@ export function PlayerProvider({ children }) {
       select(active.story, current, queueRef.current);
     }
   };
+  const setSpeed = (value) => {
+    if (!PLAYBACK_SPEEDS.includes(value)) return;
+    speedRef.current = value;
+    audioRef.current.playbackRate = value;
+    setSpeedState(value);
+    try {
+      localStorage.setItem("soundwave.playbackSpeed", String(value));
+    } catch {
+      /* Private mode/storage restrictions do not block playback. */
+    }
+  };
+  const setSleepTimer = (minutes) => {
+    if (![0, 5, 15, 30].includes(minutes)) return;
+    setSleepDeadline(minutes ? Date.now() + minutes * 60000 : null);
+    setSleepRemaining(minutes * 60);
+  };
+  useEffect(() => {
+    audioRef.current.playbackRate = speedRef.current;
+  }, []);
+  useEffect(() => {
+    if (!sleepDeadline) return;
+    const tick = () => {
+      const seconds = Math.max(
+        0,
+        Math.ceil((sleepDeadline - Date.now()) / 1000),
+      );
+      setSleepRemaining(seconds);
+      if (!seconds) {
+        desiredPlay.current = false;
+        audioRef.current.pause();
+        setSleepDeadline(null);
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [sleepDeadline]);
+  keyboardRef.current = { toggle, seek, position, active };
+  useEffect(() => {
+    const keydown = (event) => {
+      if (
+        event.defaultPrevented ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        event.shiftKey
+      )
+        return;
+      const target = event.target;
+      if (
+        target?.isContentEditable ||
+        target?.closest?.(
+          'input,textarea,select,button,a,[contenteditable="true"],[role="slider"]',
+        )
+      )
+        return;
+      const controls = keyboardRef.current;
+      if (!controls.active) return;
+      if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        if (!event.repeat) controls.toggle();
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        controls.seek(
+          controls.position + (event.key === "ArrowRight" ? 10 : -10),
+        );
+      }
+    };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, []);
+  // UI updates follow the media clock between timeupdate events, without increasing save frequency.
+  useEffect(() => {
+    if (!playing) return;
+    let frame;
+    const tick = () => {
+      setPosition(audioRef.current.currentTime);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing]);
   const index = active
     ? queueRef.current.findIndex((c) => c.id === active.chapter.id)
     : -1;
   return (
     <PlayerContext.Provider
       value={{
+        speed,
+        setSpeed,
+        sleepRemaining,
+        sleepDeadline,
+        setSleepTimer,
         active,
         playing,
         loading,

@@ -39,6 +39,16 @@ export function openDatabase(
       updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       PRIMARY KEY(user_id, chapter_id)
     );
+    CREATE TABLE IF NOT EXISTS listening_events (
+      event_id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+      story_id INTEGER NOT NULL REFERENCES stories(id), chapter_id INTEGER REFERENCES chapters(id),
+      event_type TEXT NOT NULL CHECK(event_type IN ('playback_started','playback_paused','chapter_completed','story_favorited','listening_interval')),
+      listening_seconds REAL NOT NULL DEFAULT 0 CHECK(listening_seconds >= 0 AND listening_seconds <= 60),
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE INDEX IF NOT EXISTS events_user_time_idx ON listening_events(user_id,created_at DESC);
+    CREATE INDEX IF NOT EXISTS events_story_idx ON listening_events(user_id,story_id);
     CREATE INDEX IF NOT EXISTS chapters_story_idx ON chapters(story_id);
     CREATE INDEX IF NOT EXISTS progress_recency_idx ON listening_progress(user_id, updated_at DESC);
   `);

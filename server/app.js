@@ -1,20 +1,39 @@
+import { requestContext, apiRateLimit } from "./middleware/http.js";
 import express from "express";
 import cors from "cors";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { analyticsRouter } from "./routes/analytics.js";
+import { streamRouter } from "./routes/stream.js";
 import { apiRouter } from "./routes/api.js";
-export function createApp(db) {
+export function createApp(
+  db,
+  {
+    logger = process.env.HTTP_LOG === "1"
+      ? (record) => console.log(JSON.stringify(record))
+      : null,
+    rateLimit,
+  } = {},
+) {
   const app = express();
   app.disable("x-powered-by");
+  app.use(requestContext(logger));
   const origins = (
     process.env.CLIENT_ORIGIN || "http://127.0.0.1:5173,http://localhost:5173"
   )
     .split(",")
     .map((s) => s.trim());
   app.use(
-    cors({ origin: origins, methods: ["GET", "PUT", "DELETE", "OPTIONS"] }),
+    ["/api", "/audio"],
+    cors({
+      origin: origins,
+      methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
+    }),
   );
+  app.use("/api", apiRateLimit(rateLimit));
   app.use(express.json({ limit: "8kb" }));
+  app.use("/api", streamRouter(db));
+  app.use("/api", analyticsRouter(db));
   app.use("/api", apiRouter(db));
   app.use("/api", (_req, res) =>
     res.status(404).json({ error: { message: "API route not found." } }),

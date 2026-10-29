@@ -13,6 +13,13 @@ export async function request(path, options = {}) {
   return response.status === 204 ? null : response.json();
 }
 export const api = {
+  analytics: (signal) => request("/analytics/overview", { signal }),
+  analyticsEvent: (event, keepalive = false) =>
+    request("/analytics/events", {
+      method: "POST",
+      body: JSON.stringify(event),
+      keepalive,
+    }),
   stories: (params, signal) =>
     request(`/stories?${new URLSearchParams(params)}`, { signal }),
   story: (id, signal) => request(`/stories/${id}`, { signal }),

@@ -13,6 +13,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { ChapterDownload } from "./Downloads";
 import { api } from "./api";
 import { useResource } from "./useResource";
 import { usePlayer } from "./PlayerContext";
@@ -480,6 +481,7 @@ export function StoryDetails() {
                       )}
                     </span>
                   </div>
+                  <ChapterDownload story={story} chapter={chapter} />
                   <span className="chapter-duration">
                     {timeLabel(chapter.duration_seconds)}
                   </span>

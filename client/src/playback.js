@@ -14,3 +14,13 @@ export function resumePosition(chapter) {
     ? 0
     : Math.min(chapter.position_seconds || 0, chapter.duration_seconds);
 }
+
+export const PLAYBACK_SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+export function preferredSpeed() {
+  try {
+    const speed = Number(localStorage.getItem("soundwave.playbackSpeed"));
+    return PLAYBACK_SPEEDS.includes(speed) ? speed : 1;
+  } catch {
+    return 1;
+  }
+}

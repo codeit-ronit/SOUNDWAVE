@@ -1,3 +1,4 @@
+import { recordEvent } from "./analytics.js";
 import { Router } from "express";
 import {
   DEMO_USER,
@@ -79,7 +80,12 @@ export function apiRouter(db) {
       ON p.chapter_id=c.id AND p.user_id=? WHERE c.story_id=? ORDER BY c.chapter_number`,
       )
       .all(user, Number(req.params.id));
-    res.json({ chapters: chapters.map(serializeProgress) });
+    res.json({
+      chapters: chapters.map((row) => ({
+        ...serializeProgress(row),
+        audio_url: `/api/chapters/${row.id}/stream`,
+      })),
+    });
   });
   api.get("/library", (_req, res) => {
     res.json({
@@ -96,9 +102,14 @@ export function apiRouter(db) {
     if (!validId(req.params.storyId)) return fail(res, "Invalid story ID.");
     const storyId = Number(req.params.storyId);
     if (!getStory(storyId)) return fail(res, "Story not found.", 404);
-    db.prepare(
-      "INSERT INTO favorites (user_id,story_id) VALUES (?,?) ON CONFLICT DO NOTHING",
-    ).run(user, storyId);
+    db.transaction(() => {
+      const result = db
+        .prepare(
+          "INSERT INTO favorites (user_id,story_id) VALUES (?,?) ON CONFLICT DO NOTHING",
+        )
+        .run(user, storyId);
+      if (result.changes) recordEvent(db, { type: "story_favorited", storyId });
+    })();
     res.json({ story: serializeStory(getStory(storyId)) });
   });
   api.delete("/library/:storyId", (req, res) => {
@@ -184,17 +195,30 @@ export function apiRouter(db) {
       return fail(res, "A completed chapter must be at its end.");
     const position = Math.min(positionSeconds, chapter.duration_seconds);
     const isComplete = completed || position >= chapter.duration_seconds;
-    db.prepare(
-      `INSERT INTO listening_progress (user_id,chapter_id,position_seconds,completed)
+    db.transaction(() => {
+      const previous = db
+        .prepare(
+          "SELECT completed FROM listening_progress WHERE user_id=? AND chapter_id=?",
+        )
+        .get(user, chapter.id);
+      db.prepare(
+        `INSERT INTO listening_progress (user_id,chapter_id,position_seconds,completed)
       VALUES (?,?,?,?) ON CONFLICT(user_id,chapter_id) DO UPDATE SET
       position_seconds=excluded.position_seconds, completed=excluded.completed,
       updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
-    ).run(
-      user,
-      chapter.id,
-      isComplete ? chapter.duration_seconds : position,
-      Number(isComplete),
-    );
+      ).run(
+        user,
+        chapter.id,
+        isComplete ? chapter.duration_seconds : position,
+        Number(isComplete),
+      );
+      if (isComplete && !previous?.completed)
+        recordEvent(db, {
+          type: "chapter_completed",
+          storyId: chapter.story_id,
+          chapterId: chapter.id,
+        });
+    })();
     res.json({
       progress: serializeProgress(
         db
