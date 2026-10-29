@@ -288,6 +288,44 @@ describe("advanced playback controls", () => {
     );
     expect(audio.currentTime).toBe(10);
   });
+  it("handles shortcuts on focused playback buttons without hijacking other controls", async () => {
+    const { audio, container } = setup();
+    await act(async () => player.playStory(story));
+    const button = document.createElement("button");
+    button.setAttribute("data-player-shortcuts", "");
+    container.append(button);
+    button.focus();
+    const press = async (target, key, extra = {}) => {
+      const event = new KeyboardEvent("keydown", {
+        key,
+        bubbles: true,
+        cancelable: true,
+        ...extra,
+      });
+      await act(async () => target.dispatchEvent(event));
+      return event;
+    };
+    expect((await press(button, " ")).defaultPrevented).toBe(true);
+    expect(audio.paused).toBe(true);
+    await press(button, "ArrowRight");
+    expect(audio.currentTime).toBe(10);
+    await press(button, "ArrowLeft");
+    expect(audio.currentTime).toBe(0);
+    await press(button, " ");
+    expect(audio.paused).toBe(false);
+    await press(button, " ", { repeat: true });
+    expect(audio.paused).toBe(false);
+    button.removeAttribute("data-player-shortcuts");
+    expect((await press(button, " ")).defaultPrevented).toBe(false);
+    expect(audio.paused).toBe(false);
+    for (const tag of ["input", "textarea", "select"]) {
+      const field = document.createElement(tag);
+      container.append(field);
+      expect((await press(field, "ArrowRight")).defaultPrevented).toBe(false);
+      expect((await press(field, " ")).defaultPrevented).toBe(false);
+    }
+    expect(audio.currentTime).toBe(0);
+  });
   it("cleans up sleep and keyboard listeners on unmount", async () => {
     const { unmount } = setup();
     await act(async () => player.playStory(story));

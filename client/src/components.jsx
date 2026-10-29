@@ -102,6 +102,7 @@ export function StoryCard({ story, index, reason }) {
         <button
           className="card-play"
           aria-label={`Play ${story.title}`}
+          data-player-shortcuts
           onClick={() => playStory(story)}
         >
           <Play size={20} fill="currentColor" />
@@ -275,7 +276,7 @@ export function Player() {
           )}
         </div>
         <div className="playback-controls">
-          <div className="transport">
+          <div className="transport" data-player-shortcuts>
             <button
               className="icon-button"
               aria-label="Previous chapter"
@@ -295,6 +296,7 @@ export function Player() {
             </button>
             <button
               className="main-play"
+              data-player-shortcuts
               onClick={p.toggle}
               disabled={!p.active}
               aria-label={p.playing ? "Pause" : "Play"}

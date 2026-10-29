@@ -66,6 +66,7 @@ function ContinueListening({ stories }) {
             <button
               className="round-play"
               aria-label={`Resume ${story.title}`}
+              data-player-shortcuts
               onClick={() => playStory(story, story.resume_chapter_id)}
             >
               <Play size={18} fill="currentColor" />
@@ -141,6 +142,7 @@ export function Discover() {
             <div className="hero-actions">
               <button
                 className="button primary"
+                data-player-shortcuts
                 onClick={() => playStory(hero)}
               >
                 <Play size={17} fill="currentColor" /> Start listening
@@ -417,7 +419,11 @@ export function StoryDetails() {
             </span>
           </div>
           <div className="detail-actions">
-            <button className="button primary" onClick={() => playStory(story)}>
+            <button
+              className="button primary"
+              data-player-shortcuts
+              onClick={() => playStory(story)}
+            >
               <Play size={17} fill="currentColor" />
               {chapters.some((c) => c.position_seconds > 0 && !c.completed)
                 ? "Resume story"
@@ -488,6 +494,7 @@ export function StoryDetails() {
                   <button
                     className="round-play"
                     aria-label={`${isActive && playing ? "Pause" : "Play"} ${chapter.title}`}
+                    data-player-shortcuts
                     onClick={() =>
                       isActive ? toggle() : playStory(story, chapter.id)
                     }

@@ -436,13 +436,20 @@ export function PlayerProvider({ children }) {
       if (
         target?.isContentEditable ||
         target?.closest?.(
-          'input,textarea,select,button,a,[contenteditable="true"],[role="slider"]',
+          'input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="slider"],[role="textbox"],[role="combobox"]',
         )
       )
         return;
       const controls = keyboardRef.current;
       if (!controls.active) return;
       if (event.code === "Space" || event.key === " ") {
+        // Keep native activation for unrelated links/buttons. Playback launchers
+        // retain focus after a click, so Space there must toggle the player.
+        if (
+          target?.closest?.('button,a,[role="button"]') &&
+          !target.closest("[data-player-shortcuts]")
+        )
+          return;
         event.preventDefault();
         if (!event.repeat) controls.toggle();
       } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
