@@ -1,18 +1,22 @@
-# SoundWave Phase 1 architecture
+# SoundWave architecture
 
-Phase 1 adds PostgreSQL, authentication and multi-user isolation to the existing modular monolith. It preserves React/Vite, Express, streaming and explicit offline downloads. Redis, workers, uploads, transcoding and CDN delivery are not implemented.
+The existing modular monolith now includes PostgreSQL/session isolation, Redis protection and optional catalog caching, a PostgreSQL-backed worker/outbox, email verification/recovery, and backup/restore tooling. React/Vite, Express, streaming and explicit offline downloads are preserved. Uploads, transcoding and CDN delivery are not implemented. [Operations](OPERATIONS.md) explains the current runtime and failure behavior; [Phase 2 report](PHASE2_REPORT.md) records verification.
 
 ## Request flow and ownership
 
 ```mermaid
 flowchart LR
   UI[React + shared audio player] -->|Cookie + CSRF token| API[Express routes and validation]
+  API --> Redis[Redis atomic limits + optional public cache]
   API --> Auth[Identity middleware]
   Auth --> Sessions[(Hashed sessions)]
   API --> Services[Auth, discovery and analytics services]
   Services --> Repos[Identity, catalog, listening and analytics repositories]
   Repos --> Adapter[Async database adapter]
   Adapter --> PG[(PostgreSQL)]
+  PG --> Jobs[Transactional job outbox]
+  Jobs --> Worker[Worker: leases + retries + fencing]
+  Worker --> SMTP[Configured SMTP / local mail catcher]
   Adapter --> SQLite[(SQLite compatibility)]
   UI --> SW[Service worker]
   SW --> Cache[Public chapter metadata + selected audio]
@@ -32,7 +36,7 @@ Legacy contract tests inject identity and CSRF middleware in `server/test/helper
 - Production cookies use `__Host-soundwave`, `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, no Domain, and a bounded expiry. Local HTTP uses `soundwave-session` without Secure. Production startup requires an exact HTTPS `APP_ORIGIN`.
 - Expiration is checked against the database on every session lookup. Registered sessions default to seven days, guests to one day, and pre-login anonymous sessions to ten minutes. There is no sliding renewal. Login, registration and guest creation rotate the session and CSRF token. Logout deletes the database row and expires the cookie.
 - `/api/auth/session` issues a pre-login session and exposes only its CSRF token, sanitized profile, expiry and demo availability. Every unsafe request, including registration/login/logout, needs the corresponding `X-CSRF-Token`; untrusted Origin and cross-site Fetch Metadata values are rejected. Production trusts only `APP_ORIGIN`. Local development also permits the configured dev frontend defaults and the server's actual same-origin URL.
-- General API limits remain 300/IP/minute/process, with audio exempt. Authentication writes have a separate 15/IP/15-minute/process limit. There is no distributed limiter yet, no trusted-proxy inference from arbitrary forwarding headers, and no account-level lockout or bot challenge.
+- General API limits remain 300/IP/minute, with audio exempt. Authentication writes have a separate 15/IP/15-minute limit. Counters are shared when Redis is configured and process-local otherwise; auth email/account buckets also limit targeted attempts. Only configured proxy CIDRs are trusted. No bot challenge or production anti-abuse certification is implemented.
 
 These choices follow [OWASP password storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html), [session management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) and [CSRF](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html) guidance. They have regression coverage, not a penetration-test or production-security certification.
 
@@ -78,16 +82,20 @@ Selected downloads retain public catalog metadata with favorite/progress/complet
 
 The shell, downloads, range seeking, cache removal and quota failure behavior remain covered. There is no offline auth or private-data sync queue. An offline reload permits downloaded playback with neutral metadata, not a restored authenticated session.
 
-## Deployment and next phases
+## Deployment and operations
 
 Use a persistent PostgreSQL service, verified database TLS where needed, HTTPS at the app origin, backups and a trusted reverse proxy. Size the connection budget as instances × pool max; no benchmark supports a scaling claim yet. Runtime migrations are convenient here; larger migrations should become a controlled release step with an appropriately privileged migration role and a restricted app role.
 
 Compose supplies PostgreSQL and a non-root Node app with a named database volume. Startup retries only transient database-connectivity failures with bounded backoff; schema/checksum/configuration failures are not retried. PostgreSQL restarts unless stopped; the app has an on-failure policy capped at five restarts. A simultaneous container restart exposed and verified the fix for a database-readiness race. Its default localhost HTTP mode explicitly uses development cookies. For public hosting set `APP_NODE_ENV=production`, set an HTTPS `APP_ORIGIN`, and terminate TLS before exposing the app. Do not run a public deployment in development mode.
 
-The existing Vercel live link was not redeployed for Phase 1. Its old shared demo remains available. A Phase 1 Vercel deployment requires `DATABASE_URL`, HTTPS `APP_ORIGIN` and a managed PostgreSQL connection budget; SQL migrations/audio are included in the function bundle. Ephemeral SQLite is rejected in production unless an operator explicitly opts into the limited portfolio fallback. No new public PostgreSQL deployment has been verified.
+The existing Vercel live link was not redeployed for the PostgreSQL/operations upgrades. Its old shared demo remains available. A current API deployment requires `DATABASE_URL`, HTTPS `APP_ORIGIN` and a managed PostgreSQL connection budget; SQL migrations/audio are included in the function bundle. Ephemeral SQLite is rejected in production unless an operator explicitly opts into the limited portfolio fallback. No new public PostgreSQL deployment has been verified.
 
-Remaining operational work includes session/guest retention and expiry cleanup, email verification, password recovery/change, MFA, account deletion, security headers/CSP review, distributed throttling, deployment secrets, backups and restore drills, database role separation, telemetry, load tests and cross-browser/device tests.
+Implemented operations now include shared throttling, expiry/guest cleanup, verification/reset emails and local backup/restore drills. Remaining public-hosting work includes managed service configuration, external SMTP deliverability, MFA, account deletion, security/CSP review, offsite/encrypted/scheduled backups, recovery promotion, database role separation, telemetry, load tests and cross-browser/device coverage.
 
-**Redis next:** first add bounded distributed authentication/API limits and explicit proxy trust. Only then cache public catalog/search with versioned keys and TTLs. Personalized caches must include owner IDs and reliable invalidation; do not place private responses under shared keys. PostgreSQL remains the source of truth. Decide from measured latency whether session caching is useful, and preserve immediate revocation/expiry semantics.
+**Redis implemented:** atomic TTL counters fail closed when a configured Redis is unavailable, with media exempt. Neutral catalog caching uses owner overlays, transactionally changed revision keys, 128 slots/revision and a 60-second TTL. It is opt-in because the measured small-catalog sample was slower. Sessions/revocation remain authoritative in PostgreSQL. See [Operations](OPERATIONS.md#redis-limits-and-catalog-cache).
 
-**Jobs next:** add a PostgreSQL transactional outbox for maintenance/analytics tasks, then a worker with idempotency keys, bounded retries, backoff, dead-letter visibility and graceful shutdown. Redis/BullMQ is an option if a queue service is justified. Start with expired-session/guest cleanup and analytics rollups; do not move synchronous progress acknowledgements into an unreliable fire-and-forget queue. Neither Redis nor workers are implemented in this phase.
+**Jobs implemented:** event writes and queue records commit together in PostgreSQL. Workers claim with `SKIP LOCKED`, fence lease owners, retry with backoff and expose dead letters through CLI tooling. Analytics snapshots are recomputed idempotently; cleanup retains registered users. SMTP payloads are encrypted and erased after acknowledgement, but network delivery is at least once. Synchronous progress writes remain synchronous. See [Operations](OPERATIONS.md#durable-jobs-and-analytics).
+
+**Email and restore implemented:** purpose-bound one-use hashed tokens, encrypted SMTP jobs, reset/session revocation and fragment-token forms are tested through actual local SMTP capture and Chrome. Backup tooling shares an exported PostgreSQL snapshot with its manifest, restores only into a generated disposable database, and compares 13 app-table fingerprints. These are local engineering checks, not verified public deliverability or an operational disaster-recovery certification.
+
+Additional relations are `catalog_revision` (public cache generation), `background_jobs` (owner/dedupe/lease/attempt state), `analytics_rollups` (owner/day/genre snapshots), and `account_tokens` (hashed purpose-bound tokens). Their additive migrations preserve prior user rows. See [OPERATIONS.md](OPERATIONS.md) for retention, permissions, key management and exact commands.

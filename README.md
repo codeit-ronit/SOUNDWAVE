@@ -2,15 +2,15 @@
 
 **Stories worth getting lost in.** An audio fiction platform built with React/Vite, Express, PostgreSQL and a SQLite compatibility adapter. It combines real byte-range audio delivery, resumable playback, libraries, rule-based discovery and selected offline downloads.
 
-**[Live portfolio demo](https://soundwave-codeit-ronit.vercel.app/)** · **[Source](https://github.com/codeit-ronit/SOUNDWAVE)** · **[Phase 1 architecture](docs/ARCHITECTURE.md)** · **[Phase 1 verification](docs/PHASE1_REPORT.md)**
+**[Live portfolio demo](https://soundwave-codeit-ronit.vercel.app/)** · **[Source](https://github.com/codeit-ronit/SOUNDWAVE)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Operations](docs/OPERATIONS.md)** · **[Latest verification](docs/PHASE2_REPORT.md)**
 
-**Deployment status:** Phase 1 adds PostgreSQL, authentication and isolated user data in this repository. It has been verified locally, including real PostgreSQL tests; it has **not been deployed to the public demo**. The live link still serves the earlier shared-user version with temporary Vercel SQLite storage. Do not use it for private data or as evidence of the new authentication deployment.
+**Deployment status:** The repository now includes PostgreSQL/authentication plus Redis protection, durable workers, email verification/recovery and backup tooling. It has been verified locally, including real PostgreSQL tests; it has **not been deployed to the public demo**. The live link still serves the earlier shared-user version with temporary Vercel SQLite storage. Do not use it for private data or as evidence of the new authentication deployment.
 
 The submitted resume URL, [zippy-nitrogen-wd3scr3.tmp.now](https://zippy-nitrogen-wd3scr3.tmp.now/), redirects to the existing live demo. Retain its original claimed deployment and hostname-specific redirect. Use the main demo URL for future submissions.
 
 ![SoundWave desktop interface](docs/soundwave-desktop.png)
 
-The screenshot shows the earlier interface; Phase 1 replaces the fixed demo profile with account controls. No real-user, production-readiness or scalability claim is made.
+The screenshot shows the earlier interface; the current app replaces the fixed demo profile with account controls. No real-user, production-readiness or scalability claim is made.
 
 ## Run locally
 
@@ -51,16 +51,24 @@ npm start
 
 This runs the production **frontend bundle** using local development cookie settings unless `NODE_ENV=production` is explicitly set. The service worker is disabled during Vite development. Public production mode requires HTTPS `APP_ORIGIN` and PostgreSQL.
 
+## Redis, jobs and account recovery
+
+The next phase is implemented. Redis shares API/auth rate limits across instances; catalog caching is optional and never stores personal state. A PostgreSQL outbox/worker handles analytics snapshots, expired session/guest cleanup and SMTP delivery. Verification/reset links are hashed, expiring and single-use; resets revoke all sessions. Backup tooling verifies a snapshot by restoring into a fresh disposable database.
+
+Run `npm run worker` alongside host-side development. Compose starts the worker automatically. See [OPERATIONS.md](docs/OPERATIONS.md) for configuration, delivery semantics, job administration and backup/restore commands.
+
 ## Docker Compose
 
-With `POSTGRES_PASSWORD` set in `.env`:
+With `POSTGRES_PASSWORD` set in `.env`, Compose runs PostgreSQL, Redis, API, worker and a local SMTP catcher. For email features, also set `EMAIL_MODE=smtp` and a random `EMAIL_ENCRYPTION_KEY` as described in [Operations](docs/OPERATIONS.md#complete-local-stack). Without mail configuration, recovery reports an explicit error; it does not fake delivery.
+
+For Compose, leave `SMTP_URL` unset so it uses `smtp://mailpit:1025`. Then:
 
 ```bash
 docker compose up --build
 # Open http://localhost:3001
 ```
 
-Compose defines PostgreSQL 18.6, a database health check, a persistent named volume and a non-root Node application. Both exposed ports bind to loopback. Default `APP_NODE_ENV=development` deliberately supports localhost HTTP cookies. To host publicly, set `APP_NODE_ENV=production`, supply an HTTPS `APP_ORIGIN`, configure TLS termination and protect the database network. Do not expose the development configuration publicly. See the verification report for the actual container-build result.
+Compose defines PostgreSQL 18.6, Redis 7.4 with a bounded memory budget, dependency checks, persistent database/Redis volumes and a non-root Node application/worker. The local inbox is http://localhost:8025. Exposed ports bind to loopback. Default `APP_NODE_ENV=development` deliberately supports localhost HTTP cookies. To host publicly, set `APP_NODE_ENV=production`, supply an HTTPS `APP_ORIGIN`, configure TLS termination and protect the database network. Do not expose the development configuration publicly. See the verification report for the actual container-build result.
 
 `docker compose down` keeps the database volume. Do not use `down -v` when preserving data. Reserved URL characters in passwords must be percent-encoded in `DATABASE_URL`.
 
@@ -68,27 +76,35 @@ Compose defines PostgreSQL 18.6, a database health check, a persistent named vol
 
 Copy `.env.example`; never commit real credentials.
 
-| Variable                 | Behavior                                                                                     |
-| ------------------------ | -------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | PostgreSQL connection string; takes precedence over SQLite                                   |
-| `DATABASE_PATH`          | SQLite path for local compatibility; default `server/data/soundwave.sqlite`                  |
-| `APP_ORIGIN`             | Exact app origin; required HTTPS origin in production                                        |
-| `NODE_ENV`               | `production` enforces HTTPS configuration, Secure cookies and PostgreSQL by default          |
-| `CLIENT_ORIGIN`          | Development-only CORS origins; default localhost/127.0.0.1 port 5173                         |
-| `PORT`                   | Express port, default `3001`; Vite proxy also targets 3001                                   |
-| `DB_POOL_MAX`            | PostgreSQL pool limit per process, default `5`                                               |
-| `PGSSL`                  | Set `true` for PostgreSQL TLS with certificate verification; configure trusted CAs as needed |
-| `DEMO_MODE`              | Default `true`; `false` disables independent guest-account creation                          |
-| `SESSION_TTL_SECONDS`    | Registered session absolute lifetime, default `604800` (7 days), maximum 30 days             |
-| `GUEST_TTL_SECONDS`      | Guest session lifetime, default `86400` (1 day), maximum 7 days                              |
-| `HTTP_LOG`               | Set `1` for structured request IDs, paths, status and duration; no request bodies            |
-| `POSTGRES_PASSWORD`      | Compose database password; also used to construct its internal connection URL                |
-| `APP_NODE_ENV`           | Compose app environment; default local `development`                                         |
-| `ALLOW_EPHEMERAL_SQLITE` | Explicit production portfolio fallback only; never a substitute for durable PostgreSQL       |
+| Variable                 | Behavior                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`           | PostgreSQL connection string; takes precedence over SQLite                                                   |
+| `DATABASE_PATH`          | SQLite path for local compatibility; default `server/data/soundwave.sqlite`                                  |
+| `APP_ORIGIN`             | Exact app origin; required HTTPS origin in production                                                        |
+| `NODE_ENV`               | `production` enforces HTTPS configuration, Secure cookies and PostgreSQL by default                          |
+| `CLIENT_ORIGIN`          | Development-only CORS origins; default localhost/127.0.0.1 port 5173                                         |
+| `PORT`                   | Express port, default `3001`; Vite proxy also targets 3001                                                   |
+| `DB_POOL_MAX`            | PostgreSQL pool limit per process, default `5`                                                               |
+| `PGSSL`                  | Set `true` for PostgreSQL TLS with certificate verification; configure trusted CAs as needed                 |
+| `DEMO_MODE`              | Default `true`; `false` disables independent guest-account creation                                          |
+| `SESSION_TTL_SECONDS`    | Registered session absolute lifetime, default `604800` (7 days), maximum 30 days                             |
+| `GUEST_TTL_SECONDS`      | Guest session lifetime, default `86400` (1 day), maximum 7 days                                              |
+| `HTTP_LOG`               | Set `1` for structured request IDs, paths, status and duration; no request bodies                            |
+| `POSTGRES_PASSWORD`      | Compose database password; also used to construct its internal connection URL                                |
+| `APP_NODE_ENV`           | Compose app environment; default local `development`                                                         |
+| `REDIS_URL`              | Enables shared atomic limits; configured outages fail closed for JSON, with audio exempt                     |
+| `REDIS_PREFIX`           | Shared deployment namespace, default `soundwave`                                                             |
+| `CATALOG_CACHE`          | `true` opts into bounded public catalog/search caching; default off after local measurements showed overhead |
+| `TRUSTED_PROXY_CIDRS`    | Exact real proxy IPs/subnets; forwarding headers are ignored by default; /0 trust rejected                   |
+| `EMAIL_MODE`             | `disabled` or `smtp`; disabled delivery never claims to send recovery mail                                   |
+| `SMTP_URL`               | `smtp://` for local capture; production requires `smtps://` with certificate validation                      |
+| `EMAIL_ENCRYPTION_KEY`   | Required SMTP outbox AES-256-GCM key: 32 random bytes encoded as 64 hex characters                           |
+| `MAIL_FROM`              | Sender identity; configure a provider-verified sender before external delivery                               |
+| `ALLOW_EPHEMERAL_SQLITE` | Explicit production portfolio fallback only; never a substitute for durable PostgreSQL                       |
 
 The default frontend/API deployment is same-origin. Production CORS permits only `APP_ORIGIN`; it does not reflect arbitrary origins. Custom split-origin cookie deployments are not configured or verified.
 
-## What Phase 1 implements
+## Implemented foundation
 
 - **PostgreSQL persistence:** a small `pg` adapter and bounded pool; normalized users, sessions, catalog and owner-scoped tables; foreign keys, uniqueness, checks and indexes; connection-pinned transactions.
 - **Versioned migrations:** transactional SQL files with checksums and migration locks. SQLite upgrades preserve existing listener rows and archive the original event table. No destructive reset or automatic rollback migration.
@@ -108,6 +124,16 @@ The default frontend/API deployment is same-origin. Production CORS permits only
 - Explicit PWA chapter downloads, offline shell/playback/seeking/removal, full-file validation and quota-error feedback. No automatic catalog-wide audio caching.
 - Event-based listening analytics, a seven-day UTC chart, genre summaries, recent activity and completion/favorite counts. Seek distance never becomes listening time; duplicate events are idempotent.
 
+## Distributed protection and background operations
+
+- **Shared rate limits:** atomic Redis counters for API, auth IP and target-account buckets; bounded queues/timeouts, expiry, explicit proxy trust and 503 on configured Redis failure. Streaming remains available during an outage.
+- **Optional cache:** neutral catalog/search/genre results, owner-specific favorite overlays, transactional revision invalidation, 128 slots per revision and 60-second TTL. No session cache or shared private results.
+- **Durable work:** transactional event/outbox writes, concurrent worker claims, lease fencing, rollback/retry/backoff, dead letters, graceful shutdown, historical analytics backfill and cleanup batches.
+- **Email flows:** registration verification, resend, forgot-password and reset forms; 24-hour verification and 30-minute reset tokens; encrypted delivery payloads, one-time consumption, token invalidation and session revocation.
+- **Recovery drills:** public-schema snapshot archives, restricted file permissions, checksum/fingerprint manifests and isolated restore verification. No source database is overwritten.
+
+The recorded six-story local cache sample was slower with Redis (p50 0.736 ms versus 0.498 ms direct), so caching is opt-in. This demonstrates measured tradeoffs, not a speedup or scalability claim. See [the sample](docs/cache-benchmark.json).
+
 ## Try the new account flow locally
 
 1. Open the app: an independent demo guest is created. Play a chapter, favorite a story and pause.
@@ -115,7 +141,8 @@ The default frontend/API deployment is same-origin. Production CORS permits only
 3. Sign out. Log in with a wrong password to show validation, then with the correct password to restore the account.
 4. Open a separate browser profile/private context: that visitor has a different demo library and history. Two tabs in the same profile intentionally share the cookie/account.
 5. Search `mystery`, sort by title, change speed, and check Insights. Finish a chapter to verify automatic advancement.
-6. In the built app, choose **Save offline** for a chapter, open Downloads, disconnect the browser network, then play, seek and remove it. Reconnect when done. Private API writes are not queued offline.
+6. With local SMTP configured, follow the verification email in Mailpit, then use **Forgot password?** and reset the password. The worker delivers to the local inbox; no real external email is sent.
+7. In the built app, choose **Save offline** for a chapter, open Downloads, disconnect the browser network, then play, seek and remove it. Reconnect when done. Private API writes are not queued offline.
 
 ## Architecture and schema
 
@@ -127,14 +154,17 @@ React/Vite → Express validation + session/CSRF middleware
 Browser service worker → shell + selected public audio/metadata
 ```
 
-The application remains a modular monolith. Public media still streams from bundled files; this phase does not introduce uploads, workers, CDN delivery or microservices.
+The application remains a modular monolith. Public media still streams from bundled files. A separate worker process uses the same codebase and database; no microservice fleet, upload/transcoding pipeline or CDN was added.
 
 | Location                                              | Responsibility                                                                   |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `server/config.js`                                    | Validated environment configuration                                              |
 | `server/database/`                                    | PostgreSQL/SQLite adapters, migrations, catalog seed and read-only-source import |
-| `server/migrations/postgres/`                         | Ordered core schema and session SQL migrations                                   |
+| `server/migrations/postgres/`                         | Core/session/cache/job/recovery SQL migrations                                   |
 | `server/migrations/sqlite/`                           | Additive auth, event ownership and owner guards                                  |
+| `server/infrastructure/redis.js`                      | Distributed counters and neutral catalog cache                                   |
+| `server/jobs/`                                        | Durable queue, worker handlers and analytics backfill                            |
+| `server/operations/backup.js`                         | Snapshot backup and isolated restore verification                                |
 | `server/routes/`                                      | HTTP endpoints, validation and status codes                                      |
 | `server/services/`                                    | Authentication/password hashing, resume/discovery rules and analytics assembly   |
 | `server/repositories/`                                | Identity, catalog, listening writes and analytics queries                        |
@@ -147,7 +177,7 @@ The application remains a modular monolith. Public media still streams from bund
 | `scripts/*smoke.mjs`                                  | Browser playback, offline, auth, restart and keyboard checks                     |
 | `api/index.js`, `vercel.json`                         | Serverless adapter and bundle/routing configuration                              |
 
-Core relations are `users`, `sessions`, `stories`, `chapters`, `favorites`, `listening_progress`, `progress_write_versions`, `listening_events` and `schema_migrations`. Owned rows have composite user/resource keys; PostgreSQL enforces ownership references with foreign keys. Events use `(user_id,event_id)`, allowing each owner an independent idempotency namespace.
+Core relations are `users`, `sessions`, `stories`, `chapters`, `favorites`, `listening_progress`, `progress_write_versions`, `listening_events` and `schema_migrations`, with `account_tokens`, `background_jobs`, `analytics_rollups` and `catalog_revision` added for operations. Owned rows have composite user/resource keys; PostgreSQL enforces ownership references with foreign keys. Events use `(user_id,event_id)`, allowing each owner an independent idempotency namespace.
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for constraints, transaction boundaries, guest upgrades, password costs, cache isolation and migration tradeoffs.
 
@@ -173,6 +203,11 @@ All endpoints use `/api`. JSON errors use `{ "error": { "message": "..." } }`. R
 | POST         | `/auth/demo`                       | CSRF-protected independent guest creation; only when enabled and signed out                             |
 | POST         | `/auth/register`                   | `{ email, password, displayName }`; create account or upgrade current guest                             |
 | POST         | `/auth/login`                      | `{ email, password }`; rotate session on valid credentials                                              |
+| POST         | `/auth/forgot-password`            | Generic accepted response; queues reset mail when configured                                            |
+| POST         | `/auth/request-verification`       | Resend for current registered account; session + CSRF                                                   |
+| POST         | `/auth/verify-email`               | One-use `{ token }`; CSRF                                                                               |
+| POST         | `/auth/reset-password`             | `{ token, password }`; reset and all-session revocation; CSRF                                           |
+| GET          | `/ready`                           | Database/Redis dependency readiness                                                                     |
 | POST         | `/auth/logout`                     | CSRF-protected revocation; 204                                                                          |
 | GET          | `/health`                          | Database connectivity and adapter type; public                                                          |
 | GET          | `/genres`                          | Public genre list                                                                                       |
@@ -185,6 +220,7 @@ All endpoints use `/api`. JSON errors use `{ "error": { "message": "..." } }`. R
 | PUT          | `/progress/:chapterId`             | `{ positionSeconds, completed?, clientId?, sequence? }`; session + CSRF                                 |
 | GET          | `/recommendations`                 | Rule-based current-user suggestions; public fallback when anonymous                                     |
 | POST         | `/analytics/events`                | `{ id, type, chapterId, listeningSeconds?, playbackRate? }`; session + CSRF                             |
+| GET          | `/analytics/rollups?days=7`        | Current-user background snapshots; session required                                                     |
 | GET          | `/analytics/overview`              | Current-user totals, genres, daily activity and recent events; session required                         |
 | GET / HEAD   | `/chapters/:id/stream`             | Public full/range audio with validated file resolution                                                  |
 
@@ -208,20 +244,27 @@ npm run format:check
 
 # Additional real PostgreSQL tests; use a disposable local database.
 TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm test
+# Full backend/Redis/restore suite (source public schema must be migrated first):
+TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/test_database \
+TEST_REDIS_URL=redis://localhost:6379 TEST_BACKUP_CONTAINER=YOUR_POSTGRES_CONTAINER npm test
+# Separate API/worker, captured SMTP and browser flows (all URLs must be loopback):
+TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/test_database \
+TEST_REDIS_URL=redis://localhost:6379 TEST_SMTP_URL=smtp://localhost:1025 \
+TEST_MAILPIT_URL=http://localhost:8025 npm run test:systems
 # Browser auth and restart checks can also use a disposable PostgreSQL database:
 DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm run test:auth:browser
 DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm run test:audit
 ```
 
-Tests with `TEST_DATABASE_URL` create and remove uniquely named schemas, so that test role needs schema privileges. Without it, PostgreSQL cases are not run; the suite still tests real sessions with SQLite. Browser PostgreSQL scripts seed/write the supplied database and must use disposable data.
+Database tests create/remove random schemas; restore/system tests additionally create/drop generated databases, so their disposable test role needs the corresponding privileges. `TEST_BACKUP_CONTAINER` must match the same local server as `TEST_DATABASE_URL`. Without it, PostgreSQL cases are not run; the suite still tests real sessions with SQLite. Browser PostgreSQL scripts seed/write the supplied database and must use disposable data.
 
-**Executed checkpoint:** 63 backend tests with PostgreSQL enabled and 22 frontend tests passed (**85 total, zero failures**). Existing core, offline, keyboard and SQLite restart checks passed; new auth and restart browser checks also passed against PostgreSQL. [PHASE1_REPORT.md](docs/PHASE1_REPORT.md) contains exact commands, counts, failures repaired and Docker status. The earlier [FINAL_AUDIT.md](FINAL_AUDIT.md) is historical evidence for the pre-auth demo, not a Phase 1 deployment/security certification.
+**Latest executed checkpoint:** 90 backend tests with real PostgreSQL, Redis and backup tools enabled, plus 26 frontend tests passed (**116 total, zero failures**). Existing core, offline, keyboard and SQLite restart checks passed; new auth and restart browser checks also passed against PostgreSQL. [PHASE2_REPORT.md](docs/PHASE2_REPORT.md) records exact commands, counts, repaired failures, SMTP/worker checks and restore results. [PHASE1_REPORT.md](docs/PHASE1_REPORT.md) preserves the earlier checkpoint. The earlier [FINAL_AUDIT.md](FINAL_AUDIT.md) is historical evidence for the pre-auth demo, not a Phase 1 deployment/security certification.
 
 Browser scripts use `CHROME_PATH`, installed macOS Chrome, or Playwright Chromium. If needed, run `npx playwright install chromium`. Chrome coverage does not establish Safari/Firefox, native OS installation or physical-mobile compatibility.
 
 ## Deployment and remaining work
 
-The existing Vercel URL still serves the earlier version. Before deploying Phase 1, provision persistent PostgreSQL, set `DATABASE_URL`, `NODE_ENV=production` and an exact HTTPS `APP_ORIGIN`, configure verified database TLS where applicable, apply/review migrations, and test sign-in/isolation/restart behavior at the public origin. Pool size must fit the provider's connection budget. Vercel packaging includes SQL migrations and audio, with SPA/API rewrites. No new managed database or public auth deployment was created in this phase.
+The existing Vercel URL still serves the earlier version. Before deploying the current version, provision persistent PostgreSQL and Redis, a long-running worker host, and a verified SMTP sender. Then set `DATABASE_URL`, `NODE_ENV=production` and an exact HTTPS `APP_ORIGIN`, configure verified database TLS where applicable, apply/review migrations, and test sign-in/isolation/restart behavior at the public origin. Pool size must fit the provider's connection budget. Vercel packaging includes SQL migrations and audio, with SPA/API rewrites. No managed Redis/SMTP/database deployment or public rollout was performed. Vercel API hosting additionally needs a separately hosted supervised worker; Mailpit is local-only.
 
 ```bash
 # After configuring and verifying the production database/environment:
@@ -229,11 +272,11 @@ npx vercel link --yes --project zippy-nitrogen-wd3scr3 --scope ronit-choudharys-
 npx vercel deploy --prod --yes --scope ronit-choudharys-projects
 ```
 
-Use a remote Linux build for native SQLite dependencies; never upload a Mac-built serverless function. A Node host can instead serve the app with `npm ci`, `npm run build`, `npm start`, HTTPS termination and persistent PostgreSQL. Retain bundled audio and SPA routing. GitHub pushes alone are not verified to deploy this project.
+Use a remote Linux build for native SQLite dependencies; never upload a Mac-built serverless function. A Node host can serve the app with `npm ci`, `npm run build`, `npm start`, a separately supervised `npm run worker`, HTTPS termination, persistent PostgreSQL and Redis. A serverless API alone does not run the durable worker. Retain bundled audio and SPA routing. GitHub pushes alone are not verified to deploy this project.
 
-Remaining gaps include email verification, password recovery/change, MFA, account deletion, expired guest/session retention cleanup, distributed rate limiting, private content entitlements, offline private-data synchronization, production database roles/backups/restore drills, security review and load testing. Audio remains a small bundled catalog. Browser downloads are public content stored on one device and can be evicted. Analytics are bounded client-observed demo metrics, not tamper-proof engagement tracking.
+Remaining gaps include MFA, account deletion, private content entitlements, offline private-data synchronization, managed production deployment/TLS, database role separation, scheduled encrypted/offsite backups, full disaster-recovery promotion, security review and load testing. Verification, recovery, cleanup, distributed limits and local restore drills are implemented; external internet delivery is not verified. Audio remains a small bundled catalog. Browser downloads are public content stored on one device and can be evicted. Analytics are bounded client-observed demo metrics, not tamper-proof engagement tracking.
 
-For Redis and background-job recommendations, see [the architecture document](docs/ARCHITECTURE.md#deployment-and-next-phases). Neither is implemented in Phase 1.
+See [Operations](docs/OPERATIONS.md) and the [architecture document](docs/ARCHITECTURE.md) for Redis/worker/email/backup behavior and remaining operational work.
 
 ## Audio and artwork
 

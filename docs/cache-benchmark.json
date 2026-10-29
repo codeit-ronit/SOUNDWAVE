@@ -1,0 +1,15 @@
+{
+  "catalogStories": 6,
+  "query": "mystery",
+  "direct": {
+    "requests": 100,
+    "p50Milliseconds": 0.498,
+    "p95Milliseconds": 0.827
+  },
+  "warmRedis": {
+    "requests": 100,
+    "p50Milliseconds": 0.736,
+    "p95Milliseconds": 1.081
+  },
+  "note": "Sequential local sample. Revision lookup stays in PostgreSQL. No scalability or latency improvement is implied."
+}
