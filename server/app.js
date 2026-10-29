@@ -4,7 +4,7 @@ import cors from "cors";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { analyticsRouter } from "./routes/analytics.js";
-import { streamRouter } from "./routes/stream.js";
+import { streamRouter, legacyAudioRouter } from "./routes/stream.js";
 import { apiRouter } from "./routes/api.js";
 export function createApp(
   db,
@@ -38,13 +38,7 @@ export function createApp(
   app.use("/api", (_req, res) =>
     res.status(404).json({ error: { message: "API route not found." } }),
   );
-  app.use(
-    "/audio",
-    express.static(fileURLToPath(new URL("./public/audio", import.meta.url)), {
-      maxAge: "1d",
-      fallthrough: false,
-    }),
-  );
+  app.use("/audio", legacyAudioRouter(db));
   const client = fileURLToPath(new URL("../client/dist", import.meta.url));
   if (existsSync(client)) {
     app.use(express.static(client));

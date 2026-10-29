@@ -12,6 +12,7 @@ import {
   resumePosition,
   preferredSpeed,
   PLAYBACK_SPEEDS,
+  nextProgressVersion,
 } from "./playback";
 const PlayerContext = createContext(null);
 export const usePlayer = () => useContext(PlayerContext);
@@ -25,6 +26,7 @@ export function PlayerProvider({ children }) {
   const requestVersion = useRef(0);
   const lastSave = useRef(0);
   const saveQueue = useRef(Promise.resolve());
+  const seekSaveTimer = useRef(null);
   const mounted = useRef(true);
   const segmentStart = useRef(null);
   const analyticsPlaying = useRef(false);
@@ -47,6 +49,8 @@ export function PlayerProvider({ children }) {
 
   const save = useCallback(
     (completed = false, keepalive = false) => {
+      clearTimeout(seekSaveTimer.current);
+      seekSaveTimer.current = null;
       const current = activeRef.current;
       const audio = audioRef.current;
       if (!current || !audio || audio.readyState === 0)
@@ -55,9 +59,10 @@ export function PlayerProvider({ children }) {
         ? current.chapter.duration_seconds
         : Math.min(audio.currentTime || 0, current.chapter.duration_seconds);
       const chapterId = current.chapter.id;
+      const version = nextProgressVersion();
       // Snapshot before switching sources; serialize writes so an older save cannot overwrite a newer one.
       const send = () =>
-        api.save(chapterId, positionSeconds, completed, keepalive);
+        api.save(chapterId, positionSeconds, completed, keepalive, version);
       const pending = keepalive
         ? send()
         : saveQueue.current.catch(() => {}).then(send);
@@ -135,6 +140,8 @@ export function PlayerProvider({ children }) {
   const select = useCallback(
     (story, chapter, chapters, autoplay = true) => {
       const audio = audioRef.current;
+      clearTimeout(seekSaveTimer.current);
+      seekSaveTimer.current = null;
       requestVersion.current++;
       desiredPlay.current = false;
       if (analyticsPlaying.current) flushListening("playback_paused");
@@ -324,6 +331,7 @@ export function PlayerProvider({ children }) {
       });
     return () => {
       mounted.current = false;
+      clearTimeout(seekSaveTimer.current);
       controller.abort();
       for (const [name, listener] of Object.entries(events))
         audio.removeEventListener(name, listener);
@@ -353,7 +361,10 @@ export function PlayerProvider({ children }) {
     if (!active || audio.readyState === 0) return;
     audio.currentTime = Math.max(0, Math.min(value, duration));
     setPosition(audio.currentTime);
-    void save();
+    clearTimeout(seekSaveTimer.current);
+    seekSaveTimer.current = setTimeout(() => {
+      void save();
+    }, 400);
   };
   const setVolume = (value) => {
     audioRef.current.volume = value;

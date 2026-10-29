@@ -172,10 +172,11 @@ export function apiRouter(db) {
     const body = req.body;
     if (!body || Array.isArray(body) || typeof body !== "object")
       return fail(res, "A JSON object is required.");
-    const { positionSeconds, completed = false } = body;
+    const { positionSeconds, completed = false, clientId, sequence } = body;
     if (
       Object.keys(body).some(
-        (k) => !["positionSeconds", "completed"].includes(k),
+        (k) =>
+          !["positionSeconds", "completed", "clientId", "sequence"].includes(k),
       )
     )
       return fail(res, "Unknown progress field.");
@@ -193,9 +194,36 @@ export function apiRouter(db) {
       return fail(res, "completed must be a boolean.");
     if (completed && positionSeconds < chapter.duration_seconds - 1)
       return fail(res, "A completed chapter must be at its end.");
+    const versioned = clientId !== undefined || sequence !== undefined;
+    if (
+      versioned &&
+      (typeof clientId !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          clientId,
+        ) ||
+        !Number.isSafeInteger(sequence) ||
+        sequence < 1)
+    )
+      return fail(
+        res,
+        "clientId and a positive integer sequence must be supplied together.",
+      );
     const position = Math.min(positionSeconds, chapter.duration_seconds);
     const isComplete = completed || position >= chapter.duration_seconds;
     db.transaction(() => {
+      if (versioned) {
+        const id = clientId.toLowerCase();
+        const last = db
+          .prepare(
+            "SELECT sequence FROM progress_write_versions WHERE user_id=? AND chapter_id=? AND client_id=?",
+          )
+          .get(user, chapter.id, id);
+        if (last && sequence <= last.sequence) return;
+        db.prepare(
+          `INSERT INTO progress_write_versions (user_id,chapter_id,client_id,sequence) VALUES (?,?,?,?)
+          ON CONFLICT(user_id,chapter_id,client_id) DO UPDATE SET sequence=excluded.sequence`,
+        ).run(user, chapter.id, id, sequence);
+      }
       const previous = db
         .prepare(
           "SELECT completed FROM listening_progress WHERE user_id=? AND chapter_id=?",

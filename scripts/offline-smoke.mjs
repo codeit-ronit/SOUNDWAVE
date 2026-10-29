@@ -21,15 +21,17 @@ const check = (name) => {
 try {
   const macChrome =
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-  browser = await chromium.launch({
-    headless: true,
-    executablePath:
-      process.env.CHROME_PATH ||
-      (existsSync(macChrome) ? macChrome : undefined),
-  });
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 900 },
-  });
+  browser = await chromium.launchPersistentContext(
+    join(directory, "chrome-profile"),
+    {
+      headless: true,
+      executablePath:
+        process.env.CHROME_PATH ||
+        (existsSync(macChrome) ? macChrome : undefined),
+      viewport: { width: 1280, height: 900 },
+    },
+  );
+  const context = browser;
   page = await context.newPage();
   const errors = [];
   page.on("pageerror", (err) => errors.push(err.message));
@@ -64,6 +66,11 @@ try {
   const cdp = await context.newCDPSession(page);
   const appManifest = await cdp.send("Page.getAppManifest");
   assert.deepEqual(appManifest.errors, []);
+  const installability = await cdp.send("Page.getInstallabilityErrors");
+  console.log(
+    "Chrome installability diagnostics:",
+    JSON.stringify(installability.installabilityErrors),
+  );
   check(
     "manifest parses, service worker controls the app, stale shell cache is removed, and no audio is automatically cached",
   );
@@ -261,6 +268,81 @@ try {
   await page.waitForFunction(
     () => !document.querySelector(".download-button")?.disabled,
   );
+  await page.evaluate(() => {
+    window.originalAuditFetch = window.fetch;
+    window.fetch = (input, options) =>
+      String(input).endsWith("/api/chapters/101/stream")
+        ? Promise.resolve(
+            new Response(new Uint8Array(100), {
+              status: 206,
+              headers: {
+                "Content-Type": "audio/wav",
+                "Content-Length": "100",
+                "Content-Range": "bytes 0-99/1000",
+              },
+            }),
+          )
+        : window.originalAuditFetch(input, options);
+  });
+  await page
+    .getByRole("button", {
+      name: "Download A voice in the static",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByText(
+      "Download failed: The server did not return a complete supported audio file.",
+      { exact: true },
+    )
+    .waitFor();
+  assert.equal(
+    await page.evaluate(
+      async () =>
+        (await (await caches.open("soundwave-audio-v1")).keys()).length,
+    ),
+    0,
+  );
+  check(
+    "a partial 206 response is rejected and never published as an offline download",
+  );
+  await page.evaluate(() => {
+    window.fetch = (input, options) =>
+      String(input).endsWith("/api/chapters/101/stream")
+        ? Promise.resolve(
+            new Response(new Uint8Array(44), {
+              status: 200,
+              headers: { "Content-Type": "audio/wav", "Content-Length": "100" },
+            }),
+          )
+        : window.originalAuditFetch(input, options);
+  });
+  await page
+    .getByRole("button", {
+      name: "Download A voice in the static",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByText(
+      "Download failed: The download was incomplete or invalid. Please retry.",
+      { exact: true },
+    )
+    .waitFor();
+  assert.equal(
+    await page.evaluate(
+      async () =>
+        (await (await caches.open("soundwave-audio-v1")).keys()).length,
+    ),
+    0,
+  );
+  check(
+    "a truncated 200 response is rejected without advertising an available download",
+  );
+  await page.evaluate(() => {
+    window.fetch = window.originalAuditFetch;
+    delete window.originalAuditFetch;
+  });
   await page.evaluate(() => {
     window.originalCachePut = Cache.prototype.put;
     Cache.prototype.put = function (request, response) {

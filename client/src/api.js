@@ -30,10 +30,10 @@ export const api = {
   recommendations: (signal) => request("/recommendations", { signal }),
   favorite: (id, favorite) =>
     request(`/library/${id}`, { method: favorite ? "PUT" : "DELETE" }),
-  save: (id, positionSeconds, completed = false, keepalive = false) =>
+  save: (id, positionSeconds, completed = false, keepalive = false, version) =>
     request(`/progress/${id}`, {
       method: "PUT",
-      body: JSON.stringify({ positionSeconds, completed }),
+      body: JSON.stringify({ positionSeconds, completed, ...version }),
       keepalive,
     }),
 };

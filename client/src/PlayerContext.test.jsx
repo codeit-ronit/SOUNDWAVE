@@ -98,9 +98,29 @@ describe("persistent audio player", () => {
       audio.currentTime = 9;
       player.toggle();
     });
-    expect(api.save).toHaveBeenCalledWith(101, 9, false, false);
+    expect(api.save).toHaveBeenCalledWith(
+      101,
+      9,
+      false,
+      false,
+      expect.objectContaining({
+        clientId: expect.any(String),
+        sequence: expect.any(Number),
+      }),
+    );
     await act(async () => player.seek(14));
-    expect(api.save).toHaveBeenLastCalledWith(101, 14, false, false);
+    await waitFor(() =>
+      expect(api.save).toHaveBeenLastCalledWith(
+        101,
+        14,
+        false,
+        false,
+        expect.objectContaining({
+          clientId: expect.any(String),
+          sequence: expect.any(Number),
+        }),
+      ),
+    );
     await act(async () => player.move(1));
     expect(player.active.chapter.id).toBe(102);
     expect(api.save.mock.calls.some((c) => c[0] === 101 && c[1] === 14)).toBe(
@@ -115,12 +135,30 @@ describe("persistent audio player", () => {
       audio.currentTime = 11;
       audio.dispatchEvent(new Event("timeupdate"));
     });
-    expect(api.save).toHaveBeenCalledWith(101, 11, false, false);
+    expect(api.save).toHaveBeenCalledWith(
+      101,
+      11,
+      false,
+      false,
+      expect.objectContaining({
+        clientId: expect.any(String),
+        sequence: expect.any(Number),
+      }),
+    );
     await act(async () => {
       audio.currentTime = 12;
       window.dispatchEvent(new Event("pagehide"));
     });
-    expect(api.save).toHaveBeenCalledWith(101, 12, false, true);
+    expect(api.save).toHaveBeenCalledWith(
+      101,
+      12,
+      false,
+      true,
+      expect.objectContaining({
+        clientId: expect.any(String),
+        sequence: expect.any(Number),
+      }),
+    );
   });
   it("marks the finished chapter complete before automatically advancing", async () => {
     const { audio } = setup();
@@ -129,7 +167,16 @@ describe("persistent audio player", () => {
       audio.currentTime = 30;
       audio.dispatchEvent(new Event("ended"));
     });
-    expect(api.save).toHaveBeenCalledWith(101, 30, true, false);
+    expect(api.save).toHaveBeenCalledWith(
+      101,
+      30,
+      true,
+      false,
+      expect.objectContaining({
+        clientId: expect.any(String),
+        sequence: expect.any(Number),
+      }),
+    );
     expect(player.active.chapter.id).toBe(102);
     expect(player.playing).toBe(true);
   });
@@ -304,5 +351,52 @@ describe("playback analytics", () => {
       0,
     );
     expect(total).toBe(4);
+  });
+});
+
+describe("independent audit regressions", () => {
+  afterEach(() => vi.useRealTimers());
+  it("coalesces a slider drag instead of flooding progress writes and the API rate limit", async () => {
+    setup();
+    await act(async () => player.playStory(story));
+    api.save.mockClear();
+    vi.useFakeTimers();
+    await act(async () => {
+      for (let i = 0; i < 80; i++) player.seek(i / 4);
+    });
+    expect(api.save).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(api.save).toHaveBeenCalledTimes(1);
+    expect(api.save.mock.calls[0][1]).toBe(19.75);
+  });
+});
+
+describe("out-of-order progress snapshots", () => {
+  it("versions snapshots before dispatch so unload cannot be overwritten by an older in-flight save", async () => {
+    const { audio } = setup();
+    await act(async () => player.playStory(story));
+    let finishOld;
+    api.save.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishOld = resolve;
+        }),
+    );
+    await act(async () => {
+      audio.currentTime = 5;
+      void player.retrySave();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      audio.currentTime = 12;
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    const [old, newer] = api.save.mock.calls;
+    expect(old[4]?.clientId).toBeTruthy();
+    expect(newer[4]?.clientId).toBe(old[4].clientId);
+    expect(newer[4]?.sequence).toBeGreaterThan(old[4].sequence);
+    await act(async () => finishOld({}));
   });
 });

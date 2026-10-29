@@ -22,8 +22,7 @@ export function parseRange(header, size) {
   return { start: first, end: Math.min(last ?? size - 1, size - 1) };
 }
 
-export function streamRouter(db) {
-  const router = Router();
+export function createAudioHandler(db) {
   const root = fileURLToPath(new URL("../public/audio/", import.meta.url));
   async function serve(req, res, next) {
     let handle;
@@ -57,7 +56,9 @@ export function streamRouter(db) {
       if (!stat.isFile()) {
         await handle.close();
         handle = null;
-        return res.sendStatus(404);
+        return res
+          .status(404)
+          .json({ error: { message: "Audio file not found." } });
       }
       const size = stat.size;
       const etag = `"${size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
@@ -113,6 +114,33 @@ export function streamRouter(db) {
       next(err);
     }
   }
+  return serve;
+}
+
+export function streamRouter(db) {
+  const router = Router();
+  const serve = createAudioHandler(db);
   router.route("/chapters/:id/stream").get(serve).head(serve);
+  return router;
+}
+
+export function legacyAudioRouter(db) {
+  const router = Router();
+  const serve = createAudioHandler(db);
+  const legacy = (req, res, next) => {
+    const chapter = db
+      .prepare("SELECT id FROM chapters WHERE audio_url=?")
+      .get(`/audio/${req.params.filename}`);
+    if (!chapter)
+      return res
+        .status(404)
+        .json({ error: { message: "Audio file not found." } });
+    req.params.id = String(chapter.id);
+    return serve(req, res, next);
+  };
+  router.route("/:filename").get(legacy).head(legacy);
+  router.use((_req, res) =>
+    res.status(404).json({ error: { message: "Audio file not found." } }),
+  );
   return router;
 }

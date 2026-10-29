@@ -112,3 +112,44 @@ test("chapter API points the existing player to streaming endpoints without a sc
     "/audio/1-1.wav",
   );
 });
+
+test("legacy audio URLs cannot expose an out-of-root symlink", async () => {
+  const {
+    mkdtempSync,
+    writeFileSync,
+    symlinkSync,
+    unlinkSync,
+    rmSync,
+    mkdirSync,
+  } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "soundwave-symlink-audit-"));
+  const target = join(dir, "private.txt");
+  const link = new URL("../public/audio/900001-1.wav", import.meta.url);
+  try {
+    writeFileSync(target, "audit-private-content");
+    symlinkSync(target, link);
+    db.prepare("UPDATE chapters SET audio_url=? WHERE id=101").run(
+      "/audio/900001-1.wav",
+    );
+    await request(app).get("/api/chapters/101/stream").expect(404);
+    await request(app).get("/audio/900001-1.wav").expect(404);
+    const directory = new URL("../public/audio/900002-1.wav", import.meta.url);
+    mkdirSync(directory);
+    try {
+      db.prepare("UPDATE chapters SET audio_url=? WHERE id=101").run(
+        "/audio/900002-1.wav",
+      );
+      const result = await request(app)
+        .get("/api/chapters/101/stream")
+        .expect(404);
+      assert.equal(typeof result.body.error.message, "string");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  } finally {
+    unlinkSync(link);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

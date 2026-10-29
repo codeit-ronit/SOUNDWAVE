@@ -39,6 +39,11 @@ export function openDatabase(
       updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       PRIMARY KEY(user_id, chapter_id)
     );
+    CREATE TABLE IF NOT EXISTS progress_write_versions (
+      user_id TEXT NOT NULL, chapter_id INTEGER NOT NULL REFERENCES chapters(id),
+      client_id TEXT NOT NULL, sequence INTEGER NOT NULL CHECK(sequence > 0),
+      PRIMARY KEY(user_id, chapter_id, client_id)
+    );
     CREATE TABLE IF NOT EXISTS listening_events (
       event_id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
       story_id INTEGER NOT NULL REFERENCES stories(id), chapter_id INTEGER REFERENCES chapters(id),

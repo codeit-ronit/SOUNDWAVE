@@ -41,3 +41,57 @@ test("API rate limit returns 429 with retry headers while media ranges remain us
     db.close();
   }
 });
+
+test("CORS permits configured development origin but never reflects an arbitrary site or credentials", async () => {
+  const db = openDatabase(":memory:");
+  seedDatabase(db);
+  try {
+    const app = createApp(db);
+    const denied = await request(app)
+      .get("/api/health")
+      .set("Origin", "https://untrusted.example")
+      .expect(200);
+    assert.equal(denied.headers["access-control-allow-origin"], undefined);
+    assert.equal(denied.headers["access-control-allow-credentials"], undefined);
+    const preflight = await request(app)
+      .options("/api/progress/101")
+      .set("Origin", "https://untrusted.example")
+      .set("Access-Control-Request-Method", "PUT");
+    assert.equal(preflight.headers["access-control-allow-origin"], undefined);
+  } finally {
+    db.close();
+  }
+});
+test("oversized JSON and malformed URI requests return bounded JSON errors without stack disclosure", async () => {
+  const db = openDatabase(":memory:");
+  seedDatabase(db);
+  try {
+    const app = createApp(db);
+    const big = await request(app)
+      .put("/api/progress/101")
+      .send({ positionSeconds: 5, padding: "x".repeat(9000) })
+      .expect(413);
+    assert.equal(typeof big.body.error.message, "string");
+    assert.equal(big.body.error.stack, undefined);
+    const malformed = await request(app)
+      .get("/api/stories/%E0%A4%A")
+      .expect(400);
+    assert.equal(typeof malformed.body.error.message, "string");
+  } finally {
+    db.close();
+  }
+});
+test("client-supplied forwarding headers cannot bypass the direct-server rate limit", async () => {
+  const db = openDatabase(":memory:");
+  seedDatabase(db);
+  try {
+    const app = createApp(db, { rateLimit: { max: 2, windowMs: 60000 } });
+    for (let i = 0; i < 3; i++)
+      await request(app)
+        .get("/api/health")
+        .set("X-Forwarded-For", `203.0.113.${i + 1}`)
+        .expect(i < 2 ? 200 : 429);
+  } finally {
+    db.close();
+  }
+});

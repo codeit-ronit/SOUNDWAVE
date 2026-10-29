@@ -24,3 +24,33 @@ export function preferredSpeed() {
     return 1;
   }
 }
+
+let progressClientId;
+let progressSequence = 0;
+// Capture before queueing network work. Session storage preserves ordering across a tab refresh.
+export function nextProgressVersion() {
+  try {
+    const storedClient = sessionStorage.getItem("soundwave.progressClient");
+    progressClientId =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        storedClient || "",
+      )
+        ? storedClient
+        : progressClientId || crypto.randomUUID();
+    const stored = Number(sessionStorage.getItem("soundwave.progressSequence"));
+    progressSequence =
+      Math.max(
+        progressSequence,
+        Number.isSafeInteger(stored) && stored >= 0 ? stored : 0,
+      ) + 1;
+    sessionStorage.setItem("soundwave.progressClient", progressClientId);
+    sessionStorage.setItem(
+      "soundwave.progressSequence",
+      String(progressSequence),
+    );
+  } catch {
+    progressClientId ||= crypto.randomUUID();
+    progressSequence++;
+  }
+  return { clientId: progressClientId, sequence: progressSequence };
+}

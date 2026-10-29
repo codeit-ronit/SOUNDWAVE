@@ -242,10 +242,18 @@ test("progress and favorites survive a database close and server recreation", as
       .send({ positionSeconds: 17 })
       .expect(200);
     await request(createApp(persistent)).put("/api/library/1").expect(200);
+    // Model the pre-audit schema: additive initialization must preserve listener data.
+    persistent.exec("DROP TABLE progress_write_versions");
     persistent.close();
     persistent = openDatabase(path);
     seedDatabase(persistent);
     const recreated = createApp(persistent);
+    assert.equal(
+      persistent
+        .prepare("SELECT COUNT(*) AS count FROM progress_write_versions")
+        .get().count,
+      0,
+    );
     assert.equal(
       (await request(recreated).get("/api/progress")).body.progress[0]
         .position_seconds,
@@ -330,4 +338,66 @@ test("all 12 local WAVs contain non-silent PCM and support HTTP byte ranges", as
 test("missing audio returns a JSON 404 rather than the SPA document", async () => {
   const res = await request(app).get("/audio/nonexistent.wav").expect(404);
   assert.equal(typeof res.body.error.message, "string");
+});
+
+test("out-of-order saves and duplicate versions cannot rewind progress or duplicate completion events", async () => {
+  const clientId = "12345678-1234-4234-8234-123456789abc";
+  const duration = db
+    .prepare("SELECT duration_seconds FROM chapters WHERE id=101")
+    .get().duration_seconds;
+  const write = (sequence, positionSeconds, completed = false) =>
+    request(app)
+      .put("/api/progress/101")
+      .send({ clientId, sequence, positionSeconds, completed })
+      .expect(200);
+  await write(2, 12);
+  await write(1, 5);
+  assert.equal(
+    (await request(app).get("/api/progress")).body.progress[0].position_seconds,
+    12,
+  );
+  await write(3, duration, true);
+  await write(2, 12);
+  await write(3, duration, true);
+  const result = (await request(app).get("/api/progress")).body.progress[0];
+  assert.equal(result.completed, true);
+  assert.equal(
+    db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM listening_events WHERE event_type='chapter_completed'",
+      )
+      .get().n,
+    1,
+  );
+  await write(4, 0);
+  await write(3, duration, true);
+  assert.equal(
+    (await request(app).get("/api/progress")).body.progress[0].completed,
+    false,
+  );
+  assert.equal(
+    db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM listening_events WHERE event_type='chapter_completed'",
+      )
+      .get().n,
+    1,
+  );
+});
+test("invalid progress ordering metadata is rejected without changing saved state", async () => {
+  for (const fields of [
+    { clientId: "bad", sequence: 1 },
+    { clientId: "12345678-1234-4234-8234-123456789abc" },
+    { sequence: 1 },
+    { clientId: "12345678-1234-4234-8234-123456789abc", sequence: 0 },
+    { clientId: "12345678-1234-4234-8234-123456789abc", sequence: 1.5 },
+  ])
+    await request(app)
+      .put("/api/progress/101")
+      .send({ positionSeconds: 5, ...fields })
+      .expect(400);
+  assert.equal(
+    (await request(app).get("/api/progress")).body.progress.length,
+    0,
+  );
 });

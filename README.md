@@ -4,11 +4,15 @@
 
 Built as a product-focused software engineering portfolio project. This is a single-listener demo, with no claims about real users or production-scale performance.
 
+**Live demo:** [soundwave-codeit-ronit.vercel.app](https://soundwave-codeit-ronit.vercel.app) · [Source](https://github.com/codeit-ronit/SOUNDWAVE) · [Independent audit](FINAL_AUDIT.md)
+
+The Vercel demo uses temporary SQLite storage; data can reset or differ between function instances. The normal Node server supports a persistent database path and has been tested across process restarts.
+
 ![SoundWave desktop interface](docs/soundwave-desktop.png)
 
 ## Run locally
 
-Requires **Node.js 22+ and npm**. The verified environment used Node 22.21.1. All twelve audio files are included; no external audio service, API key, or macOS speech tooling is needed to run the app.
+Requires **Node.js 22.x and npm** (pinned for native SQLite runtime compatibility). The verified environment used Node 22.21.1. All twelve audio files are included; no external audio service, API key, or macOS speech tooling is needed to run the app.
 
 ```bash
 npm ci
@@ -126,9 +130,11 @@ The API uses prepared SQL statements. Sort expressions come exclusively from a f
 
 | `listening_events` | `event_id` TEXT PK; user_id, story_id FK, optional chapter_id FK, event_type, listening_seconds (0–60), metadata JSON, created_at |
 
-Schema initialization is additive: it creates the new event table/indexes without deleting or rewriting existing progress and favorites. Event indexes support user/time and user/story queries.
+Schema initialization is additive: it creates event and progress-ordering tables/indexes without deleting or rewriting existing progress and favorites. Event indexes support user/time and user/story queries.
 
 Progress obtains its story identity through the chapter relationship rather than duplicating story IDs. Indexes support chapter lookup and listening recency. Times are UTC. Running `npm run seed` updates catalog content and preserves listener data. Runtime SQLite files are gitignored.
+
+`progress_write_versions` uses the composite key `(user_id, chapter_id, client_id)` and stores the last sequence number. It rejects old or duplicate progress snapshots from the same browser tab, including delayed unload saves. Existing unversioned API clients remain compatible. Seek writes are coalesced for 400 ms; pause, chapter change, and page-hide saves flush immediately. Separate clients still share the demo user and can overwrite each other; this is not multi-user conflict resolution.
 
 ### Recommendation rules
 
@@ -185,7 +191,7 @@ GET responses use `{ stories }`, `{ story }`, `{ chapters }`, or the shapes spec
 | PUT    | `/library/:storyId`                | Add favorite idempotently; returns story, HTTP 200                                                |
 | DELETE | `/library/:storyId`                | Remove favorite idempotently; HTTP 204                                                            |
 | GET    | `/progress`                        | `{ progress, continueListening }`; latest progress first; one continue entry per unfinished story |
-| PUT    | `/progress/:chapterId`             | Save `{ positionSeconds, completed? }`; returns `{ progress }`                                    |
+| PUT    | `/progress/:chapterId`             | Save `{ positionSeconds, completed?, clientId?, sequence? }`; returns `{ progress }`              |
 | GET    | `/recommendations`                 | `{ strategy: "rule-based", stories }`; each story includes score and reason                       |
 
 Additional endpoints:
@@ -199,6 +205,8 @@ Additional endpoints:
 Client-posted event types are `playback_started`, `playback_paused`, and `listening_interval`; favorites and completions are server-generated. Intervals must be finite numbers from 0 to 60; start events have zero duration. Rate must be one of the supported player speeds.
 
 `sort` accepts `trending`, `title`, or `newest` (descending catalog ID). `q` is limited to 100 characters and `genre` to 40. Invalid IDs, repeated query values, invalid sorts, malformed JSON, unknown progress fields, and invalid positions return **400**. Unknown stories/chapters return **404**. JSON payloads are limited to 8 KB (**413**). Unexpected server failures return **500** without exposing internals.
+
+The player supplies a UUID `clientId` and a positive integer `sequence` together. The server atomically ignores old/duplicate versions for that client/chapter. Omitting both preserves the original last-arriving-write API behavior.
 
 `positionSeconds` must be a finite nonnegative JSON number within the chapter duration, with one second of tolerance for media metadata rounding. `completed` must be boolean; explicit completion requires a position within the final second. End positions are clamped and marked complete. Replaying a completed chapter saves a fresh position with `completed: false`.
 
@@ -214,18 +222,19 @@ curl http://127.0.0.1:3001/api/progress
 ## Verification
 
 ```bash
-npm test              # 34 HTTP integration + 18 client/player tests
+npm test              # 40 HTTP integration + 20 client/player tests
 npm run build         # production compilation and generated offline shell
 npm run test:browser  # build + 14 real playback / analytics browser checks
-npm run test:offline  # build + 11 advanced player / PWA / offline checks
+npm run test:offline  # build + 13 advanced player / PWA / offline checks
+npm run test:audit    # build + 7 independent restart/security/browser checks
 npm run format:check
 ```
 
-**Verified results:** **34 API tests + 18 client/player tests passed (52 total, zero failures)**. Production build passed. **14 core/analytics browser checks and 11 player/offline checks passed (25 total)** in headless Google Chrome. Existing playback, refresh restoration, favorites, recommendations, search and chapter transitions remain covered. All twelve original audio files still contain nonzero PCM and support HTTP byte ranges.
+**Verified results:** **40 API tests + 20 client/player tests passed (60 total, zero failures)**. Production build passed. **14 core/analytics, 13 player/offline, and 7 independent restart/security checks passed (34 local smoke checks)** in headless Google Chrome. Existing playback, refresh restoration, favorites, recommendations, search and chapter transitions remain covered. All twelve original audio files still contain nonzero PCM and support HTTP byte ranges.
 
 New API coverage includes exact full/range file bytes; bounded/open/suffix/clamped and invalid ranges; HEAD and If-Range; server path restrictions; event validation/idempotency/conflicts; interval-based metrics excluding seek positions; atomic favorite/completion events; request IDs, logs, 429 and media exemptions. Player tests verify speed persistence, timer expiry/cancel/cleanup, shortcuts and editable-field protection, rerender-safe events, and exclusion of buffering/seek time.
 
-The browser scenarios verify native 206 audio playback, navigation/refresh persistence, analytics tied to real playback, speed after reload, keyboard controls, a five-minute sleep timer using an accelerated browser clock, app-shell reload with Chrome networking disabled, actual offline audio decoding, range-aware offline seeking, selective caching/removal, and simulated quota failure. Tests use temporary SQLite databases and isolated browser profiles. Native OS installation, physical mobile devices and Safari are not verified.
+The browser scenarios verify native 206 audio playback, navigation/refresh persistence, analytics tied to real playback, speed after reload, keyboard controls, a five-minute sleep timer using an accelerated browser clock, app-shell reload with Chrome networking disabled, actual offline audio decoding, range-aware offline seeking, selective caching/removal, and simulated quota failure. Tests use temporary SQLite databases and isolated browser profiles. A regular isolated Chrome profile reports no installability errors. Native OS installation, physical mobile devices and Safari are not verified. Partial 206 downloads and truncated 200 downloads are fault-injected and rejected, without creating available audio entries.
 
 The scripts use installed macOS Chrome if available, `CHROME_PATH` if supplied, or Playwright Chromium elsewhere. On a host without Chrome:
 
@@ -252,7 +261,21 @@ The generator reuses existing WAV files; remove the specific generated file befo
 
 ## Deployment and limitations
 
-**No public deployment has been created or verified.** The app is verified locally in both development and production-serving modes. Hosting is the remaining optional deliverable.
+**Public demo verified:** https://soundwave-codeit-ronit.vercel.app. The homepage, SPA deep links, REST API, HTTP HEAD, valid/invalid ranges, and actual Chrome audio playback have been checked over HTTPS. It is publicly accessible without Vercel login, as authorized by the owner.
+
+The previously submitted `https://zippy-nitrogen-wd3scr3.tmp.now/` address is claimed and now uses a project-level, hostname-specific 307 redirect to the working demo. It was independently checked in a fresh Chrome session through actual audio playback. Retain that original claimed deployment and redirect because the submitted address depends on them. Prefer the stable branded URL in future submissions.
+
+`vercel.json` builds the React client and routes API/audio requests to `api/index.js`, which uses a temporary `/tmp` SQLite database. **Durable public data persistence is not implemented on Vercel.** Local Node-server persistence is verified; that does not imply serverless persistence. Data may disappear on cold starts/redeploys or vary between instances. This is a portfolio demo, not a durable production service.
+
+To redeploy the demo with the authenticated owner account:
+
+```bash
+npx vercel login
+npx vercel link --yes --project zippy-nitrogen-wd3scr3 --scope ronit-choudharys-projects
+npx vercel deploy --prod --yes
+```
+
+Use a remote Linux build for `better-sqlite3`. Uploading a Mac prebuilt function packages a Mach-O binary that fails on Linux; this failure was observed and repaired. Node 22.x is pinned in package metadata. `.vercel/` stays ignored. CLI deployment is configured; automatic deployment on GitHub pushes has not been configured or verified.
 
 For deployment, use a Node-capable host with persistent disk, run `npm ci && npm run build` during the build, and `npm start` as the start command. Set `DATABASE_PATH` to a writable path on the persistent volume and allow the host to provide `PORT`. Express serves both the frontend and API from the same origin, including deep links. Include `server/public/audio` in the deployment. Static-only hosting cannot run the SQLite/Express API.
 
@@ -268,7 +291,7 @@ Scope limits:
 
 ## Publish to GitHub
 
-The project is prepared locally; it has not been pushed to GitHub. Create a repository with your preferred visibility, then connect and push it:
+The repository is published at https://github.com/codeit-ronit/SOUNDWAVE. For a new clone or your own fork:
 
 ```bash
 # If the checkout has not already been initialized:
@@ -283,10 +306,10 @@ git push -u origin main
 
 Never add `.env`, SQLite runtime files, or credentials. The included `.gitignore` excludes them.
 
-The optional public deployment remains unfinished. All four feature priorities (streaming, advanced controls, selective offline PWA, and analytics) are implemented and locally verified. There are no known regressions in the tested scenarios. Remaining verification limits are native installation, Safari/mobile hardware, and production hosting.
+All four feature priorities are implemented. Remaining gaps are durable public hosting, native installation verification, and Safari/mobile hardware coverage. See [FINAL_AUDIT.md](FINAL_AUDIT.md) for the explicit PASS / FAIL / NOT VERIFIED assessment.
 
 ## Resume bullets
 
 - Engineered an Express audio-streaming endpoint with disk-based byte ranges, HTTP 206/416 and HEAD support, validated file mappings, and integration tests for media-delivery edge cases.
 - Extended a React audio player with persistent speed preferences, sleep timers and keyboard controls, and delivered a PWA with selective, verified audio downloads and range-aware offline playback.
-- Built SQLite-backed listening analytics with idempotent events and interval-based metrics, verifying the platform with 52 automated tests and 25 Chrome browser checks.
+- Built SQLite-backed listening analytics with idempotent events and interval-based metrics, verifying the platform with 60 automated tests and 34 local browser/process smoke checks.
