@@ -222,15 +222,16 @@ curl http://127.0.0.1:3001/api/progress
 ## Verification
 
 ```bash
-npm test              # 40 HTTP integration + 20 client/player tests
+npm test              # 40 HTTP integration + 21 client/player tests
 npm run build         # production compilation and generated offline shell
 npm run test:browser  # build + 14 real playback / analytics browser checks
 npm run test:offline  # build + 13 advanced player / PWA / offline checks
 npm run test:audit    # build + 7 independent restart/security/browser checks
+node scripts/keyboard-smoke.mjs # 3 focused-control keyboard checks (run build first)
 npm run format:check
 ```
 
-**Verified results:** **40 API tests + 20 client/player tests passed (60 total, zero failures)**. Production build passed. **14 core/analytics, 13 player/offline, and 7 independent restart/security checks passed (34 local smoke checks)** in headless Google Chrome. Existing playback, refresh restoration, favorites, recommendations, search and chapter transitions remain covered. All twelve original audio files still contain nonzero PCM and support HTTP byte ranges.
+**Verified results:** **40 API tests + 21 client/player tests passed (61 total, zero failures)**. Production build passed. **14 core/analytics, 13 player/offline, 7 independent restart/security, and 3 focused-control keyboard checks passed (37 local smoke checks)** in headless Google Chrome. Existing playback, refresh restoration, favorites, recommendations, search and chapter transitions remain covered. All twelve original audio files still contain nonzero PCM and support HTTP byte ranges.
 
 New API coverage includes exact full/range file bytes; bounded/open/suffix/clamped and invalid ranges; HEAD and If-Range; server path restrictions; event validation/idempotency/conflicts; interval-based metrics excluding seek positions; atomic favorite/completion events; request IDs, logs, 429 and media exemptions. Player tests verify speed persistence, timer expiry/cancel/cleanup, shortcuts and editable-field protection, rerender-safe events, and exclusion of buffering/seek time.
 
@@ -312,4 +313,4 @@ All four feature priorities are implemented. Remaining gaps are durable public h
 
 - Engineered an Express audio-streaming endpoint with disk-based byte ranges, HTTP 206/416 and HEAD support, validated file mappings, and integration tests for media-delivery edge cases.
 - Extended a React audio player with persistent speed preferences, sleep timers and keyboard controls, and delivered a PWA with selective, verified audio downloads and range-aware offline playback.
-- Built SQLite-backed listening analytics with idempotent events and interval-based metrics, verifying the platform with 60 automated tests and 34 local browser/process smoke checks.
+- Built SQLite-backed listening analytics with idempotent events and interval-based metrics, verifying the platform with 61 automated tests and 37 local browser/process smoke checks.
