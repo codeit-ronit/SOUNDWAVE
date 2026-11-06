@@ -1,0 +1,12 @@
+# The public Vercel project serves the frontend and proxies to Render.
+# Do not deploy the old ephemeral serverless API alongside that backend.
+api/
+.agents/
+skills-lock.json
+.env
+.env.*
+server/data/
+backups/
+*.dump
+*.dump.json
+*.backup
