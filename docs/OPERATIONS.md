@@ -1,6 +1,6 @@
 # SoundWave operations: Redis, jobs, email and recovery drills
 
-These instructions describe the repository's current backend implementation. They do not claim a public deployment, delivered internet email, production security certification, or measured scalability.
+These instructions describe the repository's current backend implementation. The [public rollout report](PUBLIC_DEPLOYMENT.md) records the verified free demo deployment and its sleeping/volatile-Redis limits. Internet email delivery, production security certification and measured production scalability are not claimed.
 
 ## Complete local stack
 

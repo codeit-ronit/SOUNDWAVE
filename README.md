@@ -4,7 +4,7 @@
 
 **[Live portfolio demo](https://soundwave-codeit-ronit.vercel.app/)** · **[Source](https://github.com/codeit-ronit/SOUNDWAVE)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Operations](docs/OPERATIONS.md)** · **[Resume claim verification](docs/RESUME_CLAIM_VERIFICATION.md)**
 
-**Deployment status:** The repository now includes PostgreSQL/authentication plus Redis protection, BullMQ audio-analysis workers, background analytics, email recovery and backup tooling. It has been verified locally, including real PostgreSQL tests; it has **not been deployed to the public demo**. The live link still serves the earlier shared-user version with temporary Vercel SQLite storage. Do not use it for private data or as evidence of the new authentication deployment.
+**Deployment status:** The public demo now serves the current frontend and PostgreSQL/authentication backend, with Redis caching/shared limits, BullMQ audio analysis and background analytics. Vercel hosts the frontend and same-origin API proxy; Render Free runs the API/worker and Redis-compatible store; Neon Free stores PostgreSQL data. [Public deployment verification](docs/PUBLIC_DEPLOYMENT.md) records actual browser and restart checks. **Free hosting sleeps when idle, so the first API request can take about a minute.** Redis queue state is volatile on this free plan, and external email delivery is disabled.
 
 The submitted resume URL, [zippy-nitrogen-wd3scr3.tmp.now](https://zippy-nitrogen-wd3scr3.tmp.now/), redirects to the existing live demo. Retain its original claimed deployment and hostname-specific redirect. Use the main demo URL for future submissions.
 
@@ -60,7 +60,7 @@ Run `npm run worker` alongside host-side development. Inspect media jobs with `n
 
 ## Docker Compose
 
-For a no-cost public portfolio setup, see the [free demo deployment recipe](docs/FREE_DEMO_DEPLOYMENT.md). It uses Render plus Neon and explicitly documents sleeping workers and volatile Redis. Public cutover still requires provider accounts and successful public verification.
+For a no-cost public portfolio setup, see the [free demo deployment recipe](docs/FREE_DEMO_DEPLOYMENT.md). It uses Render plus Neon and explicitly documents sleeping workers and volatile Redis. The existing resume URL has now been cut over; see the public verification report for the deployed services and checks.
 
 With `POSTGRES_PASSWORD` set in `.env`, Compose runs PostgreSQL, Redis, API, worker and a local SMTP catcher. For email features, also set `EMAIL_MODE=smtp` and a random `EMAIL_ENCRYPTION_KEY` as described in [Operations](docs/OPERATIONS.md#complete-local-stack). Without mail configuration, recovery reports an explicit error; it does not fake delivery.
 
@@ -274,23 +274,30 @@ DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm run test
 
 Database tests create/remove random schemas; restore/system tests additionally create/drop generated databases, so their disposable test role needs the corresponding privileges. `TEST_BACKUP_CONTAINER` must match the same local server as `TEST_DATABASE_URL`. Without it, PostgreSQL cases are not run; the suite still tests real sessions with SQLite. Browser PostgreSQL scripts seed/write the supplied database and must use disposable data.
 
-**Latest executed checkpoint:** 96 backend tests with real PostgreSQL, Redis, BullMQ and backup tools enabled, plus 26 frontend tests passed (**122 total, zero failures**). Streaming/offline playback, authentication, analytics, worker-crash recovery and Redis outage recovery are verified. [RESUME_CLAIM_VERIFICATION.md](docs/RESUME_CLAIM_VERIFICATION.md) records current inspection, exact tests, worker/Redis restart checks and HTTP measurements. [PHASE2_REPORT.md](docs/PHASE2_REPORT.md) preserves the prior checkpoint. [PHASE1_REPORT.md](docs/PHASE1_REPORT.md) preserves the earlier checkpoint. The earlier [FINAL_AUDIT.md](FINAL_AUDIT.md) is historical evidence for the pre-auth demo, not a Phase 1 deployment/security certification.
+**Backend implementation checkpoint:** 96 backend tests with real PostgreSQL, Redis, BullMQ and backup tools enabled, plus 26 frontend tests passed (**122 total, zero failures**). Streaming/offline playback, authentication, analytics, worker-crash recovery and Redis outage recovery are verified. [RESUME_CLAIM_VERIFICATION.md](docs/RESUME_CLAIM_VERIFICATION.md) records current inspection, exact tests, worker/Redis restart checks and HTTP measurements. [PHASE2_REPORT.md](docs/PHASE2_REPORT.md) preserves the prior checkpoint. [PHASE1_REPORT.md](docs/PHASE1_REPORT.md) preserves the earlier checkpoint. The earlier [FINAL_AUDIT.md](FINAL_AUDIT.md) is historical evidence for the pre-auth demo, not a Phase 1 deployment/security certification.
+
+The newer [public rollout report](docs/PUBLIC_DEPLOYMENT.md) records nine additional current-backend browser checks, five existing public PWA checks, five combined-launcher checks and four hosted restart assertions. Run the explicit public check with `node scripts/public-backend-smoke.mjs https://soundwave-codeit-ronit.vercel.app`; it creates a test account.
 
 Browser scripts use `CHROME_PATH`, installed macOS Chrome, or Playwright Chromium. If needed, run `npx playwright install chromium`. Chrome coverage does not establish Safari/Firefox, native OS installation or physical-mobile compatibility.
 
 ## Deployment and remaining work
 
-The existing Vercel URL still serves the earlier version. Before deploying the current version, provision persistent PostgreSQL and Redis, a long-running worker host, and a verified SMTP sender. Then set `DATABASE_URL`, `NODE_ENV=production` and an exact HTTPS `APP_ORIGIN`, configure verified database TLS where applicable, apply/review migrations, and test sign-in/isolation/restart behavior at the public origin. Pool size must fit the provider's connection budget. The worker needs the same immutable WAV files as the API; no upload/transcoding/object-store workflow was added. Vercel packaging includes SQL migrations and audio, with SPA/API rewrites. No managed Redis/SMTP/database deployment or public rollout was performed. Vercel API hosting additionally needs a separately hosted supervised worker; Mailpit is local-only.
+The current public demo is **https://soundwave-codeit-ronit.vercel.app/**. The submitted `tmp.now` URL still redirects there. Vercel serves the current static frontend and proxies API/audio to **https://soundwave-demo.onrender.com**. The Docker-built Render service runs the API and worker under the demo supervisor, with PostgreSQL 18 on Neon and private Render Key Value connections. Verified TLS protects the database connection; HTTPS and Secure HTTP-only session cookies were checked at the public origin. Twelve chapter waveforms/metadata results are persisted in PostgreSQL.
+
+Read [FREE_DEMO_DEPLOYMENT.md](docs/FREE_DEMO_DEPLOYMENT.md) before recreating this setup. The free web service and worker sleep while idle; free Redis loses its state on restart. PostgreSQL holds persistent user data, analytics jobs and derived media. Media jobs can be rebuilt from the bundled catalog. Email verification/recovery delivery remains disabled until a supported external mail provider is configured. This demo is not an always-running or durable Redis job service. The normal Compose configuration retains separate API/worker containers and persistent Redis AOF.
+
+Frontend release commands (the backend must be deployed and verified first):
 
 ```bash
 # After configuring and verifying the production database/environment:
 npx vercel link --yes --project zippy-nitrogen-wd3scr3 --scope ronit-choudharys-projects
-npx vercel deploy --prod --yes --scope ronit-choudharys-projects
+npx vercel deploy --prod --skip-domain --yes --scope ronit-choudharys-projects
+# Check the staged URL, then: npx vercel promote STAGED_URL --yes --scope ronit-choudharys-projects
 ```
 
-Use a remote Linux build for native SQLite dependencies; never upload a Mac-built serverless function. A Node host can serve the app with `npm ci`, `npm run build`, `npm start`, a separately supervised `npm run worker`, HTTPS termination, persistent PostgreSQL and Redis. A serverless API alone does not run the durable worker. Retain bundled audio and SPA routing. GitHub pushes alone are not verified to deploy this project.
+Use a remote Linux build for native SQLite dependencies; never upload a Mac-built serverless function. A Node host can serve the app with `npm ci`, `npm run build`, `npm start`, a separately supervised `npm run worker`, HTTPS termination, persistent PostgreSQL and Redis. The public Vercel deployment excludes the old ephemeral serverless API; its external rewrites reach Render. A serverless API alone does not run the durable worker. Retain bundled audio and SPA routing. GitHub pushes alone are not verified to deploy this project.
 
-Remaining gaps include MFA, account deletion, private content entitlements, offline private-data synchronization, managed production deployment/TLS, database role separation, scheduled encrypted/offsite backups, full disaster-recovery promotion, security review and load testing. Verification, recovery, cleanup, distributed limits and local restore drills are implemented; external internet delivery is not verified. Audio remains a small bundled catalog. Browser downloads are public content stored on one device and can be evicted. Analytics are bounded client-observed demo metrics, not tamper-proof engagement tracking.
+Remaining gaps include MFA, account deletion, private content entitlements, offline private-data synchronization, continuous durable worker hosting, HA/failover, database role separation, scheduled encrypted/offsite backups, full disaster-recovery promotion, security review and load testing. Verification, recovery, cleanup, distributed limits and local restore drills are implemented; external internet delivery is not verified. Audio remains a small bundled catalog. Browser downloads are public content stored on one device and can be evicted. Analytics are bounded client-observed demo metrics, not tamper-proof engagement tracking.
 
 See [Operations](docs/OPERATIONS.md) and the [architecture document](docs/ARCHITECTURE.md) for Redis/worker/email/backup behavior and remaining operational work.
 

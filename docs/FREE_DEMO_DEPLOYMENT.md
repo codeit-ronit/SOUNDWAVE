@@ -1,6 +1,6 @@
 # Free public demo deployment
 
-This is a deployment recipe, **not a claim of a completed public rollout**. The existing Vercel URLs must keep serving their working deployment until the new backend passes public checks.
+This recipe was used for the verified public demo on 6 November 2026. See [PUBLIC_DEPLOYMENT.md](PUBLIC_DEPLOYMENT.md) for the actual release and tests. For future releases, keep the existing Vercel URLs serving their working deployment until the new backend passes public checks.
 
 ## Selected services
 

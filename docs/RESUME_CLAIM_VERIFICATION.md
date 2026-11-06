@@ -2,6 +2,8 @@
 
 **Date:** 6 November 2026. **Inspected baseline HEAD:** `b540369`, clean at inspection start. This report records this task's executed checks. Earlier phase reports remain historical. Verified implementation commit: `3db19bf`.
 
+**Later deployment update:** The free public demo was subsequently deployed and checked; see [PUBLIC_DEPLOYMENT.md](PUBLIC_DEPLOYMENT.md). Statements below about the older public version describe this earlier implementation checkpoint, not the latest rollout. Performance and production-scale qualifications remain unchanged.
+
 Requested claim:
 
 > Designed a scalable backend architecture integrating PostgreSQL, Redis caching, distributed rate limiting, and asynchronous job processing for media workflows and analytics.
