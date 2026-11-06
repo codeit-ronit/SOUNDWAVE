@@ -76,6 +76,12 @@ export default function AccountRecovery() {
     <section className="account-recovery">
       <span className="eyebrow">YOUR SOUNDWAVE ACCOUNT</span>
       <h1>{title}</h1>
+      {link.mode === "forgot-password" && (
+        <p>
+          Signed up with Google? <Link to="/?signin=1">Return to sign in</Link>{" "}
+          and choose Continue with Google.
+        </p>
+      )}
       {message ? (
         <>
           <p role="status">{message}</p>

@@ -31,6 +31,14 @@ export function loadConfig(env = process.env) {
   }
   if (env.REDIS_URL && !/^rediss?:\/\//.test(env.REDIS_URL))
     throw Error("Invalid REDIS_URL");
+  const googleClientId = env.GOOGLE_CLIENT_ID?.trim() || null;
+  if (
+    googleClientId &&
+    !/^[0-9]{6,30}-[a-zA-Z0-9_-]{6,160}\.apps\.googleusercontent\.com$/.test(
+      googleClientId,
+    )
+  )
+    throw Error("Invalid GOOGLE_CLIENT_ID");
   const emailMode = env.EMAIL_MODE || "disabled";
   if (!["disabled", "smtp"].includes(emailMode))
     throw Error("EMAIL_MODE must be disabled or smtp");
@@ -46,6 +54,7 @@ export function loadConfig(env = process.env) {
   }
   return {
     production,
+    googleClientId,
     trustedProxies,
     redisUrl: env.REDIS_URL || null,
     mediaEnabled: env.MEDIA_JOBS !== "false",

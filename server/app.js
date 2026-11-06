@@ -1,4 +1,5 @@
 import { accountRecovery } from "./services/accountRecovery.js";
+import { googleIdentityService } from "./services/google.js";
 import { sqliteAdapter } from "./database/adapter.js";
 import { loadConfig } from "./config.js";
 import { authService } from "./services/auth.js";
@@ -24,12 +25,17 @@ export function createApp(
     csrf: injectedCsrf,
     authLimit,
     redis,
+    googleVerifier,
   } = {},
 ) {
   db = sqliteAdapter(db);
   const app = express();
   const service = authService(db, config);
   app.disable("x-powered-by");
+  app.use((_req, res, next) => {
+    res.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+    next();
+  });
   if (config.trustedProxies?.length)
     app.set("trust proxy", config.trustedProxies);
   app.use(requestContext(logger));
@@ -83,6 +89,12 @@ export function createApp(
       authLimit,
       redis,
       recovery: accountRecovery(db, config),
+      google: googleIdentityService(
+        db,
+        config,
+        service,
+        googleVerifier ? { verifyToken: googleVerifier } : {},
+      ),
     }),
   );
   app.use("/api", injectedCsrf || csrfProtection(config));

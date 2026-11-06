@@ -11,6 +11,7 @@ export const publicUser = (row) => ({
   displayName: row.display_name,
   kind: row.kind,
   emailVerified: !!row.email_verified_at,
+  googleLinked: !!row.has_google,
 });
 export const sameToken = (a, b) =>
   typeof a === "string" &&

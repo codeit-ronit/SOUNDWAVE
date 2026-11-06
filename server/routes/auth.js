@@ -8,7 +8,7 @@ import {
 export function authRouter(
   service,
   config,
-  { authLimit, redis, recovery } = {},
+  { authLimit, redis, recovery, google } = {},
 ) {
   const router = Router();
   const send = (res, result) => {
@@ -18,6 +18,7 @@ export function authRouter(
       csrfToken: result.csrfToken,
       expiresAt: result.expiresAt,
       demoEnabled: config.demoEnabled,
+      googleClientId: config.googleClientId || null,
     });
   };
   router.get("/session", async (req, res) => {
@@ -33,6 +34,7 @@ export function authRouter(
         csrfToken: req.session.csrf_token,
         expiresAt: req.session.expires_at,
         demoEnabled: config.demoEnabled,
+        googleClientId: config.googleClientId || null,
       });
     send(res, await service.issue({ id: null }, null));
   });
@@ -67,6 +69,40 @@ export function authRouter(
       });
     const guest = await service.guest(req.sessionHash);
     send(res, guest);
+  });
+  router.post("/google/challenge", async (req, res) => {
+    if (!req.sessionHash || !req.session)
+      return res
+        .status(401)
+        .json({ error: { message: "Refresh before signing in with Google." } });
+    if (
+      req.body &&
+      (Array.isArray(req.body) ||
+        typeof req.body !== "object" ||
+        Object.keys(req.body).length)
+    )
+      return res.status(400).json({
+        error: { message: "No Google challenge fields are accepted." },
+      });
+    res.json(await google.challenge(req.sessionHash));
+  });
+  router.post("/google", async (req, res) => {
+    if (!req.sessionHash || !req.session)
+      return res
+        .status(401)
+        .json({ error: { message: "Refresh before signing in with Google." } });
+    if (
+      !req.body ||
+      Array.isArray(req.body) ||
+      Object.keys(req.body).some((k) => k !== "credential") ||
+      typeof req.body.credential !== "string" ||
+      req.body.credential.length < 20 ||
+      Buffer.byteLength(req.body.credential) > 6000
+    )
+      return res
+        .status(400)
+        .json({ error: { message: "A valid Google credential is required." } });
+    send(res, await google.signIn(req.body.credential, req.sessionHash));
   });
   for (const action of ["register", "login"])
     router.post("/" + action, async (req, res) => {

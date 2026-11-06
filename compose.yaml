@@ -4,6 +4,7 @@ x-app-environment: &app-environment
   APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3001}
   DATABASE_URL: postgres://soundwave:${POSTGRES_PASSWORD}@postgres:5432/soundwave
   DEMO_MODE: ${DEMO_MODE:-true}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   DB_POOL_MAX: 5
   REDIS_URL: redis://redis:6379
   REDIS_PREFIX: soundwave

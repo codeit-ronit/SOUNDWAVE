@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SoundWave — Privacy and data use</title>
+    <style>
+      body {
+        margin: 0;
+        background: #101117;
+        color: #eee;
+        font:
+          16px/1.7 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 760px;
+        margin: 50px auto;
+        padding: 24px;
+      }
+      a {
+        color: #bf9cff;
+      }
+      h1,
+      h2 {
+        line-height: 1.3;
+      }
+      h2 {
+        margin-top: 32px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a href="/">← Back to SoundWave</a>
+      <h1>Privacy and data use</h1>
+      <p>
+        SoundWave is a portfolio audio-streaming demo. Last updated: 6 November
+        2026.
+      </p>
+      <h2>Accounts and Google sign-in</h2>
+      <p>
+        The app stores your account name, email, sign-in identity and session
+        information. Password accounts store a password hash. Google sign-in,
+        when enabled, asks Google for basic identity information: a unique
+        account identifier, name and email. SoundWave verifies Google's signed
+        identity token to sign you in. It does not receive your Google password
+        or request access to Gmail, Drive or other Google content. Google
+        identity and access tokens are not stored in the database.
+      </p>
+      <p>
+        The Google sign-in script loads when you open an account panel with
+        Google sign-in enabled. Your interaction with Google is also governed by
+        <a href="https://policies.google.com/privacy" rel="noopener noreferrer"
+          >Google's Privacy Policy</a
+        >.
+      </p>
+      <h2>Listening and browser storage</h2>
+      <p>
+        SoundWave stores favorites, chapter progress and listening events for
+        the signed-in account, including an independent guest account when you
+        try the demo. Listening analytics describe activity within SoundWave.
+        HTTP-only cookies keep your session signed in. Browser storage holds
+        playback preferences and explicitly downloaded public audio. Downloads
+        stay on the device across account changes and can be removed in
+        Downloads or through browser settings.
+      </p>
+      <h2>Services and external content</h2>
+      <p>
+        The public demo uses Vercel, Render and Neon for hosting,
+        Redis-compatible infrastructure and PostgreSQL storage. LibriVox
+        supplies audiobook metadata; Internet Archive supplies external audio
+        directly to your browser. These services receive the network requests
+        needed to provide their functions. Operational hosting logs may contain
+        request metadata such as time, address, path and status. SoundWave's
+        application request logger does not record passwords or Google identity
+        tokens.
+      </p>
+      <h2>Retention and control</h2>
+      <p>
+        Registered account data remains until removed by the operator; this demo
+        has no self-service account-deletion page. Guest sessions expire and
+        inactive guest accounts are cleaned up after the configured retention
+        period. Expired sessions and sign-in challenges are cleaned up. Signing
+        out revokes the current SoundWave session; it does not sign you out of
+        Google or erase browser downloads.
+      </p>
+      <p>
+        For questions or demo-data removal, contact the maintainer through the
+        <a
+          href="https://github.com/codeit-ronit/SOUNDWAVE"
+          rel="noopener noreferrer"
+          >SoundWave repository</a
+        >. Do not post passwords, sign-in tokens or private personal data in
+        public issues. This page describes the demo's behavior; it does not
+        claim a security or regulatory certification.
+      </p>
+    </main>
+  </body>
+</html>

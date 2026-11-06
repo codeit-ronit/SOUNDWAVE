@@ -44,6 +44,11 @@ export function jobHandlers(db, { mail } = {}) {
           "DELETE FROM sessions WHERE token_hash IN (SELECT token_hash FROM sessions WHERE expires_at<=? LIMIT 500)",
         )
         .run(now.toISOString());
+      await db
+        .prepare(
+          "DELETE FROM oauth_challenges WHERE session_hash IN (SELECT session_hash FROM oauth_challenges WHERE expires_at<=? LIMIT 500)",
+        )
+        .run(now.toISOString());
       const guests = await db
         .prepare(
           `SELECT u.id FROM users u WHERE u.kind='guest' AND u.created_at<? AND NOT EXISTS(SELECT 1 FROM sessions s WHERE s.user_id=u.id AND s.expires_at>?) AND NOT EXISTS(SELECT 1 FROM background_jobs j WHERE j.owner_id=u.id AND j.status='running') ORDER BY u.id LIMIT 100 ${db.dialect === "postgres" ? "FOR UPDATE OF u SKIP LOCKED" : ""}`,

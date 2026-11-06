@@ -22,6 +22,7 @@ export async function importSqlite(db, path) {
       "listening_progress",
       "progress_write_versions",
       "listening_events",
+      "oauth_identities",
     ];
     const rows = Object.fromEntries(
       tables.map((t) => [

@@ -7,7 +7,11 @@ export function identityRepository(db) {
         )
         .run(user.email, user.password_hash, user.display_name, user.id),
     userByEmail: (email) =>
-      db.prepare("SELECT * FROM users WHERE email=?").get(email),
+      db
+        .prepare(
+          "SELECT u.*,EXISTS(SELECT 1 FROM oauth_identities i WHERE i.user_id=u.id AND i.provider='google') AS has_google FROM users u WHERE email=?",
+        )
+        .get(email),
     createUser: (user) =>
       db
         .prepare(
@@ -17,7 +21,7 @@ export function identityRepository(db) {
     session: (hash) =>
       db
         .prepare(
-          `SELECT s.*,u.email,u.display_name,u.kind,u.email_verified_at FROM sessions s LEFT JOIN users u ON u.id=s.user_id
+          `SELECT s.*,u.email,u.display_name,u.kind,u.email_verified_at,EXISTS(SELECT 1 FROM oauth_identities i WHERE i.user_id=u.id AND i.provider='google') AS has_google FROM sessions s LEFT JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=? AND s.expires_at>? AND (s.user_id IS NULL OR u.kind IN ('registered','guest'))`,
         )
         .get(hash, new Date().toISOString()),

@@ -90,7 +90,11 @@ export function accountRecovery(db, config) {
       const user = await db
         .prepare("SELECT * FROM users WHERE email=? AND kind='registered'")
         .get(email);
-      if (user) await issue(user, "reset_password");
+      // Google-only accounts recover through Google. An email reset must not
+      // silently introduce a password sign-in method (especially for a third-
+      // party Google email whose current ownership Google cannot guarantee).
+      if (user?.password_hash?.startsWith("scrypt$"))
+        await issue(user, "reset_password");
     },
     async requestVerification(userId) {
       if (!codec)

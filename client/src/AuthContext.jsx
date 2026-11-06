@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { request, setSessionScope } from "./api";
+import GoogleSignIn from "./GoogleSignIn";
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 let startup;
@@ -26,6 +27,7 @@ async function bootstrap() {
 }
 export function AuthProvider({ children }) {
   const tabId = useRef(crypto.randomUUID());
+  const changing = useRef(false);
   const [state, setState] = useState(null);
   const [error, setError] = useState("");
   const [switching, setSwitching] = useState(false);
@@ -65,6 +67,9 @@ export function AuthProvider({ children }) {
     return () => channel?.close();
   }, []);
   async function change(action, body) {
+    if (changing.current)
+      throw new Error("Another account action is in progress. Please wait.");
+    changing.current = true;
     setSwitching(true);
     try {
       if (!state?.csrfToken) await session();
@@ -73,6 +78,7 @@ export function AuthProvider({ children }) {
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
       if (action === "logout") {
+        window.google?.accounts?.id?.disableAutoSelect?.();
         setSessionScope(null);
         data = await session();
       }
@@ -86,6 +92,7 @@ export function AuthProvider({ children }) {
         c.close();
       }
     } finally {
+      changing.current = false;
       setSwitching(false);
     }
   }
@@ -163,60 +170,104 @@ export function Account() {
           Verify email
         </button>
       )}
-      {open && (
-        <section className="account-panel" aria-label="Your account">
-          <h2>{register ? "Create account" : "Sign in"}</h2>
-          <form onSubmit={submit}>
-            {register && (
-              <label>
-                Name
-                <input
-                  name="displayName"
-                  autoComplete="name"
-                  required
-                  maxLength={80}
-                />
-              </label>
-            )}
-            <label>
-              Email
-              <input
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                maxLength={254}
-              />
-            </label>
-            <label>
-              Password
-              <input
-                name="password"
-                type="password"
-                autoComplete={register ? "new-password" : "current-password"}
-                minLength={12}
-                maxLength={256}
-                required
-              />
-            </label>
-            <button
-              className="button primary"
-              type="submit"
-              disabled={auth.switching}
-            >
-              {register ? "Create account" : "Sign in"}
-            </button>
-          </form>
+      {auth.user?.kind === "registered" &&
+        auth.googleClientId &&
+        !auth.user.googleLinked && (
           <button
+            className="button secondary"
             onClick={() => {
-              setRegister(!register);
+              setOpen(!open);
               setError("");
             }}
           >
-            {register
-              ? "Already have an account? Sign in"
-              : "Create a new account"}
+            Link Google
           </button>
+        )}
+      {open && (
+        <section className="account-panel" aria-label="Your account">
+          <h2>
+            {auth.user?.kind === "registered"
+              ? "Link Google"
+              : register
+                ? "Create account"
+                : "Sign in"}
+          </h2>
+          {auth.googleClientId && !auth.offline && (
+            <GoogleSignIn
+              auth={auth}
+              onSuccess={() => {
+                setOpen(false);
+                setError("");
+              }}
+            />
+          )}
+          {auth.user?.kind === "registered" ? (
+            <p>
+              Use the Google account with the same email to connect it to your
+              SoundWave account.
+            </p>
+          ) : (
+            <>
+              <p className="auth-method-note">
+                {auth.googleClientId
+                  ? "Or continue with email"
+                  : "Continue with email"}
+              </p>
+              <form onSubmit={submit}>
+                {register && (
+                  <label>
+                    Name
+                    <input
+                      name="displayName"
+                      autoComplete="name"
+                      required
+                      maxLength={80}
+                    />
+                  </label>
+                )}
+                <label>
+                  Email
+                  <input
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    maxLength={254}
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    name="password"
+                    type="password"
+                    autoComplete={
+                      register ? "new-password" : "current-password"
+                    }
+                    minLength={12}
+                    maxLength={256}
+                    required
+                  />
+                </label>
+                <button
+                  className="button primary"
+                  type="submit"
+                  disabled={auth.switching}
+                >
+                  {register ? "Create account" : "Sign in"}
+                </button>
+              </form>
+              <button
+                onClick={() => {
+                  setRegister(!register);
+                  setError("");
+                }}
+              >
+                {register
+                  ? "Already have an account? Sign in"
+                  : "Create a new account"}
+              </button>
+            </>
+          )}
           {!auth.user && auth.demoEnabled && (
             <button
               onClick={() =>
@@ -227,6 +278,7 @@ export function Account() {
             </button>
           )}
           <a href="/account">Forgot password?</a>
+          <a href="/privacy.html">Privacy and data use</a>
           <button onClick={() => setOpen(false)}>Close</button>
         </section>
       )}

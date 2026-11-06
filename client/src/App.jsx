@@ -166,7 +166,10 @@ export default function App() {
               <span className="footer-divider">/</span> Stories worth getting
               lost in.
             </span>
-            <span>Original fiction. Real playback. Made to explore.</span>
+            <span>
+              Original fiction. Real playback. Made to explore.{" "}
+              <a href="/privacy.html">Privacy</a>
+            </span>
           </footer>
         </main>
       </div>
