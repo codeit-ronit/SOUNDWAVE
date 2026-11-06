@@ -1,6 +1,6 @@
 # SoundWave architecture
 
-The existing modular monolith now includes PostgreSQL/session isolation, Redis protection and optional catalog caching, a PostgreSQL-backed worker/outbox, email verification/recovery, and backup/restore tooling. React/Vite, Express, streaming and explicit offline downloads are preserved. Uploads, transcoding and CDN delivery are not implemented. [Operations](OPERATIONS.md) explains the current runtime and failure behavior; [Phase 2 report](PHASE2_REPORT.md) records verification.
+The existing modular monolith includes PostgreSQL/session isolation, Redis protection/cache-aside, BullMQ media processing, a PostgreSQL analytics/email outbox, and backup/restore tooling. React/Vite, Express, streaming and explicit offline downloads are preserved. Uploads, transcoding and CDN delivery are not implemented. [Operations](OPERATIONS.md) explains the current runtime and failure behavior; [current claim verification](RESUME_CLAIM_VERIFICATION.md) records the latest tests and HTTP measurements; Phase 2 is historical.
 
 ## Request flow and ownership
 
@@ -17,6 +17,9 @@ flowchart LR
   PG --> Jobs[Transactional job outbox]
   Jobs --> Worker[Worker: leases + retries + fencing]
   Worker --> SMTP[Configured SMTP / local mail catcher]
+  Redis --> Media[BullMQ media queue]
+  Media --> Worker
+  Worker --> Derived[(chapter_media metadata + waveform)]
   Adapter --> SQLite[(SQLite compatibility)]
   UI --> SW[Service worker]
   SW --> Cache[Public chapter metadata + selected audio]
@@ -48,7 +51,7 @@ Registering while a guest upgrades that guest row transactionally, retaining its
 
 ## Database and transactions
 
-PostgreSQL is selected by `DATABASE_URL`. `pg` supplies a bounded pool with connection, statement and lock timeouts. Its transactions pin one checked-out connection using AsyncLocalStorage; COMMIT/ROLLBACK always releases that connection. No transaction uses unrelated pool queries. See [node-postgres transactions](https://node-postgres.com/features/transactions).
+PostgreSQL is the default and requires `DATABASE_URL`. SQLite must be explicitly selected for compatibility. `pg` supplies a bounded pool with connection, statement and lock timeouts. Its transactions pin one checked-out connection using AsyncLocalStorage; COMMIT/ROLLBACK always releases that connection. No transaction uses unrelated pool queries. See [node-postgres transactions](https://node-postgres.com/features/transactions).
 
 The small adapter binds application-owned `?` and `@name` placeholders to PostgreSQL `$n` parameters, skipping quoted literals; values are transmitted separately. Sort expressions come from a fixed allowlist. Dialect-specific current-time, UTC-date and event-order expressions live in the adapter. This is a bounded internal query interface, not an arbitrary SQL translator or ORM. Prepared SQL/repositories remain directly readable.
 
@@ -86,16 +89,20 @@ The shell, downloads, range seeking, cache removal and quota failure behavior re
 
 Use a persistent PostgreSQL service, verified database TLS where needed, HTTPS at the app origin, backups and a trusted reverse proxy. Size the connection budget as instances × pool max; no benchmark supports a scaling claim yet. Runtime migrations are convenient here; larger migrations should become a controlled release step with an appropriately privileged migration role and a restricted app role.
 
-Compose supplies PostgreSQL and a non-root Node app with a named database volume. Startup retries only transient database-connectivity failures with bounded backoff; schema/checksum/configuration failures are not retried. PostgreSQL restarts unless stopped; the app has an on-failure policy capped at five restarts. A simultaneous container restart exposed and verified the fix for a database-readiness race. Its default localhost HTTP mode explicitly uses development cookies. For public hosting set `APP_NODE_ENV=production`, set an HTTPS `APP_ORIGIN`, and terminate TLS before exposing the app. Do not run a public deployment in development mode.
+Compose supplies PostgreSQL and a non-root Node app with a named database volume. Startup retries only transient database-connectivity failures with bounded backoff; schema/checksum/configuration failures are not retried. PostgreSQL restarts unless stopped; the app has an on-failure policy capped at five restarts. A simultaneous container restart exposed and verified the fix for a database-readiness race. Explicit API/worker Docker targets now include readiness/heartbeat probes; the media-enabled worker probe also checks Redis connectivity and public worker-running state. Its default localhost HTTP mode explicitly uses development cookies. For public hosting set `APP_NODE_ENV=production`, set an HTTPS `APP_ORIGIN`, and terminate TLS before exposing the app. Do not run a public deployment in development mode.
 
-The existing Vercel live link was not redeployed for the PostgreSQL/operations upgrades. Its old shared demo remains available. A current API deployment requires `DATABASE_URL`, HTTPS `APP_ORIGIN` and a managed PostgreSQL connection budget; SQL migrations/audio are included in the function bundle. Ephemeral SQLite is rejected in production unless an operator explicitly opts into the limited portfolio fallback. No new public PostgreSQL deployment has been verified.
+The existing Vercel live link was not redeployed for these backend upgrades. Its old shared demo remains available. A current API deployment requires `DATABASE_URL`, HTTPS `APP_ORIGIN` and a managed PostgreSQL connection budget; SQL migrations/audio are included in the function bundle. Ephemeral SQLite is rejected in production unless an operator explicitly opts into the limited portfolio fallback. No new public PostgreSQL deployment has been verified.
 
 Implemented operations now include shared throttling, expiry/guest cleanup, verification/reset emails and local backup/restore drills. Remaining public-hosting work includes managed service configuration, external SMTP deliverability, MFA, account deletion, security/CSP review, offsite/encrypted/scheduled backups, recovery promotion, database role separation, telemetry, load tests and cross-browser/device coverage.
 
-**Redis implemented:** atomic TTL counters fail closed when a configured Redis is unavailable, with media exempt. Neutral catalog caching uses owner overlays, transactionally changed revision keys, 128 slots/revision and a 60-second TTL. It is opt-in because the measured small-catalog sample was slower. Sessions/revocation remain authoritative in PostgreSQL. See [Operations](OPERATIONS.md#redis-limits-and-catalog-cache).
+**Redis implemented:** atomic TTL counters are shared across API instances. During a configured outage, auth/private operations fail closed, while public catalog/discovery reads use PostgreSQL and bounded per-process fallback; audio is exempt. Cache-aside stores neutral catalog/search/genre data, with current-owner overlays and transactionally changed revision keys. It uses 128 slots/revision, 60-second TTLs and hit/miss/error/write counters. See [Operations](OPERATIONS.md#redis-limits-and-catalog-cache).
 
-**Jobs implemented:** event writes and queue records commit together in PostgreSQL. Workers claim with `SKIP LOCKED`, fence lease owners, retry with backoff and expose dead letters through CLI tooling. Analytics snapshots are recomputed idempotently; cleanup retains registered users. SMTP payloads are encrypted and erased after acknowledgement, but network delivery is at least once. Synchronous progress writes remain synchronous. See [Operations](OPERATIONS.md#durable-jobs-and-analytics).
+**Two job backends with distinct responsibilities:** BullMQ/Redis owns media work; the existing PostgreSQL outbox preserves analytics/email writes and prior jobs. One supervised worker process runs both. The outbox uses `SKIP LOCKED`, lease fencing, retry/backoff and dead letters. BullMQ uses its native locking/retry/stalled recovery. There is no claim that existing analytics jobs were migrated to Redis. Synchronous progress acknowledgements remain synchronous.
 
-**Email and restore implemented:** purpose-bound one-use hashed tokens, encrypted SMTP jobs, reset/session revocation and fragment-token forms are tested through actual local SMTP capture and Chrome. Backup tooling shares an exported PostgreSQL snapshot with its manifest, restores only into a generated disposable database, and compares 13 app-table fingerprints. These are local engineering checks, not verified public deliverability or an operational disaster-recovery certification.
+**Media implementation:** producers hash catalog-owned WAV bytes and submit content-versioned BullMQ IDs. Workers safely resolve the catalog mapping, analyze bounded 16-bit PCM chunks and calculate actual format, duration, RMS and 128 waveform peaks. A versioned `chapter_media` FK table stores one result per chapter. Conditional transactional upserts make replay idempotent; unsupported/missing media is visible as failed work. The metadata API serves DB results while streaming continues. It supports the existing immutable WAV catalog, not arbitrary uploads or transcoding.
 
-Additional relations are `catalog_revision` (public cache generation), `background_jobs` (owner/dedupe/lease/attempt state), `analytics_rollups` (owner/day/genre snapshots), and `account_tokens` (hashed purpose-bound tokens). Their additive migrations preserve prior user rows. See [OPERATIONS.md](OPERATIONS.md) for retention, permissions, key management and exact commands.
+**Failure and performance evidence:** actual hard worker termination recovers through a second process; Redis stop/start retains public reads and restores the cache/SQL session flow. A real HTTP benchmark checks complete response consistency and records latency, throughput and cache ratios on six original stories and a 1,000-story generated fixture. [The report](RESUME_CLAIM_VERIFICATION.md) explains why this supports implemented architecture patterns but not production-scale guarantees.
+
+**Email and restore:** one-use tokens, encrypted SMTP jobs, session revocation and fragment-token forms remain tested through actual local SMTP capture and Chrome. Backups share an exported PostgreSQL snapshot with a manifest and restore only into a generated disposable database. Current coverage includes 14 app tables, including `chapter_media`. Neither public email deliverability nor managed disaster recovery is certified.
+
+See [OPERATIONS.md](OPERATIONS.md) for exact commands, privileges, retention, Redis durability and media limits.

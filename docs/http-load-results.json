@@ -1,0 +1,220 @@
+{
+  "date": "2026-11-06T11:58:16.653Z",
+  "environment": {
+    "node": "v22.21.1",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "scope": "Local HTTP load test; isolated PostgreSQL schema, shared Redis, six original stories plus explicitly generated fixtures. Not production scale.",
+  "rateBudget": "Raised only in the local benchmark app factory; distributed throttling is tested separately.",
+  "scenarios": [
+    {
+      "catalogStories": 6,
+      "syntheticStories": 0,
+      "coldCachedMs": 5.465,
+      "coldCacheStats": {
+        "hits": 0,
+        "misses": 1,
+        "errors": 0,
+        "writes": 1,
+        "hitRatio": 0
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "uncached": {
+            "requests": 500,
+            "concurrency": 10,
+            "seconds": 0.305,
+            "successfulRequests": 500,
+            "errors": 0,
+            "errorRate": 0,
+            "throughputRps": 1639.3,
+            "latencyMs": {
+              "p50": 4.984,
+              "p95": 9.959,
+              "p99": 26.359
+            },
+            "statuses": {
+              "200": 500
+            },
+            "cache": null
+          },
+          "cached": {
+            "requests": 500,
+            "concurrency": 10,
+            "seconds": 0.244,
+            "successfulRequests": 500,
+            "errors": 0,
+            "errorRate": 0,
+            "throughputRps": 2045.85,
+            "latencyMs": {
+              "p50": 4.282,
+              "p95": 6.689,
+              "p99": 18.981
+            },
+            "statuses": {
+              "200": 500
+            },
+            "cache": {
+              "hits": 500,
+              "misses": 0,
+              "errors": 0,
+              "writes": 0,
+              "hitRatio": 1
+            }
+          }
+        },
+        {
+          "repeat": 2,
+          "cached": {
+            "requests": 500,
+            "concurrency": 10,
+            "seconds": 0.209,
+            "successfulRequests": 500,
+            "errors": 0,
+            "errorRate": 0,
+            "throughputRps": 2396.05,
+            "latencyMs": {
+              "p50": 3.962,
+              "p95": 5.589,
+              "p99": 6.31
+            },
+            "statuses": {
+              "200": 500
+            },
+            "cache": {
+              "hits": 500,
+              "misses": 0,
+              "errors": 0,
+              "writes": 0,
+              "hitRatio": 1
+            }
+          },
+          "uncached": {
+            "requests": 500,
+            "concurrency": 10,
+            "seconds": 0.212,
+            "successfulRequests": 500,
+            "errors": 0,
+            "errorRate": 0,
+            "throughputRps": 2357.75,
+            "latencyMs": {
+              "p50": 3.958,
+              "p95": 5.994,
+              "p99": 10.852
+            },
+            "statuses": {
+              "200": 500
+            },
+            "cache": null
+          }
+        }
+      ]
+    },
+    {
+      "catalogStories": 1006,
+      "syntheticStories": 1000,
+      "coldCachedMs": 31.293,
+      "coldCacheStats": {
+        "hits": 0,
+        "misses": 1,
+        "errors": 0,
+        "writes": 1,
+        "hitRatio": 0
+      },
+      "runs": [
+        {
+          "repeat": 1,
+          "uncached": {
+            "requests": 500,
+            "concurrency": 10,
+            "seconds": 2.433,
+            "successfulRequests": 500,
+            "errors": 0,
+            "errorRate": 0,
+            "throughputRps": 205.49,
+            "latencyMs": {
+              "p50": 47.504,
+              "p95": 63.716,
+              "p99": 77.35
+            },
+            "statuses": {
+              "200": 500
+            },
+            "cache": null
+          },
+          "cached": {
+            "requests": 500,
+            "concurrency": 10,
+            "seconds": 1.355,
+            "successfulRequests": 500,
+            "errors": 0,
+            "errorRate": 0,
+            "throughputRps": 369.13,
+            "latencyMs": {
+              "p50": 24.013,
+              "p95": 39.559,
+              "p99": 79.76
+            },
+            "statuses": {
+              "200": 500
+            },
+            "cache": {
+              "hits": 500,
+              "misses": 0,
+              "errors": 0,
+              "writes": 0,
+              "hitRatio": 1
+            }
+          }
+        },
+        {
+          "repeat": 2,
+          "cached": {
+            "requests": 500,
+            "concurrency": 10,
+            "seconds": 1.245,
+            "successfulRequests": 500,
+            "errors": 0,
+            "errorRate": 0,
+            "throughputRps": 401.6,
+            "latencyMs": {
+              "p50": 22.991,
+              "p95": 37.022,
+              "p99": 43.483
+            },
+            "statuses": {
+              "200": 500
+            },
+            "cache": {
+              "hits": 500,
+              "misses": 0,
+              "errors": 0,
+              "writes": 0,
+              "hitRatio": 1
+            }
+          },
+          "uncached": {
+            "requests": 500,
+            "concurrency": 10,
+            "seconds": 2.283,
+            "successfulRequests": 500,
+            "errors": 0,
+            "errorRate": 0,
+            "throughputRps": 219,
+            "latencyMs": {
+              "p50": 45.402,
+              "p95": 57.613,
+              "p99": 61.802
+            },
+            "statuses": {
+              "200": 500
+            },
+            "cache": null
+          }
+        }
+      ]
+    }
+  ]
+}

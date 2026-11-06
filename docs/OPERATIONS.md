@@ -1,6 +1,6 @@
 # SoundWave operations: Redis, jobs, email and recovery drills
 
-These instructions describe the repository's Phase 2 implementation. They do not claim a public deployment, delivered internet email, production security certification, or measured scalability.
+These instructions describe the repository's current backend implementation. They do not claim a public deployment, delivered internet email, production security certification, or measured scalability.
 
 ## Complete local stack
 
@@ -23,11 +23,11 @@ For Node/Vite development, start infrastructure with `docker compose up -d postg
 
 When `REDIS_URL` is configured, shared atomic counters enforce the general API limit (300/IP/minute), auth-write limit (15/IP/15 minutes), and targeted email/account limit (10/15 minutes). Keys hash bucket identifiers and expire. Media ranges/HEAD remain exempt. Session lookup and revocation stay in PostgreSQL; no session cache weakens logout.
 
-Redis errors and timeouts return **503** for protected JSON operations, with Retry-After. There is no silent process-local fallback when distributed protection was configured. Existing media delivery stays available. Without `REDIS_URL`, development retains explicitly process-local, bounded limits. The default proxy setting ignores forwarding headers. Set `TRUSTED_PROXY_CIDRS` only for exact real proxy IPs/subnets; universal trust and /0 networks are rejected. Account throttling can also delay legitimate targeted users, so monitor/tune it before public hosting.
+Redis errors/timeouts return **503** for auth/private operations, with Retry-After. Public catalog/discovery reads instead retain PostgreSQL access under a bounded local limiter, marked `X-RateLimit-Mode: local-fallback`. These fallback counters cannot enforce a cluster-wide limit while Redis is unavailable. Existing media delivery stays available. Without `REDIS_URL`, development retains explicitly process-local, bounded limits. The default proxy setting ignores forwarding headers. Set `TRUSTED_PROXY_CIDRS` only for exact real proxy IPs/subnets; universal trust and /0 networks are rejected. Account throttling can also delay legitimate targeted users, so monitor/tune it before public hosting.
 
 `GET /api/ready` checks the database and Redis connection state without consuming the general limit. It is a dependency check, not proof of worker/email health, throughput, or authorization.
 
-Catalog caching is **opt-in** with `CATALOG_CACHE=true`. A measured six-story local sample was slower with Redis, so it defaults off. When enabled:
+Compose and the example enable catalog caching with `CATALOG_CACHE=true`; set it false for comparison or small-catalog evaluation. Results depend on catalog size: the older six-story repository sample showed overhead, while the new [HTTP benchmark](http-load-results.json) records larger generated-fixture benefits. No universal speedup is implied. When enabled:
 
 - Only neutral public story/search/genre results enter Redis. Favorite flags are read from the current owner's database rows on every response. Progress, libraries, sessions and analytics are never shared cache entries.
 - Search keys include canonical query/filter/sort data and a catalog revision. Hash-to-slot admission limits each revision to 128 cache keys, each with a 60-second TTL. Hash collisions cause misses/replacement, never another query's response.
@@ -41,7 +41,7 @@ TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/test_database \
 TEST_REDIS_URL=redis://localhost:6379 npm run bench:cache
 ```
 
-[Recorded sample](cache-benchmark.json) is evidence for keeping the feature optional, not a production benchmark or a speedup claim.
+[The HTTP result and claim assessment](RESUME_CLAIM_VERIFICATION.md) supersede the older repository sample. Neither measures production capacity.
 
 ## Durable jobs and analytics
 
@@ -102,8 +102,39 @@ BACKUP_PG_CONTAINER=YOUR_POSTGRES_CONTAINER DATABASE_URL=postgres://CREATEDB_OPE
   npm run db:backup -- verify /tmp/soundwave.dump
 ```
 
-Creation exports a repeatable-read snapshot and passes it to `pg_dump`. A manifest records counts and order-independent content fingerprints for 13 app tables from the same snapshot, plus the archive's SHA-256. The archive and manifest use mode 0600; existing archives are never overwritten. These are sensitive database files, **not encrypted backups**.
+Creation exports a repeatable-read snapshot and passes it to `pg_dump`. A manifest records counts and order-independent content fingerprints for 14 app tables from the same snapshot, plus the archive's SHA-256. The archive and manifest use mode 0600; existing archives are never overwritten. These are sensitive database files, **not encrypted backups**.
 
-Verification checks the archive hash first, creates a random `soundwave_restore_…` database, restores there, compares all 13 recorded table fingerprints and drops only that generated database. It never restores over the source. Schema-selective dumps include `CREATE SCHEMA public`, so the drill removes the new target's empty default schema before restoring. This is not an application migration or deletion of existing user tables.
+Verification checks the archive hash first, creates a random `soundwave_restore_…` database, restores there, compares all 14 recorded table fingerprints and drops only that generated database. It never restores over the source. Schema-selective dumps include `CREATE SCHEMA public`, so the drill removes the new target's empty default schema before restoring. This is not an application migration or deletion of existing user tables.
 
 Use only trusted archives and a dedicated restore operator. Integrity hashes are not signatures, and restoring SQL is not a safe way to inspect hostile dumps. The fingerprints detect accidental discrepancies; they are not a cross-major-version compatibility guarantee. A restore failure/crash may need operator cleanup of its generated scratch database. Real promotion, offsite/encrypted storage, retention scheduling, credential rotation after recovery, disaster recovery RPO/RTO and restore into managed hosting are not implemented or verified. Stop workers during any real recovery cutover so restored email jobs cannot unexpectedly replay.
+
+## BullMQ media analysis
+
+The media pipeline uses BullMQ 6.7.1 with Redis/ioredis. The API and worker images contain the same immutable source WAVs. The worker automatically checks the catalog at startup/every minute and schedules missing/version-changed metadata; it also continues the existing PostgreSQL analytics/email loop. Redis AOF and a named volume are configured with `noeviction`. Losing Redis without a usable persistence snapshot can lose queue history; the catalog scheduler can recreate missing derived work, but this is not an HA guarantee.
+
+```bash
+npm run media -- enqueue
+npm run media -- list
+npm run media -- retry FAILED_MEDIA_JOB_ID
+```
+
+A media job ID includes chapter, processor version and SHA-256 source digest. Defaults are four attempts, exponential backoff starting at one second, 30-second lock/stall intervals, up to two stalled recoveries, seven-day/1,000 completed retention and 30-day/1,000 failed retention. Invalid/missing/unsupported audio fails visibly; changed source files need `enqueue` with their new digest. Database results are conditionally upserted, so duplicate work does not change an already processed timestamp.
+
+`GET /api/chapters/:id/metadata` returns 202 pending or actual stored codec, sample rate, channels, duration, RMS and waveform. Only catalog-owned paths are read. Supported media is RIFF/WAVE 16-bit PCM, mono/stereo at 8–192 kHz, at most 100 MB. It does not transcode MP3/AAC or accept uploads.
+
+The Dockerfile has `api` and `worker` targets; plain build defaults to API. API health probes `/api/ready`; worker health checks its progress heartbeat, process existence and Redis/public worker state. Optional port variables `APP_PORT`, `POSTGRES_PORT`, `REDIS_PORT`, `MAILPIT_PORT`, `SMTP_PORT` avoid conflicts without override files. Keep `APP_ORIGIN` consistent with the exposed frontend port.
+
+PostgreSQL is the startup default; set `DATABASE_URL`. For intentional legacy use, set `DATABASE_DRIVER=sqlite`; an explicitly supplied `DATABASE_PATH` also selects compatibility when the PostgreSQL driver was not explicitly chosen. The production PostgreSQL requirement remains unless the operator explicitly chooses the limited ephemeral demo exception.
+
+Verification commands use disposable services:
+
+```bash
+TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:PORT/test_database \
+TEST_REDIS_URL=redis://localhost:PORT npm run test:media:restart
+TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:PORT/test_database \
+TEST_REDIS_URL=redis://localhost:PORT TEST_REDIS_CONTAINER=soundwave-your-test-redis npm run test:redis:recovery
+TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:PORT/test_database \
+TEST_REDIS_URL=redis://localhost:PORT npm run bench:http -- docs/http-load-results.json
+```
+
+The Redis recovery script deliberately stops/restarts the named local test container. It requires a loopback URL and a `soundwave-…` container name; never point it at an important service. The worker restart script uses its own Redis namespace and generated PostgreSQL schema, kills only its test child, then validates actual BullMQ recovery. See [latest verification](RESUME_CLAIM_VERIFICATION.md).
