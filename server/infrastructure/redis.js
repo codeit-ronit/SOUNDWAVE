@@ -3,10 +3,11 @@ import { createHash } from "node:crypto";
 const counterScript = `local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('PEXPIRE',KEYS[1],ARGV[1]) end; return {n,redis.call('PTTL',KEYS[1])}`;
 export function redisInfrastructure(
   url,
-  { prefix = "soundwave", timeoutMs = 750 } = {},
+  { prefix = "soundwave", timeoutMs = 750, cacheTtlSeconds = 60 } = {},
 ) {
   if (!/^[a-zA-Z0-9:_-]{1,80}$/.test(prefix))
     throw Error("Invalid REDIS_PREFIX");
+  const counters = { hits: 0, misses: 0, errors: 0, writes: 0 };
   const client = createClient({
     url,
     disableOfflineQueue: true,
@@ -24,6 +25,13 @@ export function redisInfrastructure(
   return {
     client,
     prefix,
+    cacheStats: () => ({
+      ...counters,
+      hitRatio: counters.hits / (counters.hits + counters.misses) || 0,
+    }),
+    resetCacheStats: () => {
+      for (const key of Object.keys(counters)) counters[key] = 0;
+    },
     start: () => {
       void client.connect().catch(() => {});
     },
@@ -48,16 +56,26 @@ export function redisInfrastructure(
           const raw = await command().get(cacheKey);
           if (raw) {
             const entry = JSON.parse(raw);
-            if (entry.hash === hash) return entry.value;
+            if (entry.hash === hash && Object.hasOwn(entry, "value")) {
+              counters.hits++;
+              return entry.value;
+            }
           }
-        } catch {}
+        } catch {
+          counters.errors++;
+        }
+      else counters.errors++;
+      counters.misses++;
       const value = await load();
       if (client.isReady)
         try {
           await command().set(cacheKey, JSON.stringify({ hash, value }), {
-            EX: 60,
+            EX: cacheTtlSeconds,
           });
-        } catch {}
+          counters.writes++;
+        } catch {
+          counters.errors++;
+        }
       return value;
     },
     async close() {

@@ -9,7 +9,7 @@ import { fixture } from "./phase2-helpers.js";
 import { catalogRepository } from "../repositories/catalog.js";
 import { seedCatalog } from "../database/seed.js";
 import { loadConfig } from "../config.js";
-test("configured Redis outage fails closed for JSON but never disables public audio streaming", async () => {
+test("configured Redis outage keeps catalog reads available but protects private operations", async () => {
   const redis = {
     consume: async () => {
       throw Error("offline");
@@ -19,7 +19,9 @@ test("configured Redis outage fails closed for JSON but never disables public au
   };
   const f = await fixture("sqlite", { redis });
   try {
-    await request(f.app).get("/api/stories").expect(503);
+    const read = await request(f.app).get("/api/stories").expect(200);
+    assert.equal(read.headers["x-ratelimit-mode"], "local-fallback");
+    await request(f.app).get("/api/library").expect(503);
     await request(f.app).get("/api/ready").expect(503);
     await request(f.app)
       .get("/api/chapters/101/stream")
@@ -203,3 +205,38 @@ test("universal proxy trust is rejected rather than trusting attacker forwarding
     /TRUSTED_PROXY/,
   );
 });
+
+if (process.env.TEST_REDIS_URL)
+  test("cache counters measure TTL hits, misses and post-expiry consistency", async () => {
+    const redis = redisInfrastructure(process.env.TEST_REDIS_URL, {
+      prefix: "ttl-" + randomUUID(),
+      cacheTtlSeconds: 1,
+    });
+    try {
+      await redis.client.connect();
+      let loads = 0;
+      assert.equal(
+        await redis.cached("revision", "key", async () => ++loads),
+        1,
+      );
+      assert.equal(
+        await redis.cached("revision", "key", async () => ++loads),
+        1,
+      );
+      assert.deepEqual(redis.cacheStats(), {
+        hits: 1,
+        misses: 1,
+        errors: 0,
+        writes: 1,
+        hitRatio: 0.5,
+      });
+      await delay(1100);
+      assert.equal(
+        await redis.cached("revision", "key", async () => ++loads),
+        2,
+      );
+      assert.equal(redis.cacheStats().misses, 2);
+    } finally {
+      await redis.close();
+    }
+  });

@@ -7,7 +7,8 @@ x-app-environment: &app-environment
   DB_POOL_MAX: 5
   REDIS_URL: redis://redis:6379
   REDIS_PREFIX: soundwave
-  CATALOG_CACHE: ${CATALOG_CACHE:-false}
+  CATALOG_CACHE: ${CATALOG_CACHE:-true}
+  MEDIA_JOBS: ${MEDIA_JOBS:-true}
   EMAIL_MODE: ${EMAIL_MODE:-disabled}
   SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
   EMAIL_ENCRYPTION_KEY: ${EMAIL_ENCRYPTION_KEY:-}
@@ -22,7 +23,7 @@ services:
       POSTGRES_USER: soundwave
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
@@ -33,9 +34,18 @@ services:
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--maxmemory",
+        "64mb",
+        "--maxmemory-policy",
+        "noeviction",
+      ]
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -46,30 +56,36 @@ services:
   mailpit:
     image: axllent/mailpit:v1.27
     ports:
-      - "127.0.0.1:8025:8025"
-      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+      - "127.0.0.1:${SMTP_PORT:-1025}:1025"
   app:
-    build: .
-    image: soundwave:local
+    build:
+      context: .
+      target: api
+    image: soundwave:api
     init: true
     restart: on-failure:5
     environment: *app-environment
     ports:
-      - "127.0.0.1:3001:3001"
+      - "127.0.0.1:${APP_PORT:-3001}:3001"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
   worker:
-    build: .
-    image: soundwave:local
+    build:
+      context: .
+      target: worker
+    image: soundwave:worker
     command: ["node", "server/scripts/worker.js"]
     init: true
     restart: on-failure:5
     environment: *app-environment
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 volumes:
   postgres_data:

@@ -25,6 +25,7 @@ export function apiRateLimit({
   bucket = "api",
   key: keyFor = (req) => req.ip,
   exemptMedia = true,
+  publicReadFallback = () => false,
 } = {}) {
   const clients = new Map();
   return async (req, res, next) => {
@@ -55,15 +56,17 @@ export function apiRateLimit({
             });
         return next();
       } catch {
-        return res
-          .status(503)
-          .set("Retry-After", "3")
-          .json({
-            error: {
-              message:
-                "Request protection is temporarily unavailable. Please retry.",
-            },
-          });
+        if (!publicReadFallback(req))
+          return res
+            .status(503)
+            .set("Retry-After", "3")
+            .json({
+              error: {
+                message:
+                  "Request protection is temporarily unavailable. Please retry.",
+              },
+            });
+        res.set("X-RateLimit-Mode", "local-fallback");
       }
     }
     if (clients.size >= 10000 && !clients.has(key))

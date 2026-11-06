@@ -48,6 +48,7 @@ export function loadConfig(env = process.env) {
     production,
     trustedProxies,
     redisUrl: env.REDIS_URL || null,
+    mediaEnabled: env.MEDIA_JOBS !== "false",
     catalogCacheEnabled: env.CATALOG_CACHE === "true",
     redisPrefix: env.REDIS_PREFIX || "soundwave",
     emailMode,

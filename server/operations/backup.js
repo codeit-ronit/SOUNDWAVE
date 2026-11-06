@@ -23,6 +23,7 @@ const tables = [
   "analytics_rollups",
   "schema_migrations",
   "catalog_revision",
+  "chapter_media",
 ];
 const pool = (url) => {
   const value = new pg.Pool({

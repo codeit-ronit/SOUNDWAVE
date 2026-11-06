@@ -52,6 +52,22 @@ export function apiRouter(db, { cache } = {}) {
       return fail(res, "Story not found.", 404);
     res.json({ chapters: await repo.chapters(user, Number(req.params.id)) });
   });
+  api.get("/chapters/:id/metadata", async (req, res) => {
+    if (!validId(req.params.id)) return fail(res, "Invalid chapter ID.");
+    if (!(await repo.chapter(Number(req.params.id))))
+      return fail(res, "Chapter not found.", 404);
+    const row = await db
+      .prepare("SELECT * FROM chapter_media WHERE chapter_id=?")
+      .get(Number(req.params.id));
+    if (!row)
+      return res
+        .status(202)
+        .json({ status: "pending", chapterId: Number(req.params.id) });
+    res.json({
+      status: "completed",
+      metadata: { ...row, waveform: JSON.parse(row.waveform) },
+    });
+  });
   api.get("/library", requireUser, async (req, res) => {
     const user = req.user?.id || null;
     res.json({ stories: await repo.library(user) });

@@ -32,6 +32,7 @@ async function start() {
       ...process.env,
       PORT: String(port),
       DATABASE_PATH: databasePath,
+      DATABASE_DRIVER: process.env.DATABASE_URL ? "postgres" : "sqlite",
       DATABASE_URL: process.env.DATABASE_URL || "",
       NODE_ENV: "development",
       HTTP_LOG: "0",

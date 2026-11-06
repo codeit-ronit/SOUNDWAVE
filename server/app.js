@@ -63,7 +63,18 @@ export function createApp(
         redis: redis ? (ready ? "ready" : "unavailable") : "not-configured",
       });
   });
-  app.use("/api", apiRateLimit({ ...rateLimit, store: redis }));
+  app.use(
+    "/api",
+    apiRateLimit({
+      ...rateLimit,
+      store: redis,
+      publicReadFallback: (req) =>
+        req.method === "GET" &&
+        /^\/(genres|recommendations|stories(?:\/[1-9]\d*(?:\/chapters)?)?|chapters\/[1-9]\d*\/metadata)$/.test(
+          req.path,
+        ),
+    }),
+  );
   app.use(express.json({ limit: "8kb" }));
   app.use("/api", injectedIdentity || identityMiddleware(service, config));
   app.use(
