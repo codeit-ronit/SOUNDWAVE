@@ -49,6 +49,7 @@ export function loadConfig(env = process.env) {
     trustedProxies,
     redisUrl: env.REDIS_URL || null,
     mediaEnabled: env.MEDIA_JOBS !== "false",
+    catalogImportEnabled: env.LIBRIVOX_CATALOG === "true",
     catalogCacheEnabled: env.CATALOG_CACHE === "true",
     redisPrefix: env.REDIS_PREFIX || "soundwave",
     emailMode,

@@ -230,7 +230,15 @@ if (process.env.TEST_REDIS_URL)
         writes: 1,
         hitRatio: 0.5,
       });
-      await delay(1100);
+      // Observe the Redis clock, including container/VM scheduling, rather than
+      // assuming a host-side 1.1 s sleep means the server's key already expired.
+      const keys = await redis.client.keys(`${redis.prefix}:catalog:*`);
+      assert.equal(keys.length, 1);
+      const ttl = await redis.client.pTTL(keys[0]);
+      assert.ok(ttl > 0 && ttl <= 1000);
+      for (let n = 0; n < 100 && (await redis.client.exists(keys[0])); n++)
+        await delay(50);
+      assert.equal(await redis.client.exists(keys[0]), 0);
       assert.equal(
         await redis.cached("revision", "key", async () => ++loads),
         2,

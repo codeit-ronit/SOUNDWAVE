@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { backupDatabase, verifyBackup } from "../operations/backup.js";
 if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
-  test("real PostgreSQL backup restores all 14 public table fingerprints and never overwrites its archive", async () => {
+  test("real PostgreSQL backup restores all 16 public table fingerprints and never overwrites its archive", async () => {
     const dir = mkdtempSync(join(tmpdir(), "soundwave-backup-")),
       path = join(dir, "database.dump"),
       options = { container: process.env.TEST_BACKUP_CONTAINER };
@@ -21,12 +21,12 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         path,
         options,
       );
-      assert.equal(Object.keys(manifest.tables).length, 14);
+      assert.equal(Object.keys(manifest.tables).length, 16);
       assert.equal(statSync(path).mode & 0o777, 0o600);
       assert.equal(statSync(path + ".json").mode & 0o777, 0o600);
       assert.deepEqual(
         await verifyBackup(process.env.TEST_DATABASE_URL, path, options),
-        { verified: true, tables: 14 },
+        { verified: true, tables: 16 },
       );
       const size = statSync(path).size;
       await assert.rejects(

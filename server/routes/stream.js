@@ -2,6 +2,7 @@ import { Router } from "express";
 import { open, realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve, sep } from "node:path";
+import { archiveAudioUrl } from "../catalog/source.js";
 
 // Single byte ranges only. Never accept a client-supplied filename.
 export function parseRange(header, size) {
@@ -38,6 +39,49 @@ export function createAudioHandler(db) {
         return res
           .status(404)
           .json({ error: { message: "Chapter not found." } });
+      const external = await db
+        .prepare(
+          "SELECT s.audio_url,s.byte_length,b.archive_identifier FROM chapter_sources s JOIN chapters c ON c.id=s.chapter_id JOIN story_sources b ON b.story_id=c.story_id WHERE s.chapter_id=?",
+        )
+        .get(Number(req.params.id));
+      if (external) {
+        let audio;
+        try {
+          audio = archiveAudioUrl(
+            external.audio_url,
+            external.archive_identifier,
+          );
+        } catch {
+          return res.status(502).json({
+            error: { message: "The external audio source is unavailable." },
+          });
+        }
+        if (req.method === "HEAD")
+          return res
+            .status(200)
+            .set({
+              "Content-Type": "audio/mpeg",
+              "Content-Length": String(external.byte_length),
+              "Accept-Ranges": "bytes",
+              "Cache-Control": "no-store",
+            })
+            .end();
+        if (
+          req.method === "GET" &&
+          req.headers.range &&
+          !parseRange(req.headers.range, external.byte_length)
+        )
+          return res
+            .status(416)
+            .set({
+              "Content-Range": `bytes */${external.byte_length}`,
+              "Content-Length": "0",
+            })
+            .end();
+        // Audio bytes go directly to the approved archive host. No server download,
+        // arbitrary URL proxy, or full-file buffering on the free API instance.
+        return res.set("Cache-Control", "no-store").redirect(307, audio.url);
+      }
       // Restrict database mappings as well as the resolved path (including symlinks).
       if (!/^\/audio\/[1-9]\d*-[1-9]\d*\.wav$/.test(chapter.audio_url))
         return res

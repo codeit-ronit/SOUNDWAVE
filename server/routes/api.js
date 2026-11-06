@@ -56,6 +56,17 @@ export function apiRouter(db, { cache } = {}) {
     if (!validId(req.params.id)) return fail(res, "Invalid chapter ID.");
     if (!(await repo.chapter(Number(req.params.id))))
       return fail(res, "Chapter not found.", 404);
+    const source = await db
+      .prepare(
+        "SELECT s.byte_length,s.content_type,c.duration_seconds,b.provider,b.source_url FROM chapter_sources s JOIN chapters c ON c.id=s.chapter_id JOIN story_sources b ON b.story_id=c.story_id WHERE s.chapter_id=?",
+      )
+      .get(Number(req.params.id));
+    if (source)
+      return res.json({
+        status: "source-metadata",
+        chapterId: Number(req.params.id),
+        metadata: { ...source, waveform: null },
+      });
     const row = await db
       .prepare("SELECT * FROM chapter_media WHERE chapter_id=?")
       .get(Number(req.params.id));

@@ -3,9 +3,15 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { api } from "./api";
+import {
+  MAX_CHAPTER_BYTES,
+  MAX_DOWNLOAD_BYTES,
+  validateDownload,
+} from "./downloadAudio";
 import {
   publicStory as sanitizeStory,
   publicChapter as sanitizeChapter,
@@ -18,6 +24,7 @@ export function OfflineProvider({ children }) {
   const [online, setOnline] = useState(navigator.onLine);
   const [downloads, setDownloads] = useState([]);
   const [pending, setPending] = useState(new Set());
+  const downloading = useRef(false);
   const [error, setError] = useState("");
   const [installPrompt, setInstallPrompt] = useState(null);
   const [ready, setReady] = useState(false);
@@ -77,41 +84,57 @@ export function OfflineProvider({ children }) {
     };
   }, [supported, refresh]);
   const download = async (story, chapter) => {
-    if (pending.has(chapter.id)) return;
+    if (downloading.current) return;
+    downloading.current = true;
     setPending((p) => new Set(p).add(chapter.id));
     setError("");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 300000);
     try {
       if (!ready)
         throw new Error(
           "Offline setup is not ready yet. Open the production app in a supported browser.",
         );
-      const response = await fetch(chapter.audio_url, { cache: "no-store" });
+      const response = await fetch(chapter.audio_url, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       const size = Number(response.headers.get("Content-Length"));
+      if (size > MAX_CHAPTER_BYTES)
+        throw new Error(
+          "This chapter exceeds the 25 MB offline limit. You can stream it online.",
+        );
       if (
         response.status !== 200 ||
         response.headers.has("Content-Range") ||
-        !response.headers.get("Content-Type")?.startsWith("audio/wav") ||
+        !/^audio\/(wav|mpeg)(;|$)/.test(
+          response.headers.get("Content-Type") || "",
+        ) ||
         !Number.isSafeInteger(size) ||
         size < 44 ||
-        size > 25 * 1024 * 1024
+        size > MAX_CHAPTER_BYTES
       )
         throw new Error(
           "The server did not return a complete supported audio file.",
+        );
+      const audioCache = await caches.open(AUDIO_CACHE);
+      const stored = await Promise.all(
+        (await audioCache.keys()).map(
+          async (key) =>
+            Number(
+              (await audioCache.match(key)).headers.get("Content-Length"),
+            ) || 0,
+        ),
+      );
+      if (stored.reduce((a, b) => a + b, 0) + size > MAX_DOWNLOAD_BYTES)
+        throw new Error(
+          "The 200 MB download limit is reached. Remove a chapter first.",
         );
       const estimate = await navigator.storage?.estimate?.();
       if (estimate?.quota && estimate.quota - estimate.usage < size)
         throw new Error("Not enough browser storage. Remove a download first.");
       const bytes = await response.arrayBuffer();
-      const view = new DataView(bytes);
-      if (
-        bytes.byteLength !== size ||
-        view.getUint32(0) !== 0x52494646 ||
-        view.getUint32(8) !== 0x57415645 ||
-        view.getUint32(4, true) + 8 !== size
-      )
-        throw new Error(
-          "The download was incomplete or invalid. Please retry.",
-        );
+      validateDownload(bytes, response.headers.get("Content-Type"), size);
       // Save metadata needed for offline play before publishing the audio download.
       const original = await api.chapters(story.id);
       const chapterData = { chapters: original.chapters.map(sanitizeChapter) };
@@ -149,6 +172,9 @@ export function OfflineProvider({ children }) {
           : `Download failed: ${err.message}`,
       );
     } finally {
+      clearTimeout(timeout);
+      controller.abort();
+      downloading.current = false;
       setPending((p) => {
         const next = new Set(p);
         next.delete(chapter.id);

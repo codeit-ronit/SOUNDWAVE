@@ -1,0 +1,82 @@
+[
+  {
+    "id": 314,
+    "archive": "adventures_holmes",
+    "genre": "Mystery",
+    "color": "#8157d7",
+    "symbol": "radio",
+    "title": "Adventures of Sherlock Holmes"
+  },
+  {
+    "id": 200,
+    "archive": "alice_in_wonderland_librivox",
+    "genre": "Fantasy",
+    "color": "#dd9056",
+    "symbol": "orbit",
+    "title": "Alice's Adventures in Wonderland"
+  },
+  {
+    "id": 381,
+    "archive": "frankenstein_shelley",
+    "genre": "Horror",
+    "color": "#6586a4",
+    "symbol": "archive",
+    "title": "Frankenstein, or The Modern Prometheus"
+  },
+  {
+    "id": 271,
+    "archive": "dracula_librivox",
+    "genre": "Horror",
+    "color": "#b15970",
+    "symbol": "archive",
+    "title": "Dracula"
+  },
+  {
+    "id": 449,
+    "archive": "treasureisland_librivox",
+    "genre": "Adventure",
+    "color": "#d9a74a",
+    "symbol": "mountain",
+    "title": "Treasure Island"
+  },
+  {
+    "id": 253,
+    "archive": "pride_and_prejudice_librivox",
+    "genre": "Romance",
+    "color": "#b36d89",
+    "symbol": "letters",
+    "title": "Pride and Prejudice"
+  },
+  {
+    "id": 817,
+    "archive": "time_machine_0805_librivox",
+    "genre": "Science Fiction",
+    "color": "#5b9e99",
+    "symbol": "orbit",
+    "title": "Time Machine"
+  },
+  {
+    "id": 332,
+    "archive": "wizard_of_oz",
+    "genre": "Fantasy",
+    "color": "#9b7cc0",
+    "symbol": "orbit",
+    "title": "Wonderful Wizard of Oz"
+  },
+  {
+    "id": 56,
+    "archive": "secret_garden_librivox",
+    "genre": "Adventure",
+    "color": "#729b68",
+    "symbol": "mountain",
+    "title": "Secret Garden"
+  },
+  {
+    "id": 662,
+    "archive": "jungle_book_mh_0808_librivox",
+    "genre": "Adventure",
+    "color": "#b28b50",
+    "symbol": "mountain",
+    "title": "Jungle Book"
+  }
+]

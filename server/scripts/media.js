@@ -26,7 +26,10 @@ try {
         attempts: job.attemptsMade,
         reason: job.failedReason,
       });
-  } else if (action === "retry" && /^media-[a-zA-Z0-9-]+$/.test(id || "")) {
+  } else if (
+    action === "retry" &&
+    /^(media|librivox)-[a-zA-Z0-9-]+$/.test(id || "")
+  ) {
     const job = await queue.getJob(id);
     if (!job || (await job.getState()) !== "failed")
       throw Error("Failed job not found");

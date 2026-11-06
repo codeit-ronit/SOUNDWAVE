@@ -16,6 +16,8 @@ export async function importSqlite(db, path) {
     const tables = [
       "stories",
       "chapters",
+      "story_sources",
+      "chapter_sources",
       "favorites",
       "listening_progress",
       "progress_write_versions",
@@ -31,7 +33,12 @@ export async function importSqlite(db, path) {
       ? source.prepare("SELECT * FROM users").all()
       : [];
     const known = new Set(users.map((u) => u.id));
-    for (const t of tables.slice(2))
+    for (const t of [
+      "favorites",
+      "listening_progress",
+      "progress_write_versions",
+      "listening_events",
+    ])
       for (const row of rows[t])
         if (!known.has(row.user_id)) {
           users.push({

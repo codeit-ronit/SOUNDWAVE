@@ -41,5 +41,7 @@ services:
         value: "true"
       - key: MEDIA_JOBS
         value: "true"
+      - key: LIBRIVOX_CATALOG
+        value: "true"
       - key: EMAIL_MODE
         value: disabled

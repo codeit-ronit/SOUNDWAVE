@@ -9,6 +9,7 @@ x-app-environment: &app-environment
   REDIS_PREFIX: soundwave
   CATALOG_CACHE: ${CATALOG_CACHE:-true}
   MEDIA_JOBS: ${MEDIA_JOBS:-true}
+  LIBRIVOX_CATALOG: ${LIBRIVOX_CATALOG:-true}
   EMAIL_MODE: ${EMAIL_MODE:-disabled}
   SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
   EMAIL_ENCRYPTION_KEY: ${EMAIL_ENCRYPTION_KEY:-}

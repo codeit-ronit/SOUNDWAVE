@@ -134,6 +134,9 @@ export function seedDatabase(db) {
 }
 
 export const storySelect = `SELECT s.*,
+  (SELECT provider FROM story_sources x WHERE x.story_id=s.id) AS content_source,
+  (SELECT source_url FROM story_sources x WHERE x.story_id=s.id) AS source_url,
+  (SELECT narrator FROM story_sources x WHERE x.story_id=s.id) AS narrator,
   (SELECT COUNT(*) FROM chapters c WHERE c.story_id=s.id) AS chapter_count,
   (SELECT SUM(duration_seconds) FROM chapters c WHERE c.story_id=s.id) AS duration_seconds,
   EXISTS(SELECT 1 FROM favorites f WHERE f.story_id=s.id AND f.user_id=@user) AS is_favorite

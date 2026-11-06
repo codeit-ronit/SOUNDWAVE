@@ -65,7 +65,7 @@ async function audioResponse(request) {
   return new Response(bytes.slice(start, end + 1), {
     status: 206,
     headers: {
-      "Content-Type": "audio/wav",
+      "Content-Type": cached.headers.get("Content-Type") || "audio/wav",
       "Accept-Ranges": "bytes",
       "Content-Length": String(end - start + 1),
       "Content-Range": `bytes ${start}-${end}/${bytes.byteLength}`,

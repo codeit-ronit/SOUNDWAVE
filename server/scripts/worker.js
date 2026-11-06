@@ -44,7 +44,13 @@ console.log("SoundWave worker started");
 try {
   await Promise.all([
     runWorker(db, { mail, signal: controller.signal, onTick: tick }),
-    ...(media ? [runMediaScheduler(db, media.queue, controller.signal)] : []),
+    ...(media
+      ? [
+          runMediaScheduler(db, media.queue, controller.signal, {
+            catalogEnabled: config.catalogImportEnabled,
+          }),
+        ]
+      : []),
   ]);
 } finally {
   if (media) {

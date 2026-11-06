@@ -16,6 +16,9 @@ export const publicStory = (story) => ({
     "popularity",
     "chapter_count",
     "duration_seconds",
+    "content_source",
+    "source_url",
+    "narrator",
   ]),
   is_favorite: false,
 });
@@ -26,6 +29,7 @@ export const publicChapter = (chapter) => ({
     "chapter_number",
     "title",
     "audio_url",
+    "audio_bytes",
     "duration_seconds",
   ]),
   position_seconds: 0,

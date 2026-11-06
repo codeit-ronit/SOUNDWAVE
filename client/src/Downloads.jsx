@@ -11,15 +11,21 @@ import { useOffline } from "./OfflineContext";
 import { usePlayer } from "./PlayerContext";
 import { Cover, Empty, SectionHeading } from "./components";
 import { timeLabel } from "./playback";
+import { MAX_CHAPTER_BYTES } from "./downloadAudio";
 export function ChapterDownload({ story, chapter }) {
   const offline = useOffline();
   const saved = offline.has(chapter.id);
+  const streamOnly = Number(chapter.audio_bytes) > MAX_CHAPTER_BYTES;
   return (
     <button
       className={`download-button ${saved ? "downloaded" : ""}`}
       disabled={
         offline.pending.has(chapter.id) ||
-        (!saved && (!offline.online || !offline.ready))
+        (!saved &&
+          (streamOnly ||
+            !offline.online ||
+            !offline.ready ||
+            offline.pending.size > 0))
       }
       onClick={() =>
         saved ? offline.remove(chapter) : offline.download(story, chapter)
@@ -28,9 +34,11 @@ export function ChapterDownload({ story, chapter }) {
       title={
         saved
           ? "Available offline · Click to remove"
-          : !offline.ready
-            ? "Offline setup is not ready yet"
-            : "Download this chapter for offline listening"
+          : streamOnly
+            ? "This chapter exceeds the 25 MB offline limit. Stream it online."
+            : !offline.ready
+              ? "Offline setup is not ready yet"
+              : "Download this chapter for offline listening"
       }
     >
       {offline.pending.has(chapter.id) ? (
@@ -40,7 +48,9 @@ export function ChapterDownload({ story, chapter }) {
       ) : (
         <Download size={17} />
       )}
-      <span>{saved ? "Offline" : "Save offline"}</span>
+      <span>
+        {saved ? "Offline" : streamOnly ? "Stream only" : "Save offline"}
+      </span>
     </button>
   );
 }

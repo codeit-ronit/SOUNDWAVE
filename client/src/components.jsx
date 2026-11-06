@@ -60,7 +60,11 @@ export function Cover({ story, className = "", mini = false }) {
       </div>
       {!mini && (
         <>
-          <span className="cover-label">SOUNDWAVE ORIGINAL</span>
+          <span className="cover-label">
+            {story.content_source === "librivox"
+              ? "LIBRIVOX AUDIOBOOK"
+              : "SOUNDWAVE ORIGINAL"}
+          </span>
           <div className="cover-title">{story.title}</div>
           <span className="cover-bottom">
             AN AUDIO EXPERIENCE <span>✦</span>

@@ -33,7 +33,9 @@
     "test:redis:recovery": "node scripts/redis-recovery-smoke.mjs",
     "bench:http": "node scripts/http-load.mjs",
     "start:demo": "node server/scripts/demo.js",
-    "test:demo": "node scripts/demo-smoke.mjs"
+    "test:demo": "node scripts/demo-smoke.mjs",
+    "catalog:import": "node server/scripts/catalog.js",
+    "test:catalog:live": "node scripts/catalog-live-smoke.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",

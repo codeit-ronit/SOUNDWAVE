@@ -401,7 +401,11 @@ export function StoryDetails() {
       <section className="detail-hero" key={story.id}>
         <Cover story={story} className="detail-cover" />
         <div className="detail-content">
-          <span className="eyebrow">SOUNDWAVE ORIGINAL</span>
+          <span className="eyebrow">
+            {story.content_source === "librivox"
+              ? "LIBRIVOX AUDIOBOOK"
+              : "SOUNDWAVE ORIGINAL"}
+          </span>
           <span className="detail-genre" style={{ color: story.color }}>
             {story.genre}
           </span>
@@ -434,7 +438,21 @@ export function StoryDetails() {
             <FavoriteButton story={story} label />
           </div>
           <span className="original-note">
-            Original short fiction · Synthesized narration · Demo collection
+            {story.content_source === "librivox" ? (
+              <>
+                Read by {story.narrator}.{" "}
+                <a
+                  href={story.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Source: LibriVox
+                </a>{" "}
+                · Audio hosted by Internet Archive · Public domain in the USA.
+              </>
+            ) : (
+              "Original short fiction · Synthesized narration · Demo collection"
+            )}
           </span>
         </div>
       </section>

@@ -1,6 +1,10 @@
 import { Queue, Worker, UnrecoverableError } from "bullmq";
 import { setTimeout as delay } from "node:timers/promises";
 import {
+  importLibrivoxBook,
+  enqueueLibrivoxImports,
+} from "../catalog/import.js";
+import {
   audioPath,
   sourceHash,
   processChapterMedia,
@@ -47,7 +51,9 @@ export async function enqueueCatalogMedia(db, queue) {
   let enqueued = 0,
     skipped = 0;
   for (const { id } of await db
-    .prepare("SELECT id FROM chapters ORDER BY id")
+    .prepare(
+      "SELECT id FROM chapters WHERE NOT EXISTS (SELECT 1 FROM chapter_sources s WHERE s.chapter_id=chapters.id) ORDER BY id",
+    )
     .all()) {
     const hash = await sourceHash(await audioPath(db, id));
     const current = await db
@@ -74,15 +80,25 @@ export async function enqueueCatalogMedia(db, queue) {
 export function startMediaWorker(
   db,
   config,
-  { processor, workerOptions = {} } = {},
+  { processor, workerOptions = {}, sourceFetch = fetch } = {},
 ) {
   const worker = new Worker(
     "soundwave-media",
     processor ||
       (async (job) => {
         try {
+          if (job.name === "import-librivox")
+            return await importLibrivoxBook(db, job.data.projectId, {
+              fetchImpl: sourceFetch,
+            });
+          if (job.name !== "analyze-wav")
+            throw Object.assign(Error("unknown_media_job"), {
+              code: "INVALID_SOURCE",
+            });
           return await processChapterMedia(db, job.data);
         } catch (error) {
+          if (error.code === "INVALID_SOURCE")
+            throw new UnrecoverableError("invalid_catalog_source");
           if (error.code === "INVALID_MEDIA" || error.code === "ENOENT")
             throw new UnrecoverableError("unsupported_or_missing_media");
           throw Error("media_processing_failed");
@@ -101,10 +117,16 @@ export function startMediaWorker(
   worker.on("failed", (job) => console.error("Media job failed:", job?.id));
   return worker;
 }
-export async function runMediaScheduler(db, queue, signal) {
+export async function runMediaScheduler(
+  db,
+  queue,
+  signal,
+  { catalogEnabled = false } = {},
+) {
   while (!signal.aborted) {
     try {
       await enqueueCatalogMedia(db, queue);
+      if (catalogEnabled) await enqueueLibrivoxImports(db, queue);
     } catch {
       console.error("Media scheduling unavailable; will retry");
     }
