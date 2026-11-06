@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-06T18:34:55.598Z",
+  "checks": [
+    "public privacy page is available without authentication",
+    "sign-in renders the real Google Identity Services button with the configured client",
+    "sign-up also offers the same real Google button",
+    "the Google account panel fits a mobile viewport with no uncaught page errors",
+    "Google opens its actual account-selection/sign-in page without an origin/client configuration error"
+  ],
+  "googleAccountCompletion": "Requires the account owner's manual Google session; this script does not authenticate a Google user.",
+  "googleChooser": {
+    "host": "accounts.google.com",
+    "path": "/v3/signin/identifier"
+  },
+  "passed": 5
+}

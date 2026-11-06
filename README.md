@@ -4,6 +4,8 @@
 
 **[Live portfolio demo](https://soundwave-codeit-ronit.vercel.app/)** · **[Source](https://github.com/codeit-ronit/SOUNDWAVE)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Operations](docs/OPERATIONS.md)** · **[Resume claim verification](docs/RESUME_CLAIM_VERIFICATION.md)**
 
+**Google sign-in:** The live sign-in and sign-up forms offer Google Identity Services. Existing password users can explicitly link Google after signing in. See [setup, security decisions and verification](docs/GOOGLE_SIGN_IN.md).
+
 **Deployment status:** The public demo now serves the current frontend and PostgreSQL/authentication backend, with Redis caching/shared limits, BullMQ audio analysis and background analytics. Vercel hosts the frontend and same-origin API proxy; Render Free runs the API/worker and Redis-compatible store; Neon Free stores PostgreSQL data. [Public deployment verification](docs/PUBLIC_DEPLOYMENT.md) records actual browser and restart checks. **Free hosting sleeps when idle, so the first API request can take about a minute.** Redis queue state is volatile on this free plan, and external email delivery is disabled.
 
 The submitted resume URL, [zippy-nitrogen-wd3scr3.tmp.now](https://zippy-nitrogen-wd3scr3.tmp.now/), redirects to the existing live demo. Retain its original claimed deployment and hostname-specific redirect. Use the main demo URL for future submissions.
@@ -79,34 +81,35 @@ Compose defines PostgreSQL 18.6, Redis 7.4 with a bounded memory budget, API/wor
 
 Copy `.env.example`; never commit real credentials.
 
-| Variable                 | Behavior                                                                                                                      |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | PostgreSQL connection string; takes precedence over SQLite                                                                    |
-| `DATABASE_DRIVER`        | PostgreSQL default; `sqlite` explicitly selects local compatibility when no database URL is set                               |
-| `DATABASE_PATH`          | SQLite path for local compatibility; default `server/data/soundwave.sqlite`                                                   |
-| `APP_ORIGIN`             | Exact app origin; required HTTPS origin in production                                                                         |
-| `NODE_ENV`               | `production` enforces HTTPS configuration, Secure cookies and PostgreSQL by default                                           |
-| `CLIENT_ORIGIN`          | Development-only CORS origins; default localhost/127.0.0.1 port 5173                                                          |
-| `PORT`                   | Express port, default `3001`; Vite proxy also targets 3001                                                                    |
-| `DB_POOL_MAX`            | PostgreSQL pool limit per process, default `5`                                                                                |
-| `PGSSL`                  | Set `true` for PostgreSQL TLS with certificate verification; configure trusted CAs as needed                                  |
-| `DEMO_MODE`              | Default `true`; `false` disables independent guest-account creation                                                           |
-| `SESSION_TTL_SECONDS`    | Registered session absolute lifetime, default `604800` (7 days), maximum 30 days                                              |
-| `GUEST_TTL_SECONDS`      | Guest session lifetime, default `86400` (1 day), maximum 7 days                                                               |
-| `HTTP_LOG`               | Set `1` for structured request IDs, paths, status and duration; no request bodies                                             |
-| `POSTGRES_PASSWORD`      | Compose database password; also used to construct its internal connection URL                                                 |
-| `APP_NODE_ENV`           | Compose app environment; default local `development`                                                                          |
-| `REDIS_URL`              | Enables shared atomic limits; outages use local limits for public reads; auth/private operations fail closed; audio is exempt |
-| `LIBRIVOX_CATALOG`       | Enables curated background imports when Redis/media worker are configured; Compose/example enable it                          |
-| `MEDIA_JOBS`             | Default true: worker schedules BullMQ analysis of the catalog when Redis is configured                                        |
-| `REDIS_PREFIX`           | Shared deployment namespace, default `soundwave`                                                                              |
-| `CATALOG_CACHE`          | Enables bounded public catalog/search caching; Compose/example enable it; set false for comparison                            |
-| `TRUSTED_PROXY_CIDRS`    | Exact real proxy IPs/subnets; forwarding headers are ignored by default; /0 trust rejected                                    |
-| `EMAIL_MODE`             | `disabled` or `smtp`; disabled delivery never claims to send recovery mail                                                    |
-| `SMTP_URL`               | `smtp://` for local capture; production requires `smtps://` with certificate validation                                       |
-| `EMAIL_ENCRYPTION_KEY`   | Required SMTP outbox AES-256-GCM key: 32 random bytes encoded as 64 hex characters                                            |
-| `MAIL_FROM`              | Sender identity; configure a provider-verified sender before external delivery                                                |
-| `ALLOW_EPHEMERAL_SQLITE` | Explicit production portfolio fallback only; never a substitute for durable PostgreSQL                                        |
+| Variable                 | Behavior                                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`           | PostgreSQL connection string; takes precedence over SQLite                                                                                             |
+| `DATABASE_DRIVER`        | PostgreSQL default; `sqlite` explicitly selects local compatibility when no database URL is set                                                        |
+| `DATABASE_PATH`          | SQLite path for local compatibility; default `server/data/soundwave.sqlite`                                                                            |
+| `APP_ORIGIN`             | Exact app origin; required HTTPS origin in production                                                                                                  |
+| `NODE_ENV`               | `production` enforces HTTPS configuration, Secure cookies and PostgreSQL by default                                                                    |
+| `CLIENT_ORIGIN`          | Development-only CORS origins; default localhost/127.0.0.1 port 5173                                                                                   |
+| `PORT`                   | Express port, default `3001`; Vite proxy also targets 3001                                                                                             |
+| `DB_POOL_MAX`            | PostgreSQL pool limit per process, default `5`                                                                                                         |
+| `PGSSL`                  | Set `true` for PostgreSQL TLS with certificate verification; configure trusted CAs as needed                                                           |
+| `DEMO_MODE`              | Default `true`; `false` disables independent guest-account creation                                                                                    |
+| `GOOGLE_CLIENT_ID`       | Optional public Google Web client ID; enables Google sign-in. No client secret. Configure exact authorized JavaScript origins in Google Auth Platform. |
+| `SESSION_TTL_SECONDS`    | Registered session absolute lifetime, default `604800` (7 days), maximum 30 days                                                                       |
+| `GUEST_TTL_SECONDS`      | Guest session lifetime, default `86400` (1 day), maximum 7 days                                                                                        |
+| `HTTP_LOG`               | Set `1` for structured request IDs, paths, status and duration; no request bodies                                                                      |
+| `POSTGRES_PASSWORD`      | Compose database password; also used to construct its internal connection URL                                                                          |
+| `APP_NODE_ENV`           | Compose app environment; default local `development`                                                                                                   |
+| `REDIS_URL`              | Enables shared atomic limits; outages use local limits for public reads; auth/private operations fail closed; audio is exempt                          |
+| `LIBRIVOX_CATALOG`       | Enables curated background imports when Redis/media worker are configured; Compose/example enable it                                                   |
+| `MEDIA_JOBS`             | Default true: worker schedules BullMQ analysis of the catalog when Redis is configured                                                                 |
+| `REDIS_PREFIX`           | Shared deployment namespace, default `soundwave`                                                                                                       |
+| `CATALOG_CACHE`          | Enables bounded public catalog/search caching; Compose/example enable it; set false for comparison                                                     |
+| `TRUSTED_PROXY_CIDRS`    | Exact real proxy IPs/subnets; forwarding headers are ignored by default; /0 trust rejected                                                             |
+| `EMAIL_MODE`             | `disabled` or `smtp`; disabled delivery never claims to send recovery mail                                                                             |
+| `SMTP_URL`               | `smtp://` for local capture; production requires `smtps://` with certificate validation                                                                |
+| `EMAIL_ENCRYPTION_KEY`   | Required SMTP outbox AES-256-GCM key: 32 random bytes encoded as 64 hex characters                                                                     |
+| `MAIL_FROM`              | Sender identity; configure a provider-verified sender before external delivery                                                                         |
+| `ALLOW_EPHEMERAL_SQLITE` | Explicit production portfolio fallback only; never a substitute for durable PostgreSQL                                                                 |
 
 The default frontend/API deployment is same-origin. Production CORS permits only `APP_ORIGIN`; it does not reflect arbitrary origins. Custom split-origin cookie deployments are not configured or verified.
 
@@ -123,6 +126,7 @@ Compose/example configuration enables `LIBRIVOX_CATALOG=true`. Host-side develop
 - **PostgreSQL persistence:** a small `pg` adapter and bounded pool; normalized users, sessions, catalog and owner-scoped tables; foreign keys, uniqueness, checks and indexes; connection-pinned transactions.
 - **Versioned migrations:** transactional SQL files with checksums and migration locks. SQLite upgrades preserve existing listener rows and archive the original event table. No destructive reset or automatic rollback migration.
 - **Registration/login/logout:** validated inputs, scrypt password hashes, opaque HTTP-only sessions, absolute expiration, token rotation, CSRF validation and authentication throttling. Production cookies also use Secure and a `__Host-` name.
+- **Google identity:** official Google button, server-side signed-token verification, session-bound single-use nonce and rotating HTTP-only sessions. No automatic linking by email; existing password accounts require explicit linking. Google-only accounts recover through Google.
 - **User isolation:** library, favorites, progress, recommendations and analytics resolve identity from the session. Client-supplied user IDs never select an owner. Event idempotency and playback ordering are owner-scoped.
 - **Convenient demo:** each new visitor receives an isolated guest session when enabled. Guests cannot select existing users. Registration upgrades the guest transactionally and retains its saved data; login to another account does not silently merge histories.
 - **Frontend integration:** account form, invalid-login feedback, sign-out, state reset on account changes, stale queued-write protection and cross-tab account-change notification.
@@ -194,7 +198,7 @@ The application remains a modular monolith. Public media still streams from bund
 | `scripts/*smoke.mjs`                                  | Browser playback, offline, auth, restart and keyboard checks                     |
 | `api/index.js`, `vercel.json`                         | Serverless adapter and bundle/routing configuration                              |
 
-Core relations are `users`, `sessions`, `stories`, `chapters`, `favorites`, `listening_progress`, `progress_write_versions`, `listening_events` and `schema_migrations`, with `account_tokens`, `background_jobs`, `analytics_rollups`, `catalog_revision` and `chapter_media` for operations and derived media. Owned rows have composite user/resource keys; PostgreSQL enforces ownership references with foreign keys. Events use `(user_id,event_id)`, allowing each owner an independent idempotency namespace.
+Core relations are `users`, `sessions`, `oauth_identities`, `oauth_challenges`, `stories`, `chapters`, `favorites`, `listening_progress`, `progress_write_versions`, `listening_events` and `schema_migrations`, with `account_tokens`, `background_jobs`, `analytics_rollups`, `catalog_revision` and `chapter_media` for operations and derived media. Owned rows have composite user/resource keys; PostgreSQL enforces ownership references with foreign keys. Events use `(user_id,event_id)`, allowing each owner an independent idempotency namespace.
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for constraints, transaction boundaries, guest upgrades, password costs, cache isolation and migration tradeoffs.
 
@@ -219,6 +223,8 @@ All endpoints use `/api`. JSON errors use `{ "error": { "message": "..." } }`. R
 | GET          | `/auth/session`                    | Pre-login session or current sanitized identity, CSRF token, expiry and demo availability; never cached |
 | POST         | `/auth/demo`                       | CSRF-protected independent guest creation; only when enabled and signed out                             |
 | POST         | `/auth/register`                   | `{ email, password, displayName }`; create account or upgrade current guest                             |
+| POST         | `/auth/google/challenge`           | Session + CSRF; issues a short-lived, single-use Google nonce                                           |
+| POST         | `/auth/google`                     | `{ credential }`; verify Google ID token, sign in or explicitly link current password account           |
 | POST         | `/auth/login`                      | `{ email, password }`; rotate session on valid credentials                                              |
 | POST         | `/auth/forgot-password`            | Generic accepted response; queues reset mail when configured                                            |
 | POST         | `/auth/request-verification`       | Resend for current registered account; session + CSRF                                                   |
@@ -284,7 +290,9 @@ DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm run test
 
 Database tests create/remove random schemas; restore/system tests additionally create/drop generated databases, so their disposable test role needs the corresponding privileges. `TEST_BACKUP_CONTAINER` must match the same local server as `TEST_DATABASE_URL`. Without it, PostgreSQL cases are not run; the suite still tests real sessions with SQLite. Browser PostgreSQL scripts seed/write the supplied database and must use disposable data.
 
-**Latest catalog checkpoint:** 106 backend + 27 frontend tests passed (**133 total, zero failures/skips**) with real PostgreSQL/Redis/BullMQ and backup tools enabled. The [LibriVox report](docs/LIBRIVOX_INTEGRATION.md) records real-provider MP3/PWA verification, hosted release results and current limits.
+**Latest Google checkpoint:** 122 backend + 31 frontend tests passed (**153 total, zero failures/skips**), with PostgreSQL, Redis and backup tooling enabled. The production build passed; existing password/guest browser checks (5), offline checks (13), public application checks (9) and real Google widget/provider-page checks (5) passed. Completing a real Google account login remains a manual check; see [GOOGLE_SIGN_IN.md](docs/GOOGLE_SIGN_IN.md).
+
+**Earlier catalog checkpoint:** 106 backend + 27 frontend tests passed (**133 total, zero failures/skips**) with real PostgreSQL/Redis/BullMQ and backup tools enabled. The [LibriVox report](docs/LIBRIVOX_INTEGRATION.md) records real-provider MP3/PWA verification, hosted release results and current limits.
 
 **Earlier backend implementation checkpoint:** 96 backend tests with real PostgreSQL, Redis, BullMQ and backup tools enabled, plus 26 frontend tests passed (**122 total, zero failures**). Streaming/offline playback, authentication, analytics, worker-crash recovery and Redis outage recovery are verified. [RESUME_CLAIM_VERIFICATION.md](docs/RESUME_CLAIM_VERIFICATION.md) records current inspection, exact tests, worker/Redis restart checks and HTTP measurements. [PHASE2_REPORT.md](docs/PHASE2_REPORT.md) preserves the prior checkpoint. [PHASE1_REPORT.md](docs/PHASE1_REPORT.md) preserves the earlier checkpoint. The earlier [FINAL_AUDIT.md](FINAL_AUDIT.md) is historical evidence for the pre-auth demo, not a Phase 1 deployment/security certification.
 

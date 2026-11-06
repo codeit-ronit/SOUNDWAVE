@@ -43,6 +43,14 @@ Legacy contract tests inject identity and CSRF middleware in `server/test/helper
 
 These choices follow [OWASP password storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html), [session management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) and [CSRF](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html) guidance. They have regression coverage, not a penetration-test or production-security certification.
 
+## Google identity extension
+
+`GOOGLE_CLIENT_ID` enables the official Google Identity Services button. A session-bound, hashed nonce expires after five minutes and is consumed transactionally with identity resolution and session rotation. JOSE verifies RS256 signatures against Google’s HTTPS JWKS, issuer, configured audience, expiry, issued-at time, authorized party when present, verified email and nonce. Token/key fetch failures fail closed; no Google credential is persisted.
+
+Additive PostgreSQL migration 008 and SQLite migration 009 introduce `oauth_identities` (unique provider/subject and user/provider, cascading owner FK) and `oauth_challenges` (session FK and expiry index). Unknown subjects upgrade guests in place; known subjects resolve their existing owner. Email collisions require password login followed by explicit linking. Google-only users have a deliberately invalid password marker to preserve the existing SQLite registered-user constraint; password login/reset cannot turn that marker into credentials. Gmail/verified Workspace identities can establish application email verification; third-party addresses do not.
+
+Account recovery, concurrency, revoked-session races and authorization are covered on both database adapters. See [Google implementation and evidence](GOOGLE_SIGN_IN.md); real-user provider completion is distinguished from signed local JWT fixtures.
+
 ## Demo accounts and preservation
 
 The frontend automatically exchanges an anonymous CSRF session for an isolated guest when demo mode is enabled. Guests can use the same player, library, recommendations and analytics, with an independently generated owner UUID. `DEMO_MODE=false` disables this exchange; it does not grant a fallback identity.
@@ -103,7 +111,7 @@ Implemented operations now include shared throttling, expiry/guest cleanup, veri
 
 **Failure and performance evidence:** actual hard worker termination recovers through a second process; Redis stop/start retains public reads and restores the cache/SQL session flow. A real HTTP benchmark checks complete response consistency and records latency, throughput and cache ratios on six original stories and a 1,000-story generated fixture. [The report](RESUME_CLAIM_VERIFICATION.md) explains why this supports implemented architecture patterns but not production-scale guarantees.
 
-**Email and restore:** one-use tokens, encrypted SMTP jobs, session revocation and fragment-token forms remain tested through actual local SMTP capture and Chrome. Backups share an exported PostgreSQL snapshot with a manifest and restore only into a generated disposable database. Current coverage includes 14 app tables, including `chapter_media`. Neither public email deliverability nor managed disaster recovery is certified.
+**Email and restore:** one-use tokens, encrypted SMTP jobs, session revocation and fragment-token forms remain tested through actual local SMTP capture and Chrome. Backups share an exported PostgreSQL snapshot with a manifest and restore only into a generated disposable database. Current coverage includes 18 tables, including source metadata and the Google identity/challenge tables. Neither public email deliverability nor managed disaster recovery is certified.
 
 See [OPERATIONS.md](OPERATIONS.md) for exact commands, privileges, retention, Redis durability and media limits.
 
