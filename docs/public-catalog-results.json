@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-06T15:48:03.273Z",
+  "origin": "https://soundwave-codeit-ronit.vercel.app",
+  "checks": [
+    "public PostgreSQL catalog serves 16 stories, including 10 credited LibriVox books with real chapters",
+    "external chapter ranges and HEAD work through the existing public URL",
+    "real MP3 plays and seeks; external favorites/resume persist and a 10-second seek does not become listening time",
+    "the deployed MP3 downloads, reloads/plays offline, supports MPEG byte seeking and is removable without browser exceptions",
+    "the expanded public catalog fits the mobile viewport without horizontal overflow"
+  ],
+  "catalogHttpMs": [1123, 492, 1379, 531, 378],
+  "clickToAudioPastOneSecondMs": 9602,
+  "recordedListeningSeconds": 1.401,
+  "passed": 5,
+  "identifiedTestDataCleaned": true
+}

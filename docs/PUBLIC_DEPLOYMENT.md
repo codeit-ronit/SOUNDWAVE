@@ -2,6 +2,8 @@
 
 Verified on **6 November 2026**. This report supersedes the older reports' public-deployment status, not their performance/security qualifications.
 
+**Newer catalog release:** Runtime `188539f` subsequently added ten LibriVox books / 212 external chapters and was deployed to both hosts. See [LIBRIVOX_INTEGRATION.md](LIBRIVOX_INTEGRATION.md) for the current 133-test checkpoint, public release IDs and real MP3/PWA checks. The first free rollout below is retained as historical verification.
+
 ## Live addresses and release
 
 - Frontend/resume URL: **https://soundwave-codeit-ronit.vercel.app/**

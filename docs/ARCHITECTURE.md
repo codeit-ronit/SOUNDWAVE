@@ -106,3 +106,9 @@ Implemented operations now include shared throttling, expiry/guest cleanup, veri
 **Email and restore:** one-use tokens, encrypted SMTP jobs, session revocation and fragment-token forms remain tested through actual local SMTP capture and Chrome. Backups share an exported PostgreSQL snapshot with a manifest and restore only into a generated disposable database. Current coverage includes 14 app tables, including `chapter_media`. Neither public email deliverability nor managed disaster recovery is certified.
 
 See [OPERATIONS.md](OPERATIONS.md) for exact commands, privileges, retention, Redis durability and media limits.
+
+## External catalog extension
+
+[The LibriVox integration](LIBRIVOX_INTEGRATION.md) adds normalized `story_sources` / `chapter_sources` tables in additive migrations. The existing BullMQ worker imports a fixed, reviewed list of ten projects. Provider calls have bounded bodies/timeouts and strict host/path/provenance validation. Imports are transactional, idempotent and retain listener state; new content changes the catalog revision. No provider fetch is performed during catalog/discovery reads.
+
+The streaming route resolves public chapter IDs through the database, validates single ranges against stored size and redirects approved MP3 GETs to Archive.org. Thus the browser gets audio directly from the provider; the free API is not a bandwidth proxy. HEAD describes stored metadata. Existing WAV conditional streaming/analysis remains. External metadata is explicitly provider data, not generated waveform analysis. MP3/WAV offline downloads preserve MIME and neutral provenance, with 25 MB/chapter and 200 MB/device caps.

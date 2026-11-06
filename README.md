@@ -97,6 +97,7 @@ Copy `.env.example`; never commit real credentials.
 | `POSTGRES_PASSWORD`      | Compose database password; also used to construct its internal connection URL                                                 |
 | `APP_NODE_ENV`           | Compose app environment; default local `development`                                                                          |
 | `REDIS_URL`              | Enables shared atomic limits; outages use local limits for public reads; auth/private operations fail closed; audio is exempt |
+| `LIBRIVOX_CATALOG`       | Enables curated background imports when Redis/media worker are configured; Compose/example enable it                          |
 | `MEDIA_JOBS`             | Default true: worker schedules BullMQ analysis of the catalog when Redis is configured                                        |
 | `REDIS_PREFIX`           | Shared deployment namespace, default `soundwave`                                                                              |
 | `CATALOG_CACHE`          | Enables bounded public catalog/search caching; Compose/example enable it; set false for comparison                            |
@@ -108,6 +109,14 @@ Copy `.env.example`; never commit real credentials.
 | `ALLOW_EPHEMERAL_SQLITE` | Explicit production portfolio fallback only; never a substitute for durable PostgreSQL                                        |
 
 The default frontend/API deployment is same-origin. Production CORS permits only `APP_ORIGIN`; it does not reflect arbitrary origins. Custom split-origin cookie deployments are not configured or verified.
+
+## Real audiobook catalog
+
+SoundWave now supports **10 curated, human-narrated LibriVox audiobooks (212 chapters)** alongside the six bundled stories: **16 titles / 224 chapters** after the background import completes. Titles include Alice, Sherlock Holmes, Frankenstein, Dracula and Pride and Prejudice. Source/narrator credits are shown on book pages and imported books are labelled LibriVox.
+
+Browsing/search use PostgreSQL and Redis, so they do not wait for the external API. BullMQ imports validated metadata and refreshes it weekly when the worker is awake. Audio streams directly from Internet Archive through validated redirects, avoiding large transfers through the free API host. MP3 downloads support offline playback/seeking, with **25 MB per chapter / 200 MB total** limits; six large chapters are streaming-only. Provider availability and the existing free-host cold start still apply. See [implementation, actual tests and limits](docs/LIBRIVOX_INTEGRATION.md).
+
+Compose/example configuration enables `LIBRIVOX_CATALOG=true`. Host-side development also needs Redis and `npm run worker`. Operators can enqueue imports with `npm run catalog:import`, refresh with `npm run catalog:import -- --refresh`, and inspect/retry jobs with `npm run media -- list`. No external API key is required.
 
 ## Implemented foundation
 
@@ -121,12 +130,12 @@ The default frontend/API deployment is same-origin. Production CORS permits only
 
 ### Preserved listening features
 
-- Six original stories across five genres and twelve bundled narrated chapters.
+- Six original stories across five genres and twelve bundled narrated chapters, plus ten curated LibriVox books and 212 external chapters when imports are enabled.
 - One persistent HTML5 audio player across routes, chapter transitions, resume after refresh, Continue Listening, buffering/error states, volume and mute.
 - Playback speeds from 0.75× to 2×, device-local speed preference, 5/15/30-minute sleep timers and keyboard controls. **Space** toggles playback after clicking Start/player buttons; **← / →** seeks ten seconds. Text fields, selects and sliders retain their native controls.
 - Backend title/genre search, exact genre filters, allowed sorts, URL query state and loading/empty/error states.
 - Favorites and My Library; deterministic recommendations weighted by favorite genres and listening history. This is **rule-based personalization**, with curated seed popularity, not ML or real engagement data.
-- Explicit PWA chapter downloads, offline shell/playback/seeking/removal, full-file validation and quota-error feedback. No automatic catalog-wide audio caching.
+- Explicit PWA chapter downloads, offline shell/playback/seeking/removal, complete-length/audio-signature validation, bounded storage and quota-error feedback. No automatic catalog-wide audio caching.
 - Event-based listening analytics, a seven-day UTC chart, genre summaries, recent activity and completion/favorite counts. Seek distance never becomes listening time; duplicate events are idempotent.
 
 ## Distributed protection and background operations
@@ -134,6 +143,7 @@ The default frontend/API deployment is same-origin. Production CORS permits only
 - **Shared rate limits:** atomic Redis counters for API, auth IP and target-account buckets; bounded queues/timeouts, expiry, explicit proxy trust and 503 on configured Redis failure. During Redis outages, catalog/discovery reads use PostgreSQL and a bounded local limiter; auth/private operations fail closed and audio ranges remain available.
 - **Optional cache:** neutral catalog/search/genre results, owner-specific favorite overlays, transactional revision invalidation, 128 slots per revision and 60-second TTL. No session cache or shared private results. Cache hit/miss/error/write counters and cold/warm hit ratios are collected by the benchmark.
 - **Media work:** BullMQ schedules real PCM WAV metadata and 128-bin waveform analysis. SHA-256 job IDs, retry/backoff, stalled-job recovery, retained failures and idempotent PostgreSQL writes are verified. `GET /api/chapters/:id/metadata` serves the results; `npm run media -- list` shows queue status.
+- **Catalog imports:** real LibriVox/Internet Archive metadata fetched in background jobs; stable IDs, transactional writes, last-known catalog retention, TTL/revision invalidation, source attribution and no arbitrary URL proxy.
 - **Durable work:** transactional event/outbox writes, concurrent worker claims, lease fencing, rollback/retry/backoff, dead letters, graceful shutdown, historical analytics backfill and cleanup batches.
 - **Email flows:** registration verification, resend, forgot-password and reset forms; 24-hour verification and 30-minute reset tokens; encrypted delivery payloads, one-time consumption, token invalidation and session revocation.
 - **Recovery drills:** public-schema snapshot archives, restricted file permissions, checksum/fingerprint manifests and isolated restore verification. No source database is overwritten.
@@ -236,7 +246,7 @@ For unsafe requests, first obtain a session cookie and CSRF token through `/auth
 
 `q` is limited to 100 characters; `genre` to 40; `sort` allows only `trending`, `title`, `newest`. Prepared parameter binding treats SQL injection and wildcard input as data. Progress requires a finite position within chapter duration; completed chapters must be at their end. Paused/seek/chapter saves are acknowledged; unload saves remain best effort. Same-client version checks reject stale saves; independent clients still use last-arriving writes.
 
-Audio returns **200** for full GET/HEAD, **206** for one valid bounded/open/suffix range, and **416** for malformed/multiple/unsatisfiable ranges. HEAD has no body and ignores Range. If-Range, ETag, Last-Modified and exact content lengths are supported. Both stream and legacy `/audio` routes validate catalog mappings and real paths, including symlinks. Multipart ranges are not implemented.
+Bundled audio returns **200** for full GET/HEAD, **206** for one valid bounded/open/suffix range, and **416** for malformed/multiple/unsatisfiable ranges. HEAD has no body and ignores Range. If-Range, ETag, Last-Modified and exact content lengths are supported. Both stream and legacy `/audio` routes validate catalog mappings and real paths, including symlinks. Multipart ranges are not implemented. External chapters use a validated 307 redirect to Internet Archive for audio GET, locally validate requested ranges and return catalog-based HEAD metadata. External `/metadata` explicitly identifies provider data and does not pretend it has a measured waveform.
 
 ## Verification
 
@@ -274,7 +284,9 @@ DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm run test
 
 Database tests create/remove random schemas; restore/system tests additionally create/drop generated databases, so their disposable test role needs the corresponding privileges. `TEST_BACKUP_CONTAINER` must match the same local server as `TEST_DATABASE_URL`. Without it, PostgreSQL cases are not run; the suite still tests real sessions with SQLite. Browser PostgreSQL scripts seed/write the supplied database and must use disposable data.
 
-**Backend implementation checkpoint:** 96 backend tests with real PostgreSQL, Redis, BullMQ and backup tools enabled, plus 26 frontend tests passed (**122 total, zero failures**). Streaming/offline playback, authentication, analytics, worker-crash recovery and Redis outage recovery are verified. [RESUME_CLAIM_VERIFICATION.md](docs/RESUME_CLAIM_VERIFICATION.md) records current inspection, exact tests, worker/Redis restart checks and HTTP measurements. [PHASE2_REPORT.md](docs/PHASE2_REPORT.md) preserves the prior checkpoint. [PHASE1_REPORT.md](docs/PHASE1_REPORT.md) preserves the earlier checkpoint. The earlier [FINAL_AUDIT.md](FINAL_AUDIT.md) is historical evidence for the pre-auth demo, not a Phase 1 deployment/security certification.
+**Latest catalog checkpoint:** 106 backend + 27 frontend tests passed (**133 total, zero failures/skips**) with real PostgreSQL/Redis/BullMQ and backup tools enabled. The [LibriVox report](docs/LIBRIVOX_INTEGRATION.md) records real-provider MP3/PWA verification, hosted release results and current limits.
+
+**Earlier backend implementation checkpoint:** 96 backend tests with real PostgreSQL, Redis, BullMQ and backup tools enabled, plus 26 frontend tests passed (**122 total, zero failures**). Streaming/offline playback, authentication, analytics, worker-crash recovery and Redis outage recovery are verified. [RESUME_CLAIM_VERIFICATION.md](docs/RESUME_CLAIM_VERIFICATION.md) records current inspection, exact tests, worker/Redis restart checks and HTTP measurements. [PHASE2_REPORT.md](docs/PHASE2_REPORT.md) preserves the prior checkpoint. [PHASE1_REPORT.md](docs/PHASE1_REPORT.md) preserves the earlier checkpoint. The earlier [FINAL_AUDIT.md](FINAL_AUDIT.md) is historical evidence for the pre-auth demo, not a Phase 1 deployment/security certification.
 
 The newer [public rollout report](docs/PUBLIC_DEPLOYMENT.md) records nine additional current-backend browser checks, five existing public PWA checks, five combined-launcher checks and four hosted restart assertions. Run the explicit public check with `node scripts/public-backend-smoke.mjs https://soundwave-codeit-ronit.vercel.app`; it creates a test account.
 
@@ -297,12 +309,14 @@ npx vercel deploy --prod --skip-domain --yes --scope ronit-choudharys-projects
 
 Use a remote Linux build for native SQLite dependencies; never upload a Mac-built serverless function. A Node host can serve the app with `npm ci`, `npm run build`, `npm start`, a separately supervised `npm run worker`, HTTPS termination, persistent PostgreSQL and Redis. The public Vercel deployment excludes the old ephemeral serverless API; its external rewrites reach Render. A serverless API alone does not run the durable worker. Retain bundled audio and SPA routing. GitHub pushes alone are not verified to deploy this project.
 
-Remaining gaps include MFA, account deletion, private content entitlements, offline private-data synchronization, continuous durable worker hosting, HA/failover, database role separation, scheduled encrypted/offsite backups, full disaster-recovery promotion, security review and load testing. Verification, recovery, cleanup, distributed limits and local restore drills are implemented; external internet delivery is not verified. Audio remains a small bundled catalog. Browser downloads are public content stored on one device and can be evicted. Analytics are bounded client-observed demo metrics, not tamper-proof engagement tracking.
+Remaining gaps include MFA, account deletion, private content entitlements, offline private-data synchronization, continuous durable worker hosting, HA/failover, database role separation, scheduled encrypted/offsite backups, full disaster-recovery promotion, security review and load testing. Verification, recovery, cleanup, distributed limits and local restore drills are implemented; external internet delivery is not verified. The catalog contains six bundled stories plus ten curated external audiobooks; it does not mirror the entire provider library. Browser downloads are public content stored on one device and can be evicted. Analytics are bounded client-observed demo metrics, not tamper-proof engagement tracking.
 
 See [Operations](docs/OPERATIONS.md) and the [architecture document](docs/ARCHITECTURE.md) for Redis/worker/email/backup behavior and remaining operational work.
 
 ## Audio and artwork
 
 The twelve original 32–37-second chapters are mono 22.05 kHz PCM WAV files, approximately 18 MB total, narrated with the macOS Samantha voice from `server/content/catalog.js`. They are bundled with measured durations. Covers use original CSS/vector compositions and Lucide icons (ISC).
+
+Imported books use real LibriVox recordings hosted by Internet Archive. Source metadata and attribution are imported, and existing vector covers are retained. The UI identifies public-domain status in the USA; see the provider policy and jurisdiction qualification in [LIBRIVOX_INTEGRATION.md](docs/LIBRIVOX_INTEGRATION.md).
 
 Optional macOS-only regeneration is `npm run audio:generate`, then `npm run seed`. The generator reuses existing WAVs; remove a specific generated file before regenerating an edited script. Normal setup does not invoke it.

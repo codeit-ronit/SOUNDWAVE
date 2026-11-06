@@ -138,3 +138,9 @@ TEST_REDIS_URL=redis://localhost:PORT npm run bench:http -- docs/http-load-resul
 ```
 
 The Redis recovery script deliberately stops/restarts the named local test container. It requires a loopback URL and a `soundwave-…` container name; never point it at an important service. The worker restart script uses its own Redis namespace and generated PostgreSQL schema, kills only its test child, then validates actual BullMQ recovery. See [latest verification](RESUME_CLAIM_VERIFICATION.md).
+
+## External catalog operations
+
+Set `LIBRIVOX_CATALOG=true` with the Redis/media worker enabled. The worker schedules the ten projects in `server/catalog/curated.json`; fresh books are not re-fetched for seven days. `npm run catalog:import` queues missing/stale work; `npm run catalog:import -- --refresh` requests an explicit refresh. Inspect failures using `npm run media -- list` and retry an identified failed `librivox-...` job with `npm run media -- retry JOB_ID`. Provider failures retain the last imported catalog and do not block database-backed browsing. Do not use operator refresh commands for public search requests.
+
+Review additions to the curated file, provenance, source rights and actual byte-range playback before publishing new books. Stable provider IDs protect favorites/history; changes to published chapter order or ID collisions fail for review. All chapters are metadata-validated; live checks sample each book's first chapter. [The integration report](LIBRIVOX_INTEGRATION.md) includes tested scope and third-party availability limits.

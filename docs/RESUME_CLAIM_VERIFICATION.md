@@ -4,6 +4,8 @@
 
 **Later deployment update:** The free public demo was subsequently deployed and checked; see [PUBLIC_DEPLOYMENT.md](PUBLIC_DEPLOYMENT.md). Statements below about the older public version describe this earlier implementation checkpoint, not the latest rollout. Performance and production-scale qualifications remain unchanged.
 
+**Catalog extension:** [LIBRIVOX_INTEGRATION.md](LIBRIVOX_INTEGRATION.md) records the later real-source import workflow, 133-test checkpoint and verified public catalog release.
+
 Requested claim:
 
 > Designed a scalable backend architecture integrating PostgreSQL, Redis caching, distributed rate limiting, and asynchronous job processing for media workflows and analytics.

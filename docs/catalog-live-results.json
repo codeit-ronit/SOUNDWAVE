@@ -1,0 +1,34 @@
+{
+  "date": "2026-11-06T15:39:15.132Z",
+  "source": "Real LibriVox + Internet Archive APIs and audio; isolated local PostgreSQL schema/Redis namespace",
+  "checks": [
+    "actual BullMQ worker imports 10 real audiobooks / 212 chapters and processes the 12 original WAVs",
+    "PostgreSQL serves all 16 stories with attribution and Redis cache hits; browsing does not query the content provider",
+    "the first chapter of every imported book returns real 206 audio bytes from Internet Archive",
+    "real external MP3 decodes and the paused chapter position restores after refresh",
+    "the real MP3 downloads across origins, reloads and plays offline, serves MPEG seek ranges and is removable",
+    "the 200 MB aggregate admission limit rejects another download without publishing partial audio (size-header fixture)"
+  ],
+  "books": 10,
+  "externalChapters": 212,
+  "streamOnlyChapters": 6,
+  "jobs": {
+    "completed": 22,
+    "failed": 0
+  },
+  "sample": {
+    "title": "Alice's Adventures in Wonderland",
+    "chapter": "Chapter 1",
+    "id": 100123439
+  },
+  "cache": {
+    "hits": 1,
+    "misses": 2,
+    "errors": 0,
+    "writes": 2,
+    "hitRatio": 0.3333333333333333
+  },
+  "rangeProbeRetries": 0,
+  "clickToAudioPastOneSecondMs": 5149,
+  "passed": 6
+}
