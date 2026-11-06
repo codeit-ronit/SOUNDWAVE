@@ -31,7 +31,9 @@
     "media": "node server/scripts/media.js",
     "test:media:restart": "node scripts/media-restart-smoke.mjs",
     "test:redis:recovery": "node scripts/redis-recovery-smoke.mjs",
-    "bench:http": "node scripts/http-load.mjs"
+    "bench:http": "node scripts/http-load.mjs",
+    "start:demo": "node server/scripts/demo.js",
+    "test:demo": "node scripts/demo-smoke.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",

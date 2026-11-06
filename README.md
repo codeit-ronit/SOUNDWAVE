@@ -60,6 +60,8 @@ Run `npm run worker` alongside host-side development. Inspect media jobs with `n
 
 ## Docker Compose
 
+For a no-cost public portfolio setup, see the [free demo deployment recipe](docs/FREE_DEMO_DEPLOYMENT.md). It uses Render plus Neon and explicitly documents sleeping workers and volatile Redis. Public cutover still requires provider accounts and successful public verification.
+
 With `POSTGRES_PASSWORD` set in `.env`, Compose runs PostgreSQL, Redis, API, worker and a local SMTP catcher. For email features, also set `EMAIL_MODE=smtp` and a random `EMAIL_ENCRYPTION_KEY` as described in [Operations](docs/OPERATIONS.md#complete-local-stack). Without mail configuration, recovery reports an explicit error; it does not fake delivery.
 
 For Compose, leave `SMTP_URL` unset so it uses `smtp://mailpit:1025`. Then:

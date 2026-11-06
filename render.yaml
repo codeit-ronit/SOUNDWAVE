@@ -1,0 +1,45 @@
+# Free portfolio demo, not continuous/durable worker hosting.
+# Create a Neon Free database first; paste its DIRECT TLS URL only in Render.
+services:
+  - type: keyvalue
+    name: soundwave-demo-redis
+    plan: free
+    region: frankfurt
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+  - type: web
+    name: soundwave-demo
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node server/scripts/demo.js
+    healthCheckPath: /api/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_DRIVER
+        value: postgres
+      - key: DATABASE_URL
+        sync: false
+      - key: PGSSL
+        value: "true"
+      - key: DB_POOL_MAX
+        value: "3"
+      - key: APP_ORIGIN
+        value: https://soundwave-codeit-ronit.vercel.app
+      - key: DEMO_MODE
+        value: "true"
+      - key: REDIS_URL
+        fromService:
+          name: soundwave-demo-redis
+          type: keyvalue
+          property: connectionString
+      - key: REDIS_PREFIX
+        value: soundwave-public
+      - key: CATALOG_CACHE
+        value: "true"
+      - key: MEDIA_JOBS
+        value: "true"
+      - key: EMAIL_MODE
+        value: disabled
