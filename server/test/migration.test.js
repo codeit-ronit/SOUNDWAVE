@@ -67,7 +67,7 @@ test("SQLite additive auth migration preserves pre-auth listener rows and keeps 
     const again = openDatabase(path);
     assert.equal(
       again.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get().n,
-      10,
+      11,
     );
     again.close();
   } finally {
@@ -124,7 +124,28 @@ if (process.env.TEST_DATABASE_URL)
         .prepare("INSERT INTO playlists(id,user_id,name) VALUES(?,?,?)")
         .run(mergedId, "demo-user", "Existing collection");
       source.close();
+      const settingsSource = new Database(path);
+      settingsSource
+        .prepare(
+          "INSERT INTO user_preferences(user_id,playback_speed,autoplay_next,default_volume) VALUES(?,?,?,?)",
+        )
+        .run("demo-user", 1.5, 0, 0.4);
+      settingsSource.close();
       const imported = await importSqlite(db, path);
+      assert.equal(imported.user_preferences, 1);
+      assert.equal(
+        (
+          await db
+            .prepare(
+              "SELECT playback_speed FROM user_preferences WHERE user_id=?",
+            )
+            .get("demo-user")
+        ).playback_speed,
+        1.5,
+      );
+      await db
+        .prepare("UPDATE user_preferences SET playback_speed=2 WHERE user_id=?")
+        .run("demo-user");
       assert.equal(imported.favorites, 1);
       assert.equal(imported.playlists, 1);
       assert.equal(imported.playlist_items, 2);
@@ -132,6 +153,17 @@ if (process.env.TEST_DATABASE_URL)
       assert.equal(repeated.favorites, 0);
       assert.equal(repeated.playlists, 0);
       assert.equal(repeated.playlist_items, 0);
+      assert.equal(repeated.user_preferences, 0);
+      assert.equal(
+        (
+          await db
+            .prepare(
+              "SELECT playback_speed FROM user_preferences WHERE user_id=?",
+            )
+            .get("demo-user")
+        ).playback_speed,
+        2,
+      );
       await playlistService(db).add("demo-user", mergedId, 1);
       assert.equal(
         (

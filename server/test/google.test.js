@@ -103,6 +103,11 @@ for (const kind of backends) {
       assert.equal(a.data.googleClientId, clientId);
       await a.write("/demo");
       const old = a.data;
+      await a.agent
+        .put("/api/settings")
+        .set("X-CSRF-Token", old.csrfToken)
+        .send({ playbackSpeed: 1.5, autoplayNext: false, defaultVolume: 0.4 })
+        .expect(200);
       const playlist = (
         await a.agent
           .post("/api/playlists")
@@ -136,6 +141,19 @@ for (const kind of backends) {
       assert.equal(r.body.user.kind, "registered");
       assert.equal(r.body.user.googleLinked, true);
       assert.equal(r.body.user.emailVerified, true);
+      assert.equal(
+        (await a.get("/profile").expect(200)).body.profile.googleLinked,
+        true,
+      );
+      assert.equal(
+        (await a.get("/settings").expect(200)).body.settings.autoplayNext,
+        false,
+      );
+      await a.agent
+        .put("/api/profile")
+        .set("X-CSRF-Token", r.body.csrfToken)
+        .send({ displayName: "Edited Google listener" })
+        .expect(200);
       assert.notEqual(r.body.csrfToken, old.csrfToken);
       assert.equal((await a.get("/library").expect(200)).body.stories[0].id, 1);
       assert.equal(
@@ -158,6 +176,14 @@ for (const kind of backends) {
       const b = await f.client();
       await b.google();
       assert.equal(b.data.user.id, old.user.id);
+      assert.equal(
+        (await b.get("/profile").expect(200)).body.profile.displayName,
+        "Edited Google listener",
+      );
+      assert.equal(
+        (await b.get("/settings").expect(200)).body.settings.playbackSpeed,
+        1.5,
+      );
       assert.equal((await b.get("/library").expect(200)).body.stories[0].id, 1);
       assert.equal(
         (await b.get(`/playlists/${playlist.id}`).expect(200)).body.playlist

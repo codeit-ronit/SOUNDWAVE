@@ -25,6 +25,7 @@ export async function importSqlite(db, path) {
       "oauth_identities",
       "playlists",
       "playlist_items",
+      "user_preferences",
     ];
     const rows = Object.fromEntries(
       tables.map((t) => [

@@ -30,6 +30,7 @@ const tables = [
   "oauth_challenges",
   "playlists",
   "playlist_items",
+  "user_preferences",
 ];
 const pool = (url) => {
   const value = new pg.Pool({
