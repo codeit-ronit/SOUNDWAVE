@@ -132,3 +132,7 @@ Playlists remain on the same owner UUID during password/Google guest upgrades, a
 ## Profile and per-account preferences (M1.1)
 
 The account route/service/repository owns profile reads/name edits and bounded playback preferences. The session supplies the owner; CSRF and private/no-store behavior reuse existing middleware. `user_preferences` has one constrained row per user; transactional owner locks serialize partial updates. Account-scoped frontend providers discard stale responses and preserve the active player while settings change. Defaults are 1×, autoplay on and volume 0.8; private preferences are not cached offline. Backups/import now include preferences (21 tables). See [contract, concurrency and limitations](M1_SETTINGS.md).
+
+## Cross-story queue (M1.3)
+
+`queue.js` is a pure occurrence reducer (current/upcoming/history). `PlayerContext.jsx` consumes entries synchronously and guards asynchronous selection/completion with active IDs and generations. `queueStorage.js` stores bounded references and current position in owner-scoped tab sessionStorage, validates against catalog on refresh and restores paused. Auth changes clear stored state; private queue state never enters PWA/Redis caches. StoryCards reuse queue actions inside playlists without modifying membership. No database tables or queue REST API were added. [Detailed semantics, limits and verification](M1_QUEUE.md).

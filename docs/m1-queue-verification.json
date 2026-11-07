@@ -1,0 +1,248 @@
+{
+  "milestone": "M1.3 Editable Cross-Story Playback Queue",
+  "verifiedAt": "2026-11-07T18:56:37.177600+00:00",
+  "branch": "feature/m1-private-playlists",
+  "baseCommit": "fa8cecd",
+  "remoteActions": "NOT RUN / NOT VERIFIED",
+  "pushed": false,
+  "deployed": false,
+  "productionResourcesChanged": false,
+  "environment": {
+    "node": "22.21.1",
+    "postgres": "18.6 local disposable database soundwave_ci_queue_20261108; generated schemas",
+    "redis": "dedicated local Redis 7.4.12; isolated test prefixes",
+    "browser": "local headless Chrome via Playwright 1.64.1",
+    "installation": "Existing lockfile dependencies reused from prior clean Node 22 install; npm ci not repeated"
+  },
+  "applicationTests": {
+    "command": "TEST_DATABASE_URL=<disposable-loopback-pg> TEST_REDIS_URL=<dedicated-loopback-redis> TEST_BACKUP_CONTAINER=<matching-local-container> npm test (through CI runner after db:migrate)",
+    "backend": 155,
+    "frontend": 85,
+    "total": 240,
+    "existingBaseline": 206,
+    "newTests": 34,
+    "failed": 0,
+    "skipped": 0
+  },
+  "ciSafetyTests": {
+    "command": "node --test scripts/ci/safety.test.mjs",
+    "passed": 6,
+    "failed": 0
+  },
+  "browserChecks": [
+    {
+      "command": "node scripts/queue-smoke.mjs docs/m1-queue-browser-sqlite.json",
+      "database": "sqlite",
+      "passed": 14
+    },
+    {
+      "command": "TEST_DATABASE_URL=<local-disposable-pg> node scripts/queue-smoke.mjs docs/m1-queue-browser-postgres.json",
+      "database": "postgres",
+      "passed": 14
+    },
+    {
+      "command": "node scripts/browser-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 14
+    },
+    {
+      "command": "node scripts/auth-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 5
+    },
+    {
+      "command": "node scripts/offline-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 13
+    },
+    {
+      "command": "node scripts/keyboard-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 3
+    },
+    {
+      "command": "node scripts/audit-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 7
+    },
+    {
+      "command": "node scripts/playlists-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 10
+    },
+    {
+      "command": "node scripts/settings-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 8
+    }
+  ],
+  "localCiRunner": {
+    "directory": "dotenv-free disposable export",
+    "commands": [
+      "node scripts/ci/run.mjs test",
+      "node scripts/ci/run.mjs build",
+      "node scripts/ci/run.mjs format",
+      "node scripts/ci/run.mjs browser"
+    ],
+    "results": {
+      "test": [
+        {
+          "name": "ci-safety",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 90
+        },
+        {
+          "name": "migrations",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 343
+        },
+        {
+          "name": "tests",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 16038
+        }
+      ],
+      "build": [
+        {
+          "name": "build",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1764
+        }
+      ],
+      "format": [
+        {
+          "name": "format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1321
+        },
+        {
+          "name": "ci-doc-format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 477
+        }
+      ],
+      "browser": [
+        {
+          "name": "login",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 4700
+        },
+        {
+          "name": "playlists",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8723
+        },
+        {
+          "name": "settings",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8905
+        },
+        {
+          "name": "queue",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 11500
+        },
+        {
+          "name": "offline",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3731
+        },
+        {
+          "name": "restart",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 4781
+        }
+      ]
+    },
+    "integrationCoverage": {
+      "required": [
+        "postgres: transaction rollback, concurrent completions and stale progress writes",
+        "PostgreSQL fresh concurrent migrations",
+        "postgres: playlist reads/writes reject anonymous sessions",
+        "postgres: concurrent playlist additions serialize",
+        "Redis atomically shares request limits across independent application instances",
+        "real PostgreSQL backup restores all 21",
+        "postgres: account writes serialize concurrent field changes and roll back atomically"
+      ],
+      "missing": [],
+      "zeroSkipped": true
+    }
+  },
+  "build": {
+    "command": "npm run build",
+    "passed": true,
+    "modules": 1708
+  },
+  "format": {
+    "command": "npm run format:check; explicit Prettier checks for changed documentation/JSON; git diff --check",
+    "passed": true
+  },
+  "schemaChanges": [],
+  "newBackendEndpoints": [],
+  "storage": {
+    "backend": "sessionStorage",
+    "key": "soundwave.queue.v1",
+    "maxUpcoming": 50,
+    "maxHistory": 20,
+    "maxSerializedCharacters": 20000,
+    "ownerScoped": true,
+    "refreshAutoplay": false
+  },
+  "findings": [
+    "Existing Settings tests clicked before display-name initialization; now synchronize on the expected fetched name without weakened assertions",
+    "Initial full-suite attempt used an uninitialized disposable public schema; stopped only its test processes, applied db:migrate and reran successfully",
+    "Restoration fault injection moved to page bootstrap because page-hide save correctly replaced earlier injected data",
+    "Observed intermittent Chrome media network error code 2 when an already-loaded source gained a cached download during the combined fault sequence; cause not established, not claimed fixed. Fresh-load/offline queue checks passed; documented follow-up",
+    "Cross-tab logout/page-hide can recreate retired queue storage; fixed with a per-window storage generation and verified while the original playback tab is offline"
+  ],
+  "limitations": [
+    "Per-tab queue only; no cross-device/tab synchronization or backend queue",
+    "Queue entries restart at zero except paused current restoration; duplicate completion semantics remain per chapter",
+    "History bounded to 20; Previous disabled when 50 upcoming entries would overflow",
+    "Online catalog read failures preserve the original snapshot until refresh/explicit replacement; offline unavailable references are pruned",
+    "Known intermittent Chrome hot-cache media load concern remains; use existing Retry or refresh, and investigate separately",
+    "Chrome-only local evidence; no remote Actions, production-scale, public deployment or cross-browser claim"
+  ],
+  "changedFiles": [
+    ".github/workflows/ci.yml",
+    "README.md",
+    "client/src/App.jsx",
+    "client/src/AuthContext.jsx",
+    "client/src/PlayerContext.jsx",
+    "client/src/PlayerContext.test.jsx",
+    "client/src/QueuePanel.jsx",
+    "client/src/QueuePanel.test.jsx",
+    "client/src/Settings.test.jsx",
+    "client/src/api.js",
+    "client/src/components.jsx",
+    "client/src/pages.jsx",
+    "client/src/queue.js",
+    "client/src/queue.test.js",
+    "client/src/queueStorage.js",
+    "client/src/queueStorage.test.js",
+    "client/src/styles.css",
+    "docs/ARCHITECTURE.md",
+    "docs/CI.md",
+    "docs/M1_QUEUE.md",
+    "docs/SOUNDWAVE_V3_ROADMAP.md",
+    "docs/m1-queue-browser-postgres.json",
+    "docs/m1-queue-browser-sqlite.json",
+    "docs/m1-queue-verification.json",
+    "package.json",
+    "scripts/ci/run.mjs",
+    "scripts/queue-smoke.mjs"
+  ],
+  "implementationCommits": ["39bc6fb", "1c7369c", "f7fdbbc"]
+}

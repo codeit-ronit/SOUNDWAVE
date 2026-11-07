@@ -6,7 +6,9 @@
 
 **Google sign-in:** The live sign-in and sign-up forms offer Google Identity Services. Existing password users can explicitly link Google after signing in. See [setup, security decisions and verification](docs/GOOGLE_SIGN_IN.md).
 
-**Deployment status:** The public demo now serves the current frontend and PostgreSQL/authentication backend, with Redis caching/shared limits, BullMQ audio analysis and background analytics. Vercel hosts the frontend and same-origin API proxy; Render Free runs the API/worker and Redis-compatible store; Neon Free stores PostgreSQL data. [Public deployment verification](docs/PUBLIC_DEPLOYMENT.md) records actual browser and restart checks. **Free hosting sleeps when idle, so the first API request can take about a minute.** Redis queue state is volatile on this free plan, and external email delivery is disabled.
+**Deployment status (last verified release):** The public demo was verified with a React frontend and PostgreSQL/authentication backend, with Redis caching/shared limits, BullMQ audio analysis and background analytics. Vercel hosts the frontend and same-origin API proxy; Render Free runs the API/worker and Redis-compatible store; Neon Free stores PostgreSQL data. [Public deployment verification](docs/PUBLIC_DEPLOYMENT.md) records actual browser and restart checks. **Free hosting sleeps when idle, so the first API request can take about a minute.** Redis queue state is volatile on this free plan, and external email delivery is disabled.
+
+Local V3 milestones M1.1–M1.3 have not been pushed or deployed; the public URL is not evidence of these new features.
 
 The submitted resume URL, [zippy-nitrogen-wd3scr3.tmp.now](https://zippy-nitrogen-wd3scr3.tmp.now/), redirects to the existing live demo. Retain its original claimed deployment and hostname-specific redirect. Use the main demo URL for future submissions.
 
@@ -359,3 +361,9 @@ Optional macOS-only regeneration is `npm run audio:generate`, then `npm run seed
 Settings now edits display names and saves per-account playback speed, autoplay-next and default volume. Email, verification and linked Google information are read-only. PostgreSQL and SQLite use additive migrations; isolated guests retain preferences when upgraded to an account. Saving settings preserves the running audio element. No public release was performed. See [API contract, architecture, verification and limitations](docs/M1_SETTINGS.md) and [exact current results](docs/m1-settings-verification.json). The 178-test M1.2/CI checkpoint above remains historical; no remote GitHub Actions success is claimed.
 
 Current local M1.1 verification: **206 application tests passed** (155 backend + 51 frontend), six CI safety tests, eight Settings browser checks on each database, existing playback/auth/offline/keyboard/restart/playlist suites, production build and formatting. Preferences restore on login/refresh or explicit reload; no live cross-device push is implemented.
+
+## M1.3 — editable playback queue
+
+The persistent player now opens an editable cross-story queue: Play Next, Add to Queue, remove, move up/down, Previous/Next and confirmed clear. Chapter actions appear on story pages; playlist StoryCards enqueue their chapters without changing membership. The owner-scoped queue persists within a tab across refresh and restores paused; logout/account switching clears it. Offline queue playback uses downloaded public chapters. No queue database/API or deployment was added. [Semantics, tests and known limits](docs/M1_QUEUE.md). Run `npm run test:queue:browser` for its disposable local browser checks.
+
+Current local M1.3 verification: **240 application tests** (155 backend + 85 frontend), six CI safety tests and 14 queue browser checks per database passed, alongside all existing browser suites, build and formatting. [Exact evidence](docs/m1-queue-verification.json). Remote Actions remains unverified.

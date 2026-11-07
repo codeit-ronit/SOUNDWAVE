@@ -1,0 +1,20 @@
+{
+  "date": "2026-11-07T18:54:13.781Z",
+  "database": "sqlite",
+  "checks": [
+    "chapter Play Next/Add to Queue creates distinct cross-story occurrences without interrupting playback",
+    "reorder/removal target occurrence IDs; refresh restores current position and order paused",
+    "autoplay-off persists completion without consuming the queue; manual Next crosses stories",
+    "clear requires confirmation and leaves current audio playing",
+    "successive browser Next actions consume distinct queued occurrences without duplicate or skipped selections",
+    "playlist story chapters enqueue in order while private membership/order remains unchanged",
+    "saved autoplay-on advances into the next story using the shared media element",
+    "restoration validates current catalog references and safely prunes an unavailable chapter",
+    "corrupt storage produces a visible recovery warning without breaking playback controls",
+    "quota failure leaves queue editing functional in memory with an explicit persistence warning",
+    "offline refresh validates downloaded metadata and queued duplicate playback uses real cached audio",
+    "another registered account in the same tab starts with no previous owner's current or upcoming entries",
+    "cross-tab logout clears an offline listening tab without page-hide rewriting the retired owner's queue",
+    "logout clears tab queue; no private service-worker cache entries, mobile overflow or uncaught browser errors"
+  ]
+}
