@@ -305,7 +305,7 @@ DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm run test
 
 Database tests create/remove random schemas; restore/system tests additionally create/drop generated databases, so their disposable test role needs the corresponding privileges. `TEST_BACKUP_CONTAINER` must match the same local server as `TEST_DATABASE_URL`. Without it, PostgreSQL cases are not run; the suite still tests real sessions with SQLite. Browser PostgreSQL scripts seed/write the supplied database and must use disposable data.
 
-**Latest M1.2 checkpoint:** **178 tests passed** (141 backend + 37 frontend; zero failed/skipped), including real PostgreSQL/Redis and populated 20-table backup/restore. Ten playlist browser checks passed on each adapter; the existing 14 core, 5 auth, 13 offline, 3 keyboard and 7 restart/security checks passed. Production build (1,703 modules) and formatting passed. No public release was performed. [Exact results and limitations](docs/M1_PLAYLISTS.md).
+**Historical M1.2 checkpoint:** **178 tests passed** (141 backend + 37 frontend; zero failed/skipped), including real PostgreSQL/Redis and populated 20-table backup/restore. Ten playlist browser checks passed on each adapter; the existing 14 core, 5 auth, 13 offline, 3 keyboard and 7 restart/security checks passed. Production build (1,703 modules) and formatting passed. No public release was performed. [Exact results and limitations](docs/M1_PLAYLISTS.md).
 
 **Earlier Google checkpoint:** 122 backend + 31 frontend tests passed (**153 total, zero failures/skips**), with PostgreSQL, Redis and backup tooling enabled. The production build passed; existing password/guest browser checks (5), offline checks (13), public application checks (9) and real Google widget/provider-page checks (5) passed. The owner confirmed a successful real Google login on 7 November 2026 (manual verification); see [GOOGLE_SIGN_IN.md](docs/GOOGLE_SIGN_IN.md).
 
@@ -353,3 +353,9 @@ The twelve original 32–37-second chapters are mono 22.05 kHz PCM WAV files, ap
 Imported books use real LibriVox recordings hosted by Internet Archive. Source metadata and attribution are imported, and existing vector covers are retained. The UI identifies public-domain status in the USA; see the provider policy and jurisdiction qualification in [LIBRIVOX_INTEGRATION.md](docs/LIBRIVOX_INTEGRATION.md).
 
 Optional macOS-only regeneration is `npm run audio:generate`, then `npm run seed`. The generator reuses existing WAVs; remove a specific generated file before regenerating an edited script. Normal setup does not invoke it.
+
+## M1.1 — account profile and settings
+
+Settings now edits display names and saves per-account playback speed, autoplay-next and default volume. Email, verification and linked Google information are read-only. PostgreSQL and SQLite use additive migrations; isolated guests retain preferences when upgraded to an account. Saving settings preserves the running audio element. No public release was performed. See [API contract, architecture, verification and limitations](docs/M1_SETTINGS.md) and [exact current results](docs/m1-settings-verification.json). The 178-test M1.2/CI checkpoint above remains historical; no remote GitHub Actions success is claimed.
+
+Current local M1.1 verification: **206 application tests passed** (155 backend + 51 frontend), six CI safety tests, eight Settings browser checks on each database, existing playback/auth/offline/keyboard/restart/playlist suites, production build and formatting. Preferences restore on login/refresh or explicit reload; no live cross-device push is implemented.

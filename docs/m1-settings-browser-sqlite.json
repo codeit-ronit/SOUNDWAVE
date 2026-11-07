@@ -1,0 +1,14 @@
+{
+  "date": "2026-11-07T18:03:11.392Z",
+  "database": "sqlite",
+  "checks": [
+    "guest gets safe defaults and read-only identity metadata",
+    "invalid name recovers; profile and preferences save without replacing or pausing audio",
+    "disabled autoplay completes the chapter without transitioning; manual next still works",
+    "guest upgrade retains preferences and owner ID; refresh restores account settings",
+    "logout/login and a second authenticated browser session restore preferences; explicit reload sees remote changes",
+    "failed settings reads expose a recoverable error and retry without losing persisted preferences",
+    "switching accounts in the same browser clears private profile/preferences and restores each owner's values",
+    "private settings are absent from service-worker caches; mobile layout and browser exception checks pass"
+  ]
+}

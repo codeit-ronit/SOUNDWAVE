@@ -102,7 +102,7 @@ BACKUP_PG_CONTAINER=YOUR_POSTGRES_CONTAINER DATABASE_URL=postgres://CREATEDB_OPE
   npm run db:backup -- verify /tmp/soundwave.dump
 ```
 
-Creation exports a repeatable-read snapshot and passes it to `pg_dump`. A manifest records counts and order-independent content fingerprints for 20 tables from the same snapshot, plus the archive's SHA-256. The archive and manifest use mode 0600; existing archives are never overwritten. These are sensitive database files, **not encrypted backups**.
+Creation exports a repeatable-read snapshot and passes it to `pg_dump`. A manifest records counts and order-independent content fingerprints for 21 tables from the same snapshot, plus the archive's SHA-256. The archive and manifest use mode 0600; existing archives are never overwritten. These are sensitive database files, **not encrypted backups**.
 
 Verification checks the archive hash first, creates a random `soundwave_restore_…` database, restores there, compares all 20 recorded table fingerprints and drops only that generated database. It never restores over the source. Schema-selective dumps include `CREATE SCHEMA public`, so the drill removes the new target's empty default schema before restoring. This is not an application migration or deletion of existing user tables.
 
@@ -147,6 +147,10 @@ Review additions to the curated file, provenance, source rights and actual byte-
 
 ## Private playlist persistence
 
-M1.2 adds owner-scoped playlists and membership to both adapters. Run normal `npm run db:migrate` before starting the updated app (startup also migrates). Existing listener rows are retained. SQLite import includes playlists/items and refuses an existing playlist ID owned by someone else, rolling back the import rather than attaching foreign memberships. It also reconciles append counters for retained target collections and rejects merged membership/order overflow. Backups now cover 20 tables, with populated playlist restore checks. Keep older backup manifests with their matching application/schema version; a pre-playlist archive does not contain the new data.
+M1.2 adds owner-scoped playlists and membership to both adapters. Run normal `npm run db:migrate` before starting the updated app (startup also migrates). Existing listener rows are retained. SQLite import includes playlists/items and refuses an existing playlist ID owned by someone else, rolling back the import rather than attaching foreign memberships. It also reconciles append counters for retained target collections and rejects merged membership/order overflow. Backups now cover 21 tables, with populated playlist restore checks. Keep older backup manifests with their matching application/schema version; a pre-playlist archive does not contain the new data.
 
 No Redis invalidation or worker deployment is required for playlist changes. New private routes use the existing general API limits and Redis failure policy. Unconfigured local Redis retains the existing process-local limits; configured Redis failure returns 503 for protected playlist operations. Expired guest deletion cascades playlists/items; registered listeners retain their collections. M1.2 has not been pushed/deployed by this task. [Feature contract and evidence](M1_PLAYLISTS.md).
+
+## M1.1 preference migration
+
+Apply the normal versioned migration command before serving the updated API/client: PostgreSQL 010 and SQLite 011 add only `user_preferences`. Existing data is preserved. Backup manifests now cover 21 tables including populated account preferences; retain older manifests with their schema version. No new environment variables, Redis keys, worker infrastructure or public resources are required. [Contract and verification](M1_SETTINGS.md).
