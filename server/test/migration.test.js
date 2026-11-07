@@ -66,7 +66,7 @@ test("SQLite additive auth migration preserves pre-auth listener rows and keeps 
     const again = openDatabase(path);
     assert.equal(
       again.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get().n,
-      9,
+      10,
     );
     again.close();
   } finally {
@@ -97,9 +97,34 @@ if (process.env.TEST_DATABASE_URL)
           "INSERT INTO listening_progress(user_id,chapter_id,position_seconds) VALUES(?,?,?)",
         )
         .run("demo-user", 101, 12.5);
+      const playlistId = randomUUID();
+      source
+        .prepare(
+          "INSERT INTO playlists(id,user_id,name,next_position) VALUES(?,?,?,?)",
+        )
+        .run(playlistId, "demo-user", "Imported playlist", 2);
+      source
+        .prepare(
+          "INSERT INTO playlist_items(playlist_id,story_id,position) VALUES(?,?,?)",
+        )
+        .run(playlistId, 2, 1);
       source.close();
-      assert.equal((await importSqlite(db, path)).favorites, 1);
-      assert.equal((await importSqlite(db, path)).favorites, 0);
+      const imported = await importSqlite(db, path);
+      assert.equal(imported.favorites, 1);
+      assert.equal(imported.playlists, 1);
+      assert.equal(imported.playlist_items, 1);
+      const repeated = await importSqlite(db, path);
+      assert.equal(repeated.favorites, 0);
+      assert.equal(repeated.playlists, 0);
+      assert.equal(repeated.playlist_items, 0);
+      assert.equal(
+        (
+          await db
+            .prepare("SELECT story_id FROM playlist_items WHERE playlist_id=?")
+            .get(playlistId)
+        ).story_id,
+        2,
+      );
       assert.equal(
         (
           await db
@@ -116,6 +141,40 @@ if (process.env.TEST_DATABASE_URL)
         1,
       );
       check.close();
+      const collision = randomUUID(),
+        foreignUser = randomUUID();
+      await db
+        .prepare("INSERT INTO users(id,display_name,kind) VALUES(?,?,?)")
+        .run(foreignUser, "Another owner", "guest");
+      await db
+        .prepare("INSERT INTO playlists(id,user_id,name) VALUES(?,?,?)")
+        .run(collision, foreignUser, "Existing owner");
+      const edited = new Database(path);
+      edited
+        .prepare(
+          "INSERT INTO playlists(id,user_id,name,next_position) VALUES(?,?,?,?)",
+        )
+        .run(collision, "demo-user", "Conflicting import", 2);
+      edited
+        .prepare(
+          "INSERT INTO playlist_items(playlist_id,story_id,position) VALUES(?,?,?)",
+        )
+        .run(collision, 1, 1);
+      edited.close();
+      await assert.rejects(
+        importSqlite(db, path),
+        /Playlist ownership conflict/,
+      );
+      assert.equal(
+        (
+          await db
+            .prepare(
+              "SELECT COUNT(*) AS n FROM playlist_items WHERE playlist_id=?",
+            )
+            .get(collision)
+        ).n,
+        0,
+      );
       await assert.rejects(
         db
           .prepare("INSERT INTO favorites(user_id,story_id) VALUES(?,?)")

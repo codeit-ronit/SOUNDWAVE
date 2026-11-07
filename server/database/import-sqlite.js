@@ -23,6 +23,8 @@ export async function importSqlite(db, path) {
       "progress_write_versions",
       "listening_events",
       "oauth_identities",
+      "playlists",
+      "playlist_items",
     ];
     const rows = Object.fromEntries(
       tables.map((t) => [
@@ -62,6 +64,14 @@ export async function importSqlite(db, path) {
       ]) {
         counts[table] = 0;
         for (const row of data) {
+          // Never attach imported memberships to an existing different owner's list.
+          if (table === "playlists") {
+            const target = await db
+              .prepare("SELECT user_id FROM playlists WHERE id=?")
+              .get(row.id);
+            if (target && target.user_id !== row.user_id)
+              throw Error("Playlist ownership conflict during import");
+          }
           // Column names originate only in the known SQLite schema, not requests.
           const columns = Object.keys(row).filter((k) => k !== "event_order");
           if (columns.some((k) => !/^\w+$/.test(k)))

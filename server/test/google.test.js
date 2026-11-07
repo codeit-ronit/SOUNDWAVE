@@ -103,6 +103,17 @@ for (const kind of backends) {
       assert.equal(a.data.googleClientId, clientId);
       await a.write("/demo");
       const old = a.data;
+      const playlist = (
+        await a.agent
+          .post("/api/playlists")
+          .set("X-CSRF-Token", old.csrfToken)
+          .send({ name: "Google upgrade playlist" })
+          .expect(201)
+      ).body.playlist;
+      await a.agent
+        .put(`/api/playlists/${playlist.id}/stories/1`)
+        .set("X-CSRF-Token", old.csrfToken)
+        .expect(200);
       await a.agent
         .put("/api/library/1")
         .set("X-CSRF-Token", old.csrfToken)
@@ -128,6 +139,11 @@ for (const kind of backends) {
       assert.notEqual(r.body.csrfToken, old.csrfToken);
       assert.equal((await a.get("/library").expect(200)).body.stories[0].id, 1);
       assert.equal(
+        (await a.get(`/playlists/${playlist.id}`).expect(200)).body.stories[0]
+          .id,
+        1,
+      );
+      assert.equal(
         (await a.get("/progress").expect(200)).body.progress[0]
           .position_seconds,
         12,
@@ -143,6 +159,11 @@ for (const kind of backends) {
       await b.google();
       assert.equal(b.data.user.id, old.user.id);
       assert.equal((await b.get("/library").expect(200)).body.stories[0].id, 1);
+      assert.equal(
+        (await b.get(`/playlists/${playlist.id}`).expect(200)).body.playlist
+          .name,
+        "Google upgrade playlist",
+      );
       await b.write("/logout", {}, 204);
       const p = await f.client();
       await p.write(

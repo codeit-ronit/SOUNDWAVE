@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { analyticsRouter } from "./routes/analytics.js";
 import { streamRouter, legacyAudioRouter } from "./routes/stream.js";
 import { apiRouter } from "./routes/api.js";
+import { playlistRouter } from "./routes/playlists.js";
 export function createApp(
   db,
   {
@@ -99,6 +100,7 @@ export function createApp(
   );
   app.use("/api", injectedCsrf || csrfProtection(config));
   app.use("/api", streamRouter(db));
+  app.use("/api/playlists", playlistRouter(db));
   app.use("/api", analyticsRouter(db));
   app.use(
     "/api",
