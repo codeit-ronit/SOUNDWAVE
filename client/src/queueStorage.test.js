@@ -7,6 +7,7 @@ import {
   restoreQueue,
   MAX_QUEUE_BYTES,
   clearStoredQueue,
+  getQueueEpoch,
 } from "./queueStorage";
 const owner = "10000000-0000-4000-8000-000000000001",
   session = { user: { id: owner } },
@@ -138,4 +139,14 @@ it("offline restoration keeps downloaded occurrences and prunes undownloaded aud
     online.mockRestore();
     vi.unstubAllGlobals();
   }
+});
+
+it("logout invalidates a retired player's page-hide writes even before its cleanup", () => {
+  const oldEpoch = getQueueEpoch();
+  writeStoredQueue(state, owner, 3, oldEpoch);
+  clearStoredQueue();
+  writeStoredQueue(state, owner, 4, oldEpoch);
+  expect(sessionStorage.getItem(QUEUE_KEY)).toBeNull();
+  writeStoredQueue(state, owner, 5, getQueueEpoch());
+  expect(readStoredQueue(session).snapshot.position).toBe(5);
 });

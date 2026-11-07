@@ -374,7 +374,7 @@ try {
     })
     .waitFor();
   // Begin the offline phase from the persisted queue and a fresh media load,
-  // avoiding mixed in-flight HTTP-range and newly cached responses.
+  // Hot cache publication into an existing load remains a documented concern.
   await page.reload();
   await page
     .getByRole("button", {
@@ -487,6 +487,50 @@ try {
   );
   pass(
     "another registered account in the same tab starts with no previous owner's current or upcoming entries",
+  );
+  await nav("/stories/1");
+  await page
+    .getByRole("button", { name: "Play A voice in the static", exact: true })
+    .click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector("audio")?.currentTime > 0.3 &&
+      !document.querySelector("audio").paused,
+  );
+  await nav("/queue");
+  const sibling = await context.newPage();
+  await sibling.goto(base + "/settings");
+  await sibling
+    .getByRole("button", { name: "Sign out", exact: true })
+    .waitFor();
+  const offlineTab = await context.newCDPSession(page);
+  await offlineTab.send("Network.enable");
+  await offlineTab.send("Network.emulateNetworkConditions", {
+    offline: true,
+    latency: 0,
+    downloadThroughput: -1,
+    uploadThroughput: -1,
+  });
+  await sibling.getByRole("button", { name: "Sign out", exact: true }).click();
+  await q
+    .getByText("No current chapter. Add chapters from a story or playlist.", {
+      exact: true,
+    })
+    .waitFor();
+  assert.equal(
+    await page.evaluate(() => sessionStorage.getItem("soundwave.queue.v1")),
+    null,
+  );
+  await offlineTab.send("Network.emulateNetworkConditions", {
+    offline: false,
+    latency: 0,
+    downloadThroughput: -1,
+    uploadThroughput: -1,
+  });
+  await offlineTab.detach();
+  await sibling.close();
+  pass(
+    "cross-tab logout clears an offline listening tab without page-hide rewriting the retired owner's queue",
   );
   const cached = await page.evaluate(async () => {
     const paths = [];

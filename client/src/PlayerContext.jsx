@@ -16,6 +16,7 @@ import {
   queueReducer,
 } from "./queue";
 import {
+  getQueueEpoch,
   readStoredQueue,
   writeStoredQueue,
   restoreQueue,
@@ -41,6 +42,7 @@ export function PlayerProvider({ children, session }) {
   const [queueError, setQueueError] = useState("");
   const [queueMessage, setQueueMessage] = useState("");
   const queueOwner = useRef(session?.user?.id || null);
+  const storageEpoch = useRef(getQueueEpoch());
   const enqueueChain = useRef(Promise.resolve());
   const queueGeneration = useRef(0);
   const endedEntry = useRef(null);
@@ -49,6 +51,7 @@ export function PlayerProvider({ children, session }) {
       queueRef.current,
       queueOwner.current,
       position,
+      storageEpoch.current,
     );
     if (warning && mounted.current) setQueueError(warning);
   }, []);
@@ -476,6 +479,7 @@ export function PlayerProvider({ children, session }) {
     }, 15000);
     async function restore() {
       const { snapshot, error: storageError } = readStoredQueue(session);
+      storageEpoch.current = getQueueEpoch();
       if (storageError) setQueueError(storageError);
       if (snapshot) {
         queueOwner.current = snapshot.owner;

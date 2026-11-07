@@ -1,9 +1,13 @@
 import { EMPTY_QUEUE, MAX_HISTORY, MAX_UPCOMING, queueEntry } from "./queue";
 export const QUEUE_KEY = "soundwave.queue.v1";
 export const MAX_QUEUE_BYTES = 20000;
+// Retired players must not recreate a cleared queue during page-hide/unmount.
+let queueEpoch = 0;
+export const getQueueEpoch = () => queueEpoch;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const positive = (n) => Number.isSafeInteger(n) && n > 0;
 export function clearStoredQueue() {
+  queueEpoch++;
   try {
     sessionStorage.removeItem(QUEUE_KEY);
     return "";
@@ -60,7 +64,13 @@ export function readStoredQueue(session) {
     };
   }
 }
-export function writeStoredQueue(state, owner, position = 0) {
+export function writeStoredQueue(
+  state,
+  owner,
+  position = 0,
+  epoch = queueEpoch,
+) {
+  if (epoch !== queueEpoch) return "";
   if (!owner) return "";
   const ref = (e) =>
     e ? { id: e.id, storyId: e.story.id, chapterId: e.chapter.id } : null;
