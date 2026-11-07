@@ -102,9 +102,9 @@ BACKUP_PG_CONTAINER=YOUR_POSTGRES_CONTAINER DATABASE_URL=postgres://CREATEDB_OPE
   npm run db:backup -- verify /tmp/soundwave.dump
 ```
 
-Creation exports a repeatable-read snapshot and passes it to `pg_dump`. A manifest records counts and order-independent content fingerprints for 14 app tables from the same snapshot, plus the archive's SHA-256. The archive and manifest use mode 0600; existing archives are never overwritten. These are sensitive database files, **not encrypted backups**.
+Creation exports a repeatable-read snapshot and passes it to `pg_dump`. A manifest records counts and order-independent content fingerprints for 18 tables from the same snapshot, plus the archive's SHA-256. The archive and manifest use mode 0600; existing archives are never overwritten. These are sensitive database files, **not encrypted backups**.
 
-Verification checks the archive hash first, creates a random `soundwave_restore_…` database, restores there, compares all 14 recorded table fingerprints and drops only that generated database. It never restores over the source. Schema-selective dumps include `CREATE SCHEMA public`, so the drill removes the new target's empty default schema before restoring. This is not an application migration or deletion of existing user tables.
+Verification checks the archive hash first, creates a random `soundwave_restore_…` database, restores there, compares all 18 recorded table fingerprints and drops only that generated database. It never restores over the source. Schema-selective dumps include `CREATE SCHEMA public`, so the drill removes the new target's empty default schema before restoring. This is not an application migration or deletion of existing user tables.
 
 Use only trusted archives and a dedicated restore operator. Integrity hashes are not signatures, and restoring SQL is not a safe way to inspect hostile dumps. The fingerprints detect accidental discrepancies; they are not a cross-major-version compatibility guarantee. A restore failure/crash may need operator cleanup of its generated scratch database. Real promotion, offsite/encrypted storage, retention scheduling, credential rotation after recovery, disaster recovery RPO/RTO and restore into managed hosting are not implemented or verified. Stop workers during any real recovery cutover so restored email jobs cannot unexpectedly replay.
 

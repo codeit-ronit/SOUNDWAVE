@@ -14,6 +14,10 @@ The submitted resume URL, [zippy-nitrogen-wd3scr3.tmp.now](https://zippy-nitroge
 
 The screenshot shows the earlier interface; the current app replaces the fixed demo profile with account controls. No real-user, production-readiness or scalability claim is made.
 
+## V3 baseline audit and next steps
+
+The [M0 audit](docs/SOUNDWAVE_V3_AUDIT.md) inventories actual capabilities and gaps. The [V3 roadmap](docs/SOUNDWAVE_V3_ROADMAP.md) defines M1–M6 acceptance criteria; it does not claim creator features are implemented. M0 reran 153 automated tests, clean installation/build, browser/fault/Compose checks and local benchmarks. It fixed two ambiguous recovery test selectors; no application feature or public deployment changed. The smallest recommended next slice is private named playlists. [Exact evidence](docs/m0-verification.json).
+
 ## Run locally
 
 Requires **Node.js 22.x and npm**. The verified host used Node 22.21.1 and Google Chrome. All twelve audio files are bundled; no API key, paid service or audio generation is needed.
