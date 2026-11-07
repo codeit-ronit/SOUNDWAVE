@@ -136,7 +136,8 @@ try {
       "postgres: playlist reads/writes reject anonymous sessions",
       "postgres: concurrent playlist additions serialize",
       "Redis atomically shares request limits across independent application instances",
-      "real PostgreSQL backup restores all 20",
+      "real PostgreSQL backup restores all 21",
+      "postgres: account writes serialize concurrent field changes and roll back atomically",
     ];
     const missing = required.filter(
       (evidence) =>
@@ -169,6 +170,7 @@ try {
     for (const [name, file] of [
       ["login", "auth-smoke"],
       ["playlists", "playlists-smoke"],
+      ["settings", "settings-smoke"],
       ["offline", "offline-smoke"],
       ["restart", "audit-smoke"],
     ])

@@ -29,6 +29,8 @@ export function AuthProvider({ children }) {
   const tabId = useRef(crypto.randomUUID());
   const changing = useRef(false);
   const [state, setState] = useState(null);
+  const latest = useRef(null);
+  latest.current = state;
   const [error, setError] = useState("");
   const [switching, setSwitching] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -83,6 +85,7 @@ export function AuthProvider({ children }) {
         data = await session();
       }
       setSessionScope(data);
+      latest.current = data;
       setState(data);
       startup = Promise.resolve(data);
       if ("caches" in window) await caches.delete("soundwave-data-v1");
@@ -96,6 +99,22 @@ export function AuthProvider({ children }) {
       setSwitching(false);
     }
   }
+  function acceptProfile(profile, csrfToken) {
+    const current = latest.current;
+    if (
+      changing.current ||
+      !current?.user ||
+      current.csrfToken !== csrfToken ||
+      current.user.id !== profile.id
+    )
+      return false;
+    const next = { ...current, user: profile };
+    latest.current = next;
+    setSessionScope(next);
+    setState(next);
+    startup = Promise.resolve(next);
+    return true;
+  }
   if (!state)
     return (
       <div className="state" role={error ? "alert" : "status"}>
@@ -108,7 +127,9 @@ export function AuthProvider({ children }) {
       </div>
     );
   return (
-    <AuthContext.Provider value={{ ...state, change, switching }}>
+    <AuthContext.Provider
+      value={{ ...state, change, switching, acceptProfile }}
+    >
       {children(state)}
     </AuthContext.Provider>
   );

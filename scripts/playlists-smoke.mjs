@@ -391,7 +391,7 @@ try {
     for (const name of await caches.keys())
       for (const request of await (await caches.open(name)).keys())
         if (
-          /\/api\/(playlists|auth|library|progress|analytics)(\/|$)/.test(
+          /\/api\/(playlists|auth|library|progress|analytics|profile|settings)(\/|$)/.test(
             new URL(request.url).pathname,
           )
         )

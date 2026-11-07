@@ -3,12 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { PlayerProvider, usePlayer } from "./PlayerContext";
 import { api } from "./api";
+import {
+  PreferencesProvider,
+  usePreferences,
+  DEFAULT_PREFERENCES,
+} from "./PreferencesContext";
 vi.mock("./api", () => ({
   api: {
     progress: vi.fn(),
     chapters: vi.fn(),
     save: vi.fn(),
     analyticsEvent: vi.fn(),
+    settings: vi.fn(),
+    saveSettings: vi.fn(),
   },
 }));
 const story = { id: 1, title: "Test story" };
@@ -32,9 +39,10 @@ const chapters = [
     completed: false,
   },
 ];
-let player;
+let player, preferences, storedPreferences;
 function Probe() {
   player = usePlayer();
+  preferences = usePreferences();
   return <span>{player.active?.chapter.title}</span>;
 }
 function setup() {
@@ -51,6 +59,14 @@ beforeEach(() => {
   api.chapters.mockResolvedValue({ chapters });
   api.save.mockResolvedValue({});
   api.analyticsEvent.mockResolvedValue({});
+  storedPreferences = { ...DEFAULT_PREFERENCES };
+  api.settings.mockImplementation(async () => ({
+    settings: storedPreferences,
+  }));
+  api.saveSettings.mockImplementation(async (patch) => {
+    storedPreferences = { ...storedPreferences, ...patch };
+    return { settings: storedPreferences };
+  });
   const paused = new WeakMap();
   vi.spyOn(HTMLMediaElement.prototype, "readyState", "get").mockReturnValue(1);
   vi.spyOn(HTMLMediaElement.prototype, "duration", "get").mockReturnValue(30);
@@ -75,6 +91,79 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+function accountSetup() {
+  const result = render(
+    <PreferencesProvider
+      session={{ user: { id: "account-player" }, csrfToken: "account-csrf" }}
+    >
+      <PlayerProvider>
+        <Probe />
+      </PlayerProvider>
+    </PreferencesProvider>,
+  );
+  return { ...result, audio: result.container.querySelector("audio") };
+}
+it("applies account preferences without replacing audio, losing position or resetting a temporary volume override", async () => {
+  storedPreferences = {
+    ...DEFAULT_PREFERENCES,
+    playbackSpeed: 1.25,
+    defaultVolume: 0.4,
+  };
+  const { audio, container } = accountSetup();
+  await waitFor(() => expect(preferences.ready).toBe(true));
+  await act(() => player.playStory(story));
+  audio.currentTime = 9;
+  expect(audio.playbackRate).toBe(1.25);
+  expect(audio.volume).toBe(0.4);
+  await act(() =>
+    preferences.update({ playbackSpeed: 1.5, defaultVolume: 0.6 }),
+  );
+  expect(container.querySelector("audio")).toBe(audio);
+  expect(audio.currentTime).toBe(9);
+  expect(audio.paused).toBe(false);
+  expect(audio.volume).toBe(0.6);
+  expect(audio.playbackRate).toBe(1.5);
+  act(() => player.setVolume(0.2));
+  await act(() => preferences.update({ autoplayNext: false }));
+  expect(audio.volume).toBe(0.2);
+  expect(audio.currentTime).toBe(9);
+});
+it("disables automatic next-chapter playback while keeping manual next available", async () => {
+  storedPreferences = { ...DEFAULT_PREFERENCES, autoplayNext: false };
+  const { audio } = accountSetup();
+  await waitFor(() => expect(preferences.ready).toBe(true));
+  await act(() => player.playStory(story));
+  await act(async () => {
+    audio.currentTime = 30;
+    audio.dispatchEvent(new Event("ended"));
+    await Promise.resolve();
+  });
+  expect(player.active.chapter.id).toBe(101);
+  expect(player.playing).toBe(false);
+  expect(player.hasNext).toBe(true);
+  expect(
+    api.save.mock.calls.some((call) => call[0] === 101 && call[2] === true),
+  ).toBe(true);
+  await act(() => player.move(1));
+  expect(player.active.chapter.id).toBe(102);
+  expect(player.playing).toBe(true);
+});
+it("uses safe account defaults instead of another listener's old device speed and persists player speed changes", async () => {
+  localStorage.setItem("soundwave.playbackSpeed", "2");
+  const { audio } = accountSetup();
+  await waitFor(() => expect(preferences.ready).toBe(true));
+  expect(player.speed).toBe(1);
+  await act(async () => {
+    player.setSpeed(1.5);
+    await Promise.resolve();
+  });
+  await waitFor(() => expect(preferences.settings.playbackSpeed).toBe(1.5));
+  expect(audio.playbackRate).toBe(1.5);
+  expect(api.saveSettings).toHaveBeenCalledWith(
+    { playbackSpeed: 1.5 },
+    expect.objectContaining({ user: { id: "account-player" } }),
+  );
+});
 describe("persistent audio player", () => {
   it("restores server progress after mounting without autoplay", async () => {
     api.progress.mockResolvedValue({
@@ -437,4 +526,29 @@ describe("out-of-order progress snapshots", () => {
     expect(newer[4]?.sequence).toBeGreaterThan(old[4].sequence);
     await act(async () => finishOld({}));
   });
+});
+
+it("a queued media frame safely stops after an account unmount detaches audio", async () => {
+  let frame;
+  const raf = vi
+    .spyOn(window, "requestAnimationFrame")
+    .mockImplementation((fn) => {
+      frame = fn;
+      return 1;
+    });
+  const cancel = vi
+    .spyOn(window, "cancelAnimationFrame")
+    .mockImplementation(() => {});
+  try {
+    const view = setup();
+    await act(() => player.playStory(story));
+    expect(frame).toBeTypeOf("function");
+    view.unmount();
+    const count = raf.mock.calls.length;
+    expect(() => frame()).not.toThrow();
+    expect(raf).toHaveBeenCalledTimes(count);
+  } finally {
+    raf.mockRestore();
+    cancel.mockRestore();
+  }
 });

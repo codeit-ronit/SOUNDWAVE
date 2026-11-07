@@ -2902,3 +2902,74 @@ input[type="range"]::-moz-range-thumb {
 .playlist-story > button {
   margin-top: 10px;
 }
+.settings-page {
+  max-width: 1000px;
+}
+.settings-card {
+  background: #14141e;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: clamp(18px, 3vw, 30px);
+  margin: 20px 0;
+}
+.settings-card h2 {
+  margin-bottom: 20px;
+  font-size: 22px;
+}
+.settings-form {
+  display: grid;
+  gap: 12px;
+  max-width: 520px;
+  margin: 20px 0;
+}
+.settings-form input:not([type="checkbox"]):not([type="range"]),
+.settings-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #393744;
+  border-radius: 9px;
+  background: #191821;
+  color: inherit;
+}
+.settings-form .button {
+  justify-self: start;
+}
+.settings-note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.settings-identity {
+  display: grid;
+  grid-template-columns: minmax(90px, 120px) minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.settings-identity dt {
+  color: var(--muted);
+}
+.settings-identity dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.settings-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  line-height: 1.6;
+}
+.settings-toggle input {
+  flex-shrink: 0;
+  accent-color: var(--purple);
+}
+.settings-volume {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.settings-volume input {
+  min-width: 0;
+  flex: 1;
+  accent-color: var(--purple);
+}

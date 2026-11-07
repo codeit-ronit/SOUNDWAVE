@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { api } from "./api";
+import { usePreferences } from "./PreferencesContext";
 import {
   resumeChapter,
   resumePosition,
@@ -18,6 +19,8 @@ const PlayerContext = createContext(null);
 export const usePlayer = () => useContext(PlayerContext);
 
 export function PlayerProvider({ children, session }) {
+  const preferences = usePreferences();
+  const autoplayNext = useRef(true);
   const audioRef = useRef(null);
   const activeRef = useRef(null);
   const queueRef = useRef([]);
@@ -31,7 +34,9 @@ export function PlayerProvider({ children, session }) {
   const segmentStart = useRef(null);
   const analyticsPlaying = useRef(false);
   const buffering = useRef(false);
-  const [speed, setSpeedState] = useState(preferredSpeed);
+  const [speed, setSpeedState] = useState(() =>
+    preferences ? 1 : preferredSpeed(),
+  );
   const speedRef = useRef(speed);
   const [sleepDeadline, setSleepDeadline] = useState(null);
   const [sleepRemaining, setSleepRemaining] = useState(0);
@@ -286,7 +291,8 @@ export function PlayerProvider({ children, session }) {
         (c) => c.id === current.chapter.id,
       );
       const next = queueRef.current[index + 1];
-      if (next) select(current.story, next, queueRef.current);
+      if (next && autoplayNext.current)
+        select(current.story, next, queueRef.current);
     };
     const onPageHide = () => {
       flushListening("listening_interval", true);
@@ -395,12 +401,34 @@ export function PlayerProvider({ children, session }) {
     speedRef.current = value;
     audioRef.current.playbackRate = value;
     setSpeedState(value);
+    if (preferences) {
+      void preferences.update({ playbackSpeed: value }).catch(() => {});
+      return;
+    }
     try {
       localStorage.setItem("soundwave.playbackSpeed", String(value));
     } catch {
       /* Private mode/storage restrictions do not block playback. */
     }
   };
+  useEffect(() => {
+    if (!preferences) return;
+    const value = preferences.settings.playbackSpeed;
+    speedRef.current = value;
+    audioRef.current.playbackRate = value;
+    setSpeedState(value);
+  }, [preferences?.settings.playbackSpeed]);
+  useEffect(() => {
+    if (!preferences) return;
+    const value = preferences.settings.defaultVolume;
+    audioRef.current.volume = value;
+    setVolumeState(value);
+  }, [preferences?.settings.defaultVolume]);
+  useEffect(() => {
+    autoplayNext.current = preferences
+      ? preferences.ready && preferences.settings.autoplayNext
+      : true;
+  }, [preferences?.settings.autoplayNext, preferences?.ready]);
   const setSleepTimer = (minutes) => {
     if (![0, 5, 15, 30].includes(minutes)) return;
     setSleepDeadline(minutes ? Date.now() + minutes * 60000 : null);
@@ -477,6 +505,9 @@ export function PlayerProvider({ children, session }) {
     if (!playing) return;
     let frame;
     const tick = () => {
+      // React detaches the media ref before passive effect cleanup on an account
+      // switch. A queued frame can run in that interval.
+      if (!audioRef.current) return;
       setPosition(audioRef.current.currentTime);
       frame = requestAnimationFrame(tick);
     };
@@ -502,6 +533,7 @@ export function PlayerProvider({ children, session }) {
         volume,
         error,
         saveError,
+        preferenceError: preferences?.error || "",
         revision,
         notify,
         playStory,

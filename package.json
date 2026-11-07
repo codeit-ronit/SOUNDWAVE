@@ -36,7 +36,8 @@
     "test:demo": "node scripts/demo-smoke.mjs",
     "catalog:import": "node server/scripts/catalog.js",
     "test:catalog:live": "node scripts/catalog-live-smoke.mjs",
-    "test:playlists:browser": "npm run build && node scripts/playlists-smoke.mjs"
+    "test:playlists:browser": "npm run build && node scripts/playlists-smoke.mjs",
+    "test:settings:browser": "npm run build && node scripts/settings-smoke.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",

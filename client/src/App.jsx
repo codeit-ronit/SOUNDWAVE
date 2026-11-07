@@ -16,8 +16,10 @@ import {
   ArrowUpRight,
   AudioLines,
   X,
+  Settings2,
 } from "lucide-react";
 import AccountRecovery from "./AccountRecovery";
+import Settings from "./Settings";
 import { Account } from "./AuthContext";
 import Analytics from "./Analytics";
 import { Downloads, PwaStatus } from "./Downloads";
@@ -64,6 +66,10 @@ export default function App() {
           <NavLink to="/analytics">
             <BarChart3 size={20} />
             Insights
+          </NavLink>
+          <NavLink to="/settings">
+            <Settings2 size={20} />
+            Settings
           </NavLink>
         </nav>
         <div className="sidebar-card">
@@ -140,6 +146,10 @@ export default function App() {
             <BarChart3 size={17} />
             Insights
           </NavLink>
+          <NavLink to="/settings">
+            <Settings2 size={17} />
+            Settings
+          </NavLink>
         </nav>
         <main id="main-content">
           <PwaStatus />
@@ -157,6 +167,7 @@ export default function App() {
             <Route path="/library" element={<MyLibrary />} />
             <Route path="/downloads" element={<Downloads />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/stories/:id" element={<StoryDetails />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -32,7 +32,11 @@ export async function captureBrowserFailure(page, suite) {
     await page.screenshot({
       path: join(dir, name + ".png"),
       fullPage: true,
-      mask: [page.locator("input,textarea,[aria-label='Your account']")],
+      mask: [
+        page.locator(
+          "input,textarea,[aria-label='Your account'],[aria-label='Profile settings']",
+        ),
+      ],
     });
   } catch {
     console.error("Browser diagnostic capture unavailable.");

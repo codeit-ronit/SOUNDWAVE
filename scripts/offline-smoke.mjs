@@ -108,9 +108,17 @@ try {
   check(
     "explicit download stores exactly one complete 200 response, matching the file size",
   );
+  const speedSaved = page.waitForResponse(
+    async (response) =>
+      new URL(response.url()).pathname === "/api/settings" &&
+      response.request().method() === "PUT" &&
+      response.ok() &&
+      (await response.json()).settings.playbackSpeed === 1.5,
+  );
   await page
     .getByRole("combobox", { name: "Playback speed", exact: true })
     .selectOption("1.5");
+  await speedSaved;
   await page.reload();
   await page.waitForFunction(
     () =>

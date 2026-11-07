@@ -189,6 +189,13 @@ export function Player() {
           <button onClick={p.error ? p.retry : p.retrySave}>Retry</button>
         </div>
       )}
+      {p.preferenceError && (
+        <div className="player-notice" role="alert">
+          <AlertCircle size={15} />
+          <span>{p.preferenceError}</span>
+          <Link to="/settings">Open Settings</Link>
+        </div>
+      )}
       <div className="player-options">
         <span className="keyboard-hint">
           Space to play / pause · ← → seek 10s

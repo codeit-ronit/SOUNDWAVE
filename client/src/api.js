@@ -25,6 +25,22 @@ export async function request(path, options = {}, session = scope) {
   return response.status === 204 ? null : response.json();
 }
 export const api = {
+  profile: (signal, session = scope) =>
+    request("/profile", { signal }, session),
+  saveProfile: (displayName, session = scope) =>
+    request(
+      "/profile",
+      { method: "PUT", body: JSON.stringify({ displayName }) },
+      session,
+    ),
+  settings: (signal, session = scope) =>
+    request("/settings", { signal }, session),
+  saveSettings: (patch, session = scope) =>
+    request(
+      "/settings",
+      { method: "PUT", body: JSON.stringify(patch) },
+      session,
+    ),
   playlists: (params, signal, session = scope) =>
     request(`/playlists?${new URLSearchParams(params)}`, { signal }, session),
   playlist: (id, signal, session = scope) =>
