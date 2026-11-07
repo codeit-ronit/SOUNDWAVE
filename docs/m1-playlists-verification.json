@@ -191,5 +191,28 @@
     "server/test/migration.test.js",
     "server/test/playlists.test.js",
     "server/test/stream.test.js"
-  ]
+  ],
+  "documentationCommits": [
+    "33d07ec Document M1.2 playlist contracts, verification and remaining limits"
+  ],
+  "milestoneCommitRange": "286dd90..33d07ec",
+  "milestoneCommits": [
+    "33d07ec Document M1.2 playlist contracts, verification and remaining limits",
+    "d4d30b1 Preserve playlist append counters and capacity during SQLite imports",
+    "2da13e1 Verify account switching and handle empty Redis scan batches in playlist checks",
+    "6f5bc5a Close audio descriptors when clients disconnect during file setup",
+    "53a1c09 Add private playlists to My Library with verified browser flows",
+    "4d3e0d3 Add private playlist persistence and owner-scoped transactional REST API"
+  ],
+  "commitInventory": {
+    "implementationAndTests": 5,
+    "documentation": 1,
+    "total": 6,
+    "explanation": "The original evidence snapshot was generated before its own final documentation commit 33d07ec. The five implementation commits were accurate; six total milestone commits include that documentation commit. Later M6 commits are excluded."
+  },
+  "restartFollowUp": {
+    "milestone": "M6.1 early CI",
+    "report": "CI_FLAKE_INVESTIGATION.md",
+    "conclusion": "Repeated isolated reproduction identified premature test continuation before the debounced seek save; server restored the correctly persisted earlier value. Harness now waits for server acknowledgement and asserts the persisted value. Historical M1 evidence remains unchanged."
+  }
 }

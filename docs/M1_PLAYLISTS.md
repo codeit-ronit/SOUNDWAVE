@@ -2,6 +2,10 @@
 
 Implemented on **`feature/m1-private-playlists`**, 7 November 2026, from M0 commit `286dd90`. **Local implementation only: no push or deployment performed.** The public demo does not acquire this feature until a separately approved release.
 
+## Commit inventory
+
+The fixed M1.2 range `286dd90..33d07ec` contains **five implementation/test commits and one documentation commit (six total)**. The evidence JSON was generated before its own final commit `33d07ec`, so its original implementation-only list correctly contained five entries. The reconciled evidence records the complete range and documentation commit separately; later CI commits are outside this milestone.
+
 ## Delivered behavior
 
 My Library now has a Playlists section alongside existing favorites and Continue Listening. Registered users and isolated guests can create, open, rename and delete private collections, add/remove stories, and play a selected story through the existing StoryCard/player. Selected collections use `/library?playlist=UUID`, so refresh restores the view. Loading, empty, success, validation/network errors, retry and deletion confirmation are implemented. Favorite membership, playback history, recommendations and public offline downloads retain their existing semantics.
@@ -89,7 +93,7 @@ The real story picker initially had an ambiguous label containing its option tex
 
 Browser interruption also exposed a real existing streaming race: a client could disconnect while `open/stat` awaited, before the response close listener was installed, leaving an opened descriptor for garbage collection. A deterministic regression test failed with the descriptor still open. The minimal fix checks `res.destroyed` after stat and explicitly closes the handle; it preserves existing range/HEAD behavior. Both full playlist browser flows were rerun afterward without the observed warning. This is a targeted listening reliability fix, not a streaming redesign.
 
-One repeated run of the existing restart/browser audit timed out while waiting for exact paused-position restoration after two successful checks. An isolated rerun passed all seven unchanged assertions. The cause was not established; this remains a browser-test stability follow-up rather than evidence that the failure cannot recur. Both playlist-specific browser suites passed, including their own refresh/paused-position assertions.
+One repeated run of the existing restart/browser audit timed out while waiting for exact paused-position restoration after two successful checks. An isolated rerun passed all seven unchanged assertions. The cause was not established; this remains a browser-test stability follow-up rather than evidence that the failure cannot recur. Both playlist-specific browser suites passed, including their own refresh/paused-position assertions. **M6.1 follow-up:** repeated isolated reproduction identified a test synchronization error and corrected it without changing the player/server; see [the investigation](CI_FLAKE_INVESTIGATION.md). The earlier results remain historical evidence.
 
 ### Reproduce
 

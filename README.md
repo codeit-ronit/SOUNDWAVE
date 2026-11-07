@@ -18,6 +18,10 @@ The screenshot shows the earlier interface; the current app replaces the fixed d
 
 The [M0 audit](docs/SOUNDWAVE_V3_AUDIT.md) inventories actual capabilities and gaps. The [V3 roadmap](docs/SOUNDWAVE_V3_ROADMAP.md) defines M1–M6 acceptance criteria; it does not claim creator features are implemented. M0 reran 153 automated tests, clean installation/build, browser/fault/Compose checks and local benchmarks. It fixed two ambiguous recovery test selectors; no application feature or public deployment changed. M1.2 is now implemented on `feature/m1-private-playlists`: private named playlists in My Library, with owner-scoped APIs and both database adapters. It has not been pushed or deployed. See [M1.2 implementation/API/verification](docs/M1_PLAYLISTS.md). [Exact evidence](docs/m0-verification.json).
 
+## Continuous integration
+
+GitHub Actions configuration is implemented locally: mandatory Node 22/PostgreSQL/Redis tests, migrations, build/format checks and a bounded browser gate; heavier systems/load checks are opt-in. **No remote Actions run has executed, and CI is not claimed green.** The clean local equivalent passed 178 application tests plus six CI safety tests and browser/optional checks. [CI setup and exact evidence](docs/CI.md) · [Restart flake investigation](docs/CI_FLAKE_INVESTIGATION.md). No push, deployment or repository protection changes were performed.
+
 ## Run locally
 
 Requires **Node.js 22.x and npm**. The verified host used Node 22.21.1 and Google Chrome. All twelve audio files are bundled; no API key, paid service or audio generation is needed.
