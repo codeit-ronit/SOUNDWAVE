@@ -6,6 +6,7 @@ server/data/*
 *.log
 .DS_Store
 coverage/
+artifacts/
 
 .vercel/
 

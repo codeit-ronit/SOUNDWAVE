@@ -1,5 +1,6 @@
 // Real browser / production-server smoke test. Uses a fresh temporary SQLite DB.
 import assert from "node:assert/strict";
+import { waitForProgressSave, waitForPlaybackEvent } from "./browser-sync.mjs";
 import { mkdtempSync, rmSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -60,14 +61,12 @@ try {
   check("actual local chapter audio decodes and playback time advances");
   assert.ok(streamedRanges > 0);
   check("native audio playback uses HTTP 206 streaming responses");
+  const pauseSaved = waitForProgressSave(page, (p) => p?.position_seconds > 1);
   await page
     .locator(".player")
     .getByRole("button", { name: "Pause", exact: true })
     .click();
-  await page.waitForFunction(async () => {
-    const p = await fetch("/api/progress").then((r) => r.json());
-    return p.progress[0]?.position_seconds > 1;
-  });
+  await pauseSaved;
   const saved = await page.evaluate(
     async () =>
       (await fetch("/api/progress").then((r) => r.json())).progress[0]
@@ -159,19 +158,24 @@ try {
   check(
     "completed chapter is persisted and the next chapter plays automatically",
   );
+  const secondPause = waitForPlaybackEvent(page, "playback_paused");
   await page
     .locator(".player")
     .getByRole("button", { name: "Pause", exact: true })
     .click();
-  await page.waitForFunction(async () => {
-    const data = await fetch("/api/analytics/overview").then((r) => r.json());
-    return (
-      data.totalListeningSeconds > 0 &&
-      data.completedChapters === 1 &&
-      data.favoriteStories === 1 &&
-      data.recentActivity.some((e) => e.event_type === "chapter_completed")
-    );
-  });
+  await secondPause;
+  assert.equal(
+    await page.evaluate(async () => {
+      const data = await fetch("/api/analytics/overview").then((r) => r.json());
+      return (
+        data.totalListeningSeconds > 0 &&
+        data.completedChapters === 1 &&
+        data.favoriteStories === 1 &&
+        data.recentActivity.some((e) => e.event_type === "chapter_completed")
+      );
+    }),
+    true,
+  );
   const insights = await page.evaluate(async () =>
     fetch("/api/analytics/overview").then((r) => r.json()),
   );

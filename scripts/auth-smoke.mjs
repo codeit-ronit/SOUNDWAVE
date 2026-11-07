@@ -7,6 +7,7 @@ import { chromium } from "playwright";
 import { openDatabase, seedDatabase } from "../server/db.js";
 import { connectDatabase } from "../server/database/index.js";
 import { createApp } from "../server/app.js";
+import { captureBrowserFailure } from "./browser-artifacts.mjs";
 const folder = mkdtempSync(join(tmpdir(), "soundwave-auth-browser-"));
 let db;
 if (process.env.DATABASE_URL) db = await connectDatabase();
@@ -19,6 +20,7 @@ const server = app.listen(0, "127.0.0.1");
 await new Promise((resolve) => server.once("listening", resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 let browser,
+  page,
   checks = 0;
 const errors = [];
 const pass = (message) => console.log(`PASS ${++checks}: ${message}`);
@@ -29,7 +31,7 @@ try {
     executablePath:
       process.env.CHROME_PATH || (existsSync(mac) ? mac : undefined),
   });
-  const page = await browser.newPage();
+  page = await browser.newPage();
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(base);
   await page
@@ -174,6 +176,9 @@ try {
   console.log(
     `${checks} authentication browser checks passed (${db.dialect || "sqlite"}).`,
   );
+} catch (error) {
+  await captureBrowserFailure(page, "login");
+  throw error;
 } finally {
   if (browser) await browser.close();
   await new Promise((resolve) => server.close(resolve));

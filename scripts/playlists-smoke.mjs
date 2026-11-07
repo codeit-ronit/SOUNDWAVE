@@ -4,6 +4,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
 import { fixture } from "../server/test/phase2-helpers.js";
+import { captureBrowserFailure } from "./browser-artifacts.mjs";
 
 const kind = process.env.TEST_DATABASE_URL ? "postgres" : "sqlite";
 if (
@@ -22,7 +23,7 @@ const pass = (s) => {
   results.checks.push(s);
   console.log(`PASS ${results.checks.length}: ${s}`);
 };
-let browser;
+let browser, page;
 try {
   const mac = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   browser = await chromium.launch({
@@ -31,8 +32,8 @@ try {
       process.env.CHROME_PATH || (existsSync(mac) ? mac : undefined),
   });
   const context = await browser.newContext(),
-    page = await context.newPage(),
     errors = [];
+  page = await context.newPage();
   page.setDefaultTimeout(20000);
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(base + "/library");
@@ -414,6 +415,9 @@ try {
   console.log(
     `${results.checks.length} playlist browser checks passed (${kind}).`,
   );
+} catch (error) {
+  await captureBrowserFailure(page, "playlists");
+  throw error;
 } finally {
   await browser?.close();
   await new Promise((r) => server.close(r));
