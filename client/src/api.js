@@ -25,6 +25,28 @@ export async function request(path, options = {}, session = scope) {
   return response.status === 204 ? null : response.json();
 }
 export const api = {
+  playlists: (params, signal, session = scope) =>
+    request(`/playlists?${new URLSearchParams(params)}`, { signal }, session),
+  playlist: (id, signal, session = scope) =>
+    request(`/playlists/${id}`, { signal }, session),
+  createPlaylist: (name, session = scope) =>
+    request(
+      "/playlists",
+      { method: "POST", body: JSON.stringify({ name }) },
+      session,
+    ),
+  renamePlaylist: (id, name, session = scope) =>
+    request(
+      `/playlists/${id}`,
+      { method: "PUT", body: JSON.stringify({ name }) },
+      session,
+    ),
+  deletePlaylist: (id, session = scope) =>
+    request(`/playlists/${id}`, { method: "DELETE" }, session),
+  addPlaylistStory: (id, story, session = scope) =>
+    request(`/playlists/${id}/stories/${story}`, { method: "PUT" }, session),
+  removePlaylistStory: (id, story, session = scope) =>
+    request(`/playlists/${id}/stories/${story}`, { method: "DELETE" }, session),
   analytics: (signal) => request("/analytics/overview", { signal }),
   analyticsEvent: (event, keepalive = false, session = scope) =>
     request(

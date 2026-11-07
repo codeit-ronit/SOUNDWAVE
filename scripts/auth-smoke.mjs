@@ -159,7 +159,7 @@ try {
     for (const name of await caches.keys())
       for (const key of await (await caches.open(name)).keys())
         if (
-          /\/api\/(auth|library|progress|analytics)/.test(
+          /\/api\/(auth|library|progress|analytics|playlists)/.test(
             new URL(key.url).pathname,
           )
         )

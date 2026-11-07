@@ -2826,3 +2826,79 @@ input[type="range"]::-moz-range-thumb {
   border: 1px solid #555;
   border-radius: 8px;
 }
+/* Private collections reuse library cards and existing button treatments. */
+.playlist-note {
+  color: var(--muted, #9a98aa);
+  margin-bottom: 18px;
+}
+.playlist-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin: 18px 0;
+}
+.playlist-form label {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 230px;
+  font-size: 13px;
+  min-width: 0;
+}
+.playlist-form input,
+.playlist-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #393744;
+  border-radius: 9px;
+  background: #191821;
+  color: inherit;
+}
+.playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+  gap: 14px;
+  margin: 22px 0;
+}
+.playlist-card {
+  text-align: left;
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid #393744;
+  background: #191821;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+.playlist-card:hover {
+  border-color: #a398ed;
+}
+.playlist-card span {
+  font-size: 13px;
+  color: #b3b0c3;
+}
+.playlist-detail h3 {
+  font-size: 23px;
+  margin-top: 22px;
+  overflow-wrap: anywhere;
+}
+.playlist-feedback {
+  margin: 14px 0;
+}
+.playlist-confirm {
+  padding: 18px;
+  border: 1px solid #a398ed;
+  border-radius: 12px;
+  margin: 18px 0;
+}
+.playlist-confirm .button {
+  margin: 6px 8px 0 0;
+}
+.playlist-story {
+  min-width: 0;
+}
+.playlist-story > button {
+  margin-top: 10px;
+}

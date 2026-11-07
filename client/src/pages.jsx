@@ -28,6 +28,7 @@ import {
   Empty,
 } from "./components";
 import { timeLabel } from "./playback";
+import Playlists from "./Playlists";
 
 function ContinueListening({ stories }) {
   const { playStory } = usePlayer();
@@ -349,6 +350,7 @@ export function MyLibrary() {
           {library.stories.length === 1 ? "story" : "stories"}
         </span>
       </div>
+      <Playlists />
       {history.error ? (
         <ErrorState message={history.error} retry={history.retry} />
       ) : (
