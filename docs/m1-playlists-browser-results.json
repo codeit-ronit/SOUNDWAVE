@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-07T08:24:03.891Z",
+  "database": "postgres",
+  "checks": [
+    "an isolated guest creates a private named playlist from My Library",
+    "add stories in insertion order, reject an invalid rename and recover with a valid name",
+    "removing and re-adding a story places it last without changing favorites",
+    "selected playlist survives refresh and uses the real player, favorite and paused-progress persistence",
+    "guest-to-registered account upgrade retains the playlist and all membership",
+    "logout clears private UI; another guest and a different registered account in the same browser cannot access the playlist",
+    "returning account restores collections and bounded 20-item pages load the remaining playlists",
+    "a failed list request displays a recoverable error and retries successfully",
+    "confirmed deletion removes only the playlist; favorites and the real downloaded chapter remain",
+    "private playlists never enter service-worker caches; mobile layout and browser exception checks pass"
+  ]
+}

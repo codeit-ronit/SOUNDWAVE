@@ -16,7 +16,7 @@ The screenshot shows the earlier interface; the current app replaces the fixed d
 
 ## V3 baseline audit and next steps
 
-The [M0 audit](docs/SOUNDWAVE_V3_AUDIT.md) inventories actual capabilities and gaps. The [V3 roadmap](docs/SOUNDWAVE_V3_ROADMAP.md) defines M1–M6 acceptance criteria; it does not claim creator features are implemented. M0 reran 153 automated tests, clean installation/build, browser/fault/Compose checks and local benchmarks. It fixed two ambiguous recovery test selectors; no application feature or public deployment changed. The smallest recommended next slice is private named playlists. [Exact evidence](docs/m0-verification.json).
+The [M0 audit](docs/SOUNDWAVE_V3_AUDIT.md) inventories actual capabilities and gaps. The [V3 roadmap](docs/SOUNDWAVE_V3_ROADMAP.md) defines M1–M6 acceptance criteria; it does not claim creator features are implemented. M0 reran 153 automated tests, clean installation/build, browser/fault/Compose checks and local benchmarks. It fixed two ambiguous recovery test selectors; no application feature or public deployment changed. M1.2 is now implemented on `feature/m1-private-playlists`: private named playlists in My Library, with owner-scoped APIs and both database adapters. It has not been pushed or deployed. See [M1.2 implementation/API/verification](docs/M1_PLAYLISTS.md). [Exact evidence](docs/m0-verification.json).
 
 ## Run locally
 
@@ -131,6 +131,7 @@ Compose/example configuration enables `LIBRIVOX_CATALOG=true`. Host-side develop
 - **Versioned migrations:** transactional SQL files with checksums and migration locks. SQLite upgrades preserve existing listener rows and archive the original event table. No destructive reset or automatic rollback migration.
 - **Registration/login/logout:** validated inputs, scrypt password hashes, opaque HTTP-only sessions, absolute expiration, token rotation, CSRF validation and authentication throttling. Production cookies also use Secure and a `__Host-` name.
 - **Google identity:** official Google button, server-side signed-token verification, session-bound single-use nonce and rotating HTTP-only sessions. No automatic linking by email; existing password accounts require explicit linking. Google-only accounts recover through Google.
+- **Private playlists:** create, open, rename and delete named story collections in My Library; add/remove stories and play through the existing player. Owner-scoped keyset pagination defaults to 20 (max 50), names allow 1–80 Unicode characters and each playlist holds at most 100 stories. Guests retain collections when registering. [API and evidence](docs/M1_PLAYLISTS.md).
 - **User isolation:** library, favorites, progress, recommendations and analytics resolve identity from the session. Client-supplied user IDs never select an owner. Event idempotency and playback ordering are owner-scoped.
 - **Convenient demo:** each new visitor receives an isolated guest session when enabled. Guests cannot select existing users. Registration upgrades the guest transactionally and retains its saved data; login to another account does not silently merge histories.
 - **Frontend integration:** account form, invalid-login feedback, sign-out, state reset on account changes, stale queued-write protection and cross-tab account-change notification.
@@ -202,7 +203,7 @@ The application remains a modular monolith. Public media still streams from bund
 | `scripts/*smoke.mjs`                                  | Browser playback, offline, auth, restart and keyboard checks                     |
 | `api/index.js`, `vercel.json`                         | Serverless adapter and bundle/routing configuration                              |
 
-Core relations are `users`, `sessions`, `oauth_identities`, `oauth_challenges`, `stories`, `chapters`, `favorites`, `listening_progress`, `progress_write_versions`, `listening_events` and `schema_migrations`, with `account_tokens`, `background_jobs`, `analytics_rollups`, `catalog_revision` and `chapter_media` for operations and derived media. Owned rows have composite user/resource keys; PostgreSQL enforces ownership references with foreign keys. Events use `(user_id,event_id)`, allowing each owner an independent idempotency namespace.
+Core relations are `playlists`, `playlist_items`, `users`, `sessions`, `oauth_identities`, `oauth_challenges`, `stories`, `chapters`, `favorites`, `listening_progress`, `progress_write_versions`, `listening_events` and `schema_migrations`, with `account_tokens`, `background_jobs`, `analytics_rollups`, `catalog_revision` and `chapter_media` for operations and derived media. Owned rows have composite user/resource keys; PostgreSQL enforces ownership references with foreign keys. Events use `(user_id,event_id)`, allowing each owner an independent idempotency namespace.
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for constraints, transaction boundaries, guest upgrades, password costs, cache isolation and migration tradeoffs.
 
@@ -241,6 +242,12 @@ All endpoints use `/api`. JSON errors use `{ "error": { "message": "..." } }`. R
 | GET          | `/stories?q=&genre=&sort=trending` | Public catalog; current user's favorite flags only                                                      |
 | GET          | `/stories/:id`                     | Public story details                                                                                    |
 | GET          | `/stories/:id/chapters`            | Chapters with current user's progress, neutral for anonymous visitors                                   |
+| GET          | `/playlists?limit=20&cursor=…`     | Private owner list; default 20/max 50; opaque next cursor                                               |
+| POST         | `/playlists`                       | Session + CSRF; `{ name }`, 1–80 Unicode characters; 201                                                |
+| GET          | `/playlists/:id`                   | Own playlist + up to 100 stories in insertion order                                                     |
+| PUT          | `/playlists/:id`                   | Session + CSRF; rename own list with `{ name }`                                                         |
+| DELETE       | `/playlists/:id`                   | Session + CSRF; remove own collection/membership only; 204                                              |
+| PUT / DELETE | `/playlists/:id/stories/:storyId`  | Session + CSRF; idempotent add/remove; unique membership, 100-story cap                                 |
 | GET          | `/library`                         | Current user's favorites; session required                                                              |
 | PUT / DELETE | `/library/:storyId`                | Idempotent current-user favorite changes; session + CSRF                                                |
 | GET          | `/progress`                        | Current-user progress and Continue Listening; session required                                          |
@@ -294,7 +301,9 @@ DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm run test
 
 Database tests create/remove random schemas; restore/system tests additionally create/drop generated databases, so their disposable test role needs the corresponding privileges. `TEST_BACKUP_CONTAINER` must match the same local server as `TEST_DATABASE_URL`. Without it, PostgreSQL cases are not run; the suite still tests real sessions with SQLite. Browser PostgreSQL scripts seed/write the supplied database and must use disposable data.
 
-**Latest Google checkpoint:** 122 backend + 31 frontend tests passed (**153 total, zero failures/skips**), with PostgreSQL, Redis and backup tooling enabled. The production build passed; existing password/guest browser checks (5), offline checks (13), public application checks (9) and real Google widget/provider-page checks (5) passed. The owner confirmed a successful real Google login on 7 November 2026 (manual verification); see [GOOGLE_SIGN_IN.md](docs/GOOGLE_SIGN_IN.md).
+**Latest M1.2 checkpoint:** **178 tests passed** (141 backend + 37 frontend; zero failed/skipped), including real PostgreSQL/Redis and populated 20-table backup/restore. Ten playlist browser checks passed on each adapter; the existing 14 core, 5 auth, 13 offline, 3 keyboard and 7 restart/security checks passed. Production build (1,703 modules) and formatting passed. No public release was performed. [Exact results and limitations](docs/M1_PLAYLISTS.md).
+
+**Earlier Google checkpoint:** 122 backend + 31 frontend tests passed (**153 total, zero failures/skips**), with PostgreSQL, Redis and backup tooling enabled. The production build passed; existing password/guest browser checks (5), offline checks (13), public application checks (9) and real Google widget/provider-page checks (5) passed. The owner confirmed a successful real Google login on 7 November 2026 (manual verification); see [GOOGLE_SIGN_IN.md](docs/GOOGLE_SIGN_IN.md).
 
 **Earlier catalog checkpoint:** 106 backend + 27 frontend tests passed (**133 total, zero failures/skips**) with real PostgreSQL/Redis/BullMQ and backup tools enabled. The [LibriVox report](docs/LIBRIVOX_INTEGRATION.md) records real-provider MP3/PWA verification, hosted release results and current limits.
 
@@ -303,6 +312,14 @@ Database tests create/remove random schemas; restore/system tests additionally c
 The newer [public rollout report](docs/PUBLIC_DEPLOYMENT.md) records nine additional current-backend browser checks, five existing public PWA checks, five combined-launcher checks and four hosted restart assertions. Run the explicit public check with `node scripts/public-backend-smoke.mjs https://soundwave-codeit-ronit.vercel.app`; it creates a test account.
 
 Browser scripts use `CHROME_PATH`, installed macOS Chrome, or Playwright Chromium. If needed, run `npx playwright install chromium`. Chrome coverage does not establish Safari/Firefox, native OS installation or physical-mobile compatibility.
+
+Playlist browser verification (disposable local data only):
+
+```bash
+npm run test:playlists:browser
+# PostgreSQL: use a disposable loopback database; the script creates/drops its own schema.
+TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/test_database npm run test:playlists:browser
+```
 
 ## Deployment and remaining work
 
