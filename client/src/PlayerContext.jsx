@@ -9,6 +9,18 @@ import {
 import { api } from "./api";
 import { usePreferences } from "./PreferencesContext";
 import {
+  EMPTY_QUEUE,
+  MAX_UPCOMING,
+  MAX_HISTORY,
+  queueEntry,
+  queueReducer,
+} from "./queue";
+import {
+  readStoredQueue,
+  writeStoredQueue,
+  restoreQueue,
+} from "./queueStorage";
+import {
   resumeChapter,
   resumePosition,
   preferredSpeed,
@@ -23,7 +35,37 @@ export function PlayerProvider({ children, session }) {
   const autoplayNext = useRef(true);
   const audioRef = useRef(null);
   const activeRef = useRef(null);
-  const queueRef = useRef([]);
+  const queueRef = useRef(EMPTY_QUEUE);
+  const [queue, setQueue] = useState(EMPTY_QUEUE);
+  const [queueReady, setQueueReady] = useState(false);
+  const [queueError, setQueueError] = useState("");
+  const [queueMessage, setQueueMessage] = useState("");
+  const queueOwner = useRef(session?.user?.id || null);
+  const enqueueChain = useRef(Promise.resolve());
+  const queueGeneration = useRef(0);
+  const endedEntry = useRef(null);
+  const persistQueue = useCallback((position = 0) => {
+    const warning = writeStoredQueue(
+      queueRef.current,
+      queueOwner.current,
+      position,
+    );
+    if (warning && mounted.current) setQueueError(warning);
+  }, []);
+  const commitQueue = useCallback(
+    (action) => {
+      const next = queueReducer(queueRef.current, action);
+      queueRef.current = next;
+      setQueue(next);
+      persistQueue(
+        next.current?.id === activeRef.current?.entryId
+          ? audioRef.current?.currentTime || 0
+          : 0,
+      );
+      return next;
+    },
+    [persistQueue],
+  );
   const selectionRef = useRef(0);
   const desiredPlay = useRef(false);
   const requestVersion = useRef(0);
@@ -64,6 +106,7 @@ export function PlayerProvider({ children, session }) {
         ? current.chapter.duration_seconds
         : Math.min(audio.currentTime || 0, current.chapter.duration_seconds);
       const chapterId = current.chapter.id;
+      persistQueue(audio.currentTime);
       const version = nextProgressVersion();
       // Snapshot before switching sources; serialize writes so an older save cannot overwrite a newer one.
       const send = () =>
@@ -91,7 +134,7 @@ export function PlayerProvider({ children, session }) {
             setSaveError(`Progress could not be saved: ${err.message}`);
         });
     },
-    [notify],
+    [notify, persistQueue],
   );
 
   const emitPlayback = useCallback(
@@ -151,7 +194,7 @@ export function PlayerProvider({ children, session }) {
   }, []);
 
   const select = useCallback(
-    (story, chapter, chapters, autoplay = true) => {
+    (story, chapter, entryId, autoplay = true) => {
       const audio = audioRef.current;
       clearTimeout(seekSaveTimer.current);
       seekSaveTimer.current = null;
@@ -160,9 +203,9 @@ export function PlayerProvider({ children, session }) {
       if (analyticsPlaying.current) flushListening("playback_paused");
       analyticsPlaying.current = false;
       audio.pause();
-      const current = { story, chapter };
+      const current = { story, chapter, entryId };
       activeRef.current = current;
-      queueRef.current = chapters;
+      endedEntry.current = null;
       const start = resumePosition(chapter);
       selectionRef.current = start;
       setActive(current);
@@ -176,25 +219,45 @@ export function PlayerProvider({ children, session }) {
       audio.load();
       desiredPlay.current = autoplay;
       // Calling play in the user's click gesture helps browsers with strict autoplay policies.
+      persistQueue(start);
       if (autoplay) void tryPlay();
     },
-    [tryPlay, flushListening],
+    [tryPlay, flushListening, persistQueue],
   );
 
   const playStory = useCallback(
     async (story, chapterId) => {
       const version = ++requestVersion.current;
+      queueGeneration.current++;
       setLoading(true);
       setError("");
       try {
         await save();
-        const { chapters } = await api.chapters(story.id);
-        if (version !== requestVersion.current) return;
+        const { chapters } = await api.chapters(story.id, undefined, session);
+        if (!mounted.current || version !== requestVersion.current) return;
         const chapter = chapterId
           ? chapters.find((c) => c.id === chapterId)
           : resumeChapter(chapters);
         if (!chapter) throw new Error("This story has no playable chapters.");
-        select(story, chapter, chapters);
+        const index = chapters.indexOf(chapter),
+          current = queueEntry(story, chapter);
+        commitQueue({
+          type: "replace",
+          current,
+          upcoming: chapters
+            .slice(index + 1, index + 1 + MAX_UPCOMING)
+            .map((c) => queueEntry(story, c)),
+          history: chapters
+            .slice(Math.max(0, index - MAX_HISTORY), index)
+            .map((c) => queueEntry(story, c)),
+        });
+        setQueueReady(true);
+        setQueueMessage(
+          chapters.length - index - 1 > MAX_UPCOMING
+            ? "Only the next 50 chapters fit in this device queue."
+            : "Story chapter order loaded. Previous upcoming entries were replaced.",
+        );
+        select(story, chapter, current.id);
       } catch (err) {
         if (version === requestVersion.current) {
           setError(err.message);
@@ -202,20 +265,92 @@ export function PlayerProvider({ children, session }) {
         }
       }
     },
-    [save, select],
+    [save, select, commitQueue],
   );
 
   const move = useCallback(
-    async (delta) => {
-      const current = activeRef.current;
-      if (!current) return;
-      const index = queueRef.current.findIndex(
-        (c) => c.id === current.chapter.id,
+    (delta, completed = false) => {
+      const before = queueRef.current;
+      const next = queueReducer(before, {
+        type: delta === -1 ? "previous" : "next",
+      });
+      if (next === before) return;
+      // Reserve/consume synchronously. Rapid clicks advance distinct occurrences,
+      // and an old completion callback cannot consume another entry afterwards.
+      if (!completed) void save();
+      commitQueue({ type: "replace", ...next });
+      const entry = next.current;
+      select(
+        entry.story,
+        { ...entry.chapter, position_seconds: 0, completed: false },
+        entry.id,
       );
-      const chapter = queueRef.current[index + delta];
-      if (chapter) await playStory(current.story, chapter.id);
     },
-    [playStory],
+    [save, select, commitQueue],
+  );
+
+  const enqueue = useCallback(
+    (story, chapterId, next = false) => {
+      const generation = queueGeneration.current;
+      const work = enqueueChain.current
+        .catch(() => {})
+        .then(async () => {
+          if (!mounted.current || generation !== queueGeneration.current)
+            return;
+          const { chapters } = await api.chapters(story.id, undefined, session);
+          if (!mounted.current || generation !== queueGeneration.current)
+            return;
+          const selected = chapterId
+            ? chapters.filter((c) => c.id === chapterId)
+            : chapters;
+          if (!selected.length)
+            throw Error("This chapter is no longer available.");
+          if (!navigator.onLine) {
+            const cache = await caches.open("soundwave-audio-v1");
+            for (const chapter of selected) {
+              if (!(await cache.match(chapter.audio_url)))
+                throw Error(
+                  "Only downloaded chapters can be queued offline. Connect or download this chapter first.",
+                );
+            }
+            if (!mounted.current || generation !== queueGeneration.current)
+              return;
+          }
+          if (selected.length + queueRef.current.upcoming.length > MAX_UPCOMING)
+            throw Error(
+              "Queue holds at most 50 upcoming chapters. Remove some entries first.",
+            );
+          commitQueue({
+            type: "enqueue",
+            next,
+            entries: selected.map((c) => queueEntry(story, c)),
+          });
+          setQueueMessage(
+            `${selected.length} chapter${selected.length === 1 ? "" : "s"} ${next ? "will play next" : "added to queue"}.`,
+          );
+          return true;
+        })
+        .catch((e) => {
+          if (mounted.current && generation === queueGeneration.current)
+            setQueueError(e.message);
+          return false;
+        });
+      enqueueChain.current = work;
+      return work;
+    },
+    [commitQueue],
+  );
+  const editQueue = useCallback(
+    (action) => {
+      if (action.type === "clear") queueGeneration.current++;
+      commitQueue(action);
+      setQueueMessage(
+        action.type === "clear"
+          ? "Upcoming queue cleared. Current playback continues."
+          : "Queue updated.",
+      );
+    },
+    [commitQueue],
   );
 
   useEffect(() => {
@@ -280,19 +415,21 @@ export function PlayerProvider({ children, session }) {
     };
     const onEnded = async () => {
       const current = activeRef.current;
+      if (!current || endedEntry.current === current.entryId) return;
+      endedEntry.current = current.entryId;
+      const version = requestVersion.current;
       flushListening();
       analyticsPlaying.current = false;
       desiredPlay.current = false;
       setPlaying(false);
       await save(true);
-      // User navigation or manual selection while the save was pending takes priority.
-      if (activeRef.current !== current) return;
-      const index = queueRef.current.findIndex(
-        (c) => c.id === current.chapter.id,
-      );
-      const next = queueRef.current[index + 1];
-      if (next && autoplayNext.current)
-        select(current.story, next, queueRef.current);
+      if (
+        !mounted.current ||
+        activeRef.current !== current ||
+        version !== requestVersion.current
+      )
+        return;
+      if (autoplayNext.current) move(1, true);
     };
     const onPageHide = () => {
       flushListening("listening_interval", true);
@@ -325,43 +462,121 @@ export function PlayerProvider({ children, session }) {
       audio.addEventListener(name, listener);
     window.addEventListener("pagehide", onPageHide);
     document.addEventListener("visibilitychange", onVisibility);
-    // Restore from SQLite without attempting autoplay on page load.
+    // Restore only catalog-validated references, paused. No private JSON cache.
     const controller = new AbortController();
     const version = requestVersion.current;
-    (session && !session.user
-      ? Promise.resolve({ continueListening: [] })
-      : api.progress(controller.signal)
-    )
-      .then(async ({ continueListening }) => {
-        const latest = continueListening[0];
-        if (!latest) return;
-        const { chapters } = await api.chapters(latest.id, controller.signal);
-        if (version !== requestVersion.current || controller.signal.aborted)
+    const restoreTimeout = setTimeout(() => {
+      controller.abort();
+      if (mounted.current && version === requestVersion.current) {
+        setQueueError(
+          "Queue restoration timed out. Refresh to retry, or play a story to replace it.",
+        );
+        setQueueReady(true);
+      }
+    }, 15000);
+    async function restore() {
+      const { snapshot, error: storageError } = readStoredQueue(session);
+      if (storageError) setQueueError(storageError);
+      if (snapshot) {
+        queueOwner.current = snapshot.owner;
+        const { state, removed } = await restoreQueue(
+          snapshot,
+          api,
+          controller.signal,
+          session,
+        );
+        if (controller.signal.aborted || version !== requestVersion.current)
           return;
-        const chapter = chapters.find((c) => c.id === latest.resume_chapter_id);
-        if (chapter) select(latest, chapter, chapters, false);
-      })
+        queueRef.current = state;
+        setQueue(state);
+        if (removed)
+          setQueueMessage(
+            `${removed} unavailable queue entries removed${navigator.onLine ? "" : " from the offline queue"}.`,
+          );
+        if (state.current) {
+          const entry = state.current;
+          select(
+            entry.story,
+            {
+              ...entry.chapter,
+              position_seconds: snapshot.position,
+              completed: false,
+            },
+            entry.id,
+            false,
+          );
+        } else persistQueue();
+        return;
+      }
+      const { continueListening } =
+        session && !session.user
+          ? { continueListening: [] }
+          : await api.progress(controller.signal);
+      const latest = continueListening[0];
+      if (!latest) return;
+      const { chapters } = await api.chapters(
+        latest.id,
+        controller.signal,
+        session,
+      );
+      if (controller.signal.aborted || version !== requestVersion.current)
+        return;
+      const chapter = chapters.find((c) => c.id === latest.resume_chapter_id);
+      if (chapter) {
+        const index = chapters.indexOf(chapter),
+          current = queueEntry(latest, chapter);
+        commitQueue({
+          type: "replace",
+          current,
+          upcoming: chapters
+            .slice(index + 1, index + 1 + MAX_UPCOMING)
+            .map((c) => queueEntry(latest, c)),
+          history: chapters
+            .slice(Math.max(0, index - MAX_HISTORY), index)
+            .map((c) => queueEntry(latest, c)),
+        });
+        select(latest, chapter, current.id, false);
+      }
+    }
+    void restore()
       .catch((err) => {
-        if (err.name !== "AbortError")
-          setSaveError(`Listening history could not load: ${err.message}`);
+        if (!controller.signal.aborted && version === requestVersion.current)
+          setQueueError(
+            `Saved queue or listening history could not load: ${err.message} Refresh to retry, or play a story to replace it.`,
+          );
+      })
+      .finally(() => {
+        clearTimeout(restoreTimeout);
+        if (!controller.signal.aborted) setQueueReady(true);
       });
     return () => {
       mounted.current = false;
+      queueGeneration.current++;
       clearTimeout(seekSaveTimer.current);
       controller.abort();
+      clearTimeout(restoreTimeout);
       for (const [name, listener] of Object.entries(events))
         audio.removeEventListener(name, listener);
       window.removeEventListener("pagehide", onPageHide);
       document.removeEventListener("visibilitychange", onVisibility);
       audio.pause();
     };
-  }, [save, select, emitPlayback, flushListening]);
+  }, [
+    save,
+    select,
+    emitPlayback,
+    flushListening,
+    move,
+    persistQueue,
+    commitQueue,
+  ]);
 
   const toggle = () => {
     const audio = audioRef.current;
     if (!active) return;
     if (audio.paused) {
       if (audio.ended) {
+        endedEntry.current = null;
         audio.currentTime = 0;
         setPosition(0);
       }
@@ -393,7 +608,7 @@ export function PlayerProvider({ children, session }) {
         position_seconds: position,
         completed: false,
       };
-      select(active.story, current, queueRef.current);
+      select(active.story, current, active.entryId);
     }
   };
   const setSpeed = (value) => {
@@ -514,9 +729,6 @@ export function PlayerProvider({ children, session }) {
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [playing]);
-  const index = active
-    ? queueRef.current.findIndex((c) => c.id === active.chapter.id)
-    : -1;
   return (
     <PlayerContext.Provider
       value={{
@@ -543,8 +755,16 @@ export function PlayerProvider({ children, session }) {
         move,
         retry,
         retrySave: () => save(),
-        hasPrevious: index > 0,
-        hasNext: index >= 0 && index < queueRef.current.length - 1,
+        queue,
+        queueReady,
+        queueError,
+        queueMessage,
+        enqueue,
+        editQueue,
+        dismissQueueError: () => setQueueError(""),
+        hasPrevious:
+          queue.history.length > 0 && queue.upcoming.length < MAX_UPCOMING,
+        hasNext: queue.upcoming.length > 0,
       }}
     >
       <audio ref={audioRef} preload="metadata" />

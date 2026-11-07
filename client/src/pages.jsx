@@ -1,3 +1,4 @@
+import { QueueActions } from "./QueuePanel";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -507,6 +508,7 @@ export function StoryDetails() {
                       )}
                     </span>
                   </div>
+                  <QueueActions story={story} chapter={chapter} />
                   <ChapterDownload story={story} chapter={chapter} />
                   <span className="chapter-duration">
                     {timeLabel(chapter.duration_seconds)}

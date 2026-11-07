@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import AccountRecovery from "./AccountRecovery";
 import Settings from "./Settings";
+import QueuePanel from "./QueuePanel";
 import { Account } from "./AuthContext";
 import Analytics from "./Analytics";
 import { Downloads, PwaStatus } from "./Downloads";
@@ -162,6 +163,7 @@ export default function App() {
             )}
           </div>
           <Routes>
+            <Route path="/queue" element={<QueuePanel />} />
             <Route path="/" element={<Discover />} />
             <Route path="/account" element={<AccountRecovery />} />
             <Route path="/library" element={<MyLibrary />} />

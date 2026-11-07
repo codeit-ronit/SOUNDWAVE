@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { request, setSessionScope } from "./api";
 import GoogleSignIn from "./GoogleSignIn";
+import { clearStoredQueue } from "./queueStorage";
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 let startup;
@@ -63,6 +64,7 @@ export function AuthProvider({ children }) {
     if (channel)
       channel.onmessage = (event) => {
         if (event.data?.source === tabId.current) return;
+        clearStoredQueue();
         setSessionScope(null);
         window.location.reload();
       };
@@ -84,6 +86,8 @@ export function AuthProvider({ children }) {
         setSessionScope(null);
         data = await session();
       }
+      if (action === "logout" || state?.user?.id !== data.user?.id)
+        clearStoredQueue();
       setSessionScope(data);
       latest.current = data;
       setState(data);

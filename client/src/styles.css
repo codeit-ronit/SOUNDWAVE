@@ -2973,3 +2973,68 @@ input[type="range"]::-moz-range-thumb {
   flex: 1;
   accent-color: var(--purple);
 }
+
+.queue-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.queue-actions .button {
+  padding: 7px 10px;
+  font-size: 11px;
+}
+.story-card > .queue-actions {
+  margin-top: 12px;
+}
+.queue-link {
+  color: var(--purple);
+  white-space: nowrap;
+}
+.queue-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin: 24px 0 16px;
+}
+.queue-current,
+.queue-list li {
+  background: #181924;
+  border: 1px solid var(--line);
+  padding: 16px;
+  border-radius: 12px;
+}
+.queue-current,
+.queue-list li > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.queue-list {
+  display: grid;
+  gap: 10px;
+  padding-left: 24px;
+}
+.queue-list li .queue-actions {
+  margin-top: 12px;
+}
+.queue-panel > p,
+.queue-list span,
+.queue-current span {
+  color: var(--muted);
+}
+@media (max-width: 700px) {
+  .chapter-row {
+    flex-wrap: wrap;
+  }
+  .chapter-row > .queue-actions {
+    order: 9;
+    width: 100%;
+    padding-left: 40px;
+  }
+  .queue-heading {
+    align-items: flex-start;
+  }
+}

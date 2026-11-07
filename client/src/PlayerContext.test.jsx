@@ -54,6 +54,7 @@ function setup() {
   return { ...result, audio: result.container.querySelector("audio") };
 }
 beforeEach(() => {
+  sessionStorage.clear();
   vi.clearAllMocks();
   api.progress.mockResolvedValue({ progress: [], continueListening: [] });
   api.chapters.mockResolvedValue({ chapters });
@@ -550,5 +551,224 @@ it("a queued media frame safely stops after an account unmount detaches audio", 
   } finally {
     raf.mockRestore();
     cancel.mockRestore();
+  }
+});
+
+describe("cross-story editable queue", () => {
+  const other = { id: 2, title: "Another story" };
+  const otherChapters = [
+    {
+      ...chapters[0],
+      id: 201,
+      title: "Other one",
+      audio_url: "/audio/2-1.wav",
+    },
+    {
+      ...chapters[1],
+      id: 202,
+      title: "Other two",
+      audio_url: "/audio/2-2.wav",
+    },
+  ];
+  beforeEach(() =>
+    api.chapters.mockImplementation(async (id) => ({
+      chapters: id === 2 ? otherChapters : chapters,
+    })),
+  );
+  it("Play Next preempts the story tail; duplicates replay as distinct occurrences", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    const currentId = player.queue.current.id;
+    await act(() => player.enqueue(other, 201, true));
+    await act(() => player.enqueue(other, 201));
+    expect(player.queue.upcoming.map((e) => e.chapter.id)).toEqual([
+      201, 102, 201,
+    ]);
+    expect(new Set(player.queue.upcoming.map((e) => e.id)).size).toBe(3);
+    act(() => player.move(1));
+    expect(player.active.story.id).toBe(2);
+    expect(audio.currentTime).toBe(0);
+    act(() => player.move(1));
+    act(() => player.move(1));
+    expect(player.active.chapter.id).toBe(201);
+    expect(player.active.entryId).not.toBe(currentId);
+  });
+  it("rapid Next operations consume different entries without async stale selections", async () => {
+    setup();
+    await act(() => player.playStory(story));
+    await act(() => player.enqueue(other));
+    act(() => {
+      player.move(1);
+      player.move(1);
+      player.move(1);
+    });
+    expect(player.active.chapter.id).toBe(202);
+    expect(player.queue.upcoming).toHaveLength(0);
+    expect(player.hasNext).toBe(false);
+    act(() => player.move(-1));
+    expect(player.active.chapter.id).toBe(201);
+    expect(player.queue.upcoming[0].chapter.id).toBe(202);
+  });
+  it("queue edits preserve active audio, time, rate and volume", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    await act(() => player.enqueue(other));
+    audio.currentTime = 8;
+    act(() => {
+      player.setSpeed(1.5);
+      player.setVolume(0.3);
+    });
+    const id = player.queue.upcoming[2].id;
+    act(() => player.editQueue({ type: "move", id, delta: -1 }));
+    act(() => player.editQueue({ type: "remove", id }));
+    expect(player.active.chapter.id).toBe(101);
+    expect(audio.currentTime).toBe(8);
+    expect(audio.paused).toBe(false);
+    expect(audio.playbackRate).toBe(1.5);
+    expect(audio.volume).toBe(0.3);
+    act(() => player.editQueue({ type: "clear" }));
+    expect(player.hasNext).toBe(false);
+    expect(audio.paused).toBe(false);
+  });
+  it("duplicate ended events and a delayed completion cannot skip a manually selected next entry", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    await act(() => player.enqueue(other));
+    let finish;
+    api.save.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          finish = r;
+        }),
+    );
+    await act(async () => {
+      audio.dispatchEvent(new Event("ended"));
+      audio.dispatchEvent(new Event("ended"));
+      await Promise.resolve();
+    });
+    act(() => player.move(1));
+    expect(player.active.chapter.id).toBe(102);
+    await act(async () => {
+      finish({});
+      await Promise.resolve();
+    });
+    expect(player.active.chapter.id).toBe(102);
+    expect(api.save.mock.calls.filter((c) => c[2] === true)).toHaveLength(1);
+  });
+  it("completion takes the latest reordered upcoming item across stories", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    await act(() => player.enqueue(other, 201));
+    act(() =>
+      player.editQueue({
+        type: "move",
+        id: player.queue.upcoming[1].id,
+        delta: -1,
+      }),
+    );
+    await act(async () => {
+      audio.dispatchEvent(new Event("ended"));
+      await Promise.resolve();
+    });
+    expect(player.active.chapter.id).toBe(201);
+    expect(player.queue.upcoming[0].chapter.id).toBe(102);
+  });
+  it("an empty queue stops at completion and manual Next is a no-op", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    act(() => player.editQueue({ type: "clear" }));
+    await act(async () => {
+      audio.dispatchEvent(new Event("ended"));
+      await Promise.resolve();
+    });
+    expect(player.playing).toBe(false);
+    expect(player.active.chapter.id).toBe(101);
+    act(() => player.move(1));
+    expect(player.active.chapter.id).toBe(101);
+  });
+  it("clearing cancels pending enqueue work instead of repopulating the queue", async () => {
+    setup();
+    await act(() => player.playStory(story));
+    let finish;
+    api.chapters.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          finish = r;
+        }),
+    );
+    let adding;
+    await act(async () => {
+      adding = player.enqueue(other);
+      await Promise.resolve();
+    });
+    act(() => player.editQueue({ type: "clear" }));
+    await act(async () => {
+      finish({ chapters: otherChapters });
+      await adding;
+    });
+    expect(player.queue.upcoming).toEqual([]);
+  });
+  it("direct selection wins over an older in-flight story load", async () => {
+    setup();
+    await act(() => player.playStory(story));
+    let finish;
+    api.chapters.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          finish = r;
+        }),
+    );
+    let pending;
+    await act(async () => {
+      pending = player.playStory(other);
+      await Promise.resolve();
+    });
+    await act(() => player.playStory(story, 102));
+    await act(async () => {
+      finish({ chapters: otherChapters });
+      await pending;
+    });
+    expect(player.active.chapter.id).toBe(102);
+  });
+});
+
+it("bounds a stalled restoration without blocking replacement playback", async () => {
+  vi.useFakeTimers();
+  api.progress.mockImplementationOnce(() => new Promise(() => {}));
+  const view = setup();
+  try {
+    expect(player.queueReady).toBe(false);
+    await act(async () => {
+      vi.advanceTimersByTime(15000);
+    });
+    expect(player.queueReady).toBe(true);
+    expect(player.queueError).toContain("timed out");
+    expect(api.progress.mock.calls[0][0].aborted).toBe(true);
+    await act(() => player.playStory(story));
+    expect(player.active.chapter.id).toBe(101);
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+  }
+});
+
+it("rejects an undownloaded offline enqueue without modifying the queue", async () => {
+  const view = setup();
+  await act(() => player.playStory(story));
+  const before = player.queue.upcoming;
+  const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+  vi.stubGlobal("caches", {
+    open: vi
+      .fn()
+      .mockResolvedValue({ match: vi.fn().mockResolvedValue(undefined) }),
+  });
+  try {
+    await act(() => player.enqueue(story, 101));
+    expect(player.queueError).toContain("Only downloaded");
+    expect(player.queue.upcoming).toBe(before);
+  } finally {
+    online.mockRestore();
+    vi.unstubAllGlobals();
+    view.unmount();
   }
 });

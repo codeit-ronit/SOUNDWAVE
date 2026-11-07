@@ -76,8 +76,10 @@ export const api = {
     ),
   stories: (params, signal) =>
     request(`/stories?${new URLSearchParams(params)}`, { signal }),
-  story: (id, signal) => request(`/stories/${id}`, { signal }),
-  chapters: (id, signal) => request(`/stories/${id}/chapters`, { signal }),
+  story: (id, signal, session = scope) =>
+    request(`/stories/${id}`, { signal }, session),
+  chapters: (id, signal, session = scope) =>
+    request(`/stories/${id}/chapters`, { signal }, session),
   genres: (signal) => request("/genres", { signal }),
   progress: (signal) => request("/progress", { signal }),
   library: (signal) => request("/library", { signal }),

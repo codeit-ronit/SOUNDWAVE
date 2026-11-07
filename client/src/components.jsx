@@ -1,3 +1,4 @@
+import { QueueActions } from "./QueuePanel";
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -127,6 +128,7 @@ export function StoryCard({ story, index, reason }) {
         {story.title}
       </Link>
       <p className="card-subtitle">{reason || story.tagline}</p>
+      <QueueActions story={story} />
     </article>
   );
 }
@@ -196,7 +198,17 @@ export function Player() {
           <Link to="/settings">Open Settings</Link>
         </div>
       )}
+      {p.queueError && (
+        <div className="player-notice" role="alert">
+          <span>{p.queueError}</span>
+          <Link to="/queue">Open queue</Link>
+          <button onClick={p.dismissQueueError}>Dismiss</button>
+        </div>
+      )}
       <div className="player-options">
+        <Link to="/queue" className="queue-link">
+          Queue ({p.queue?.upcoming.length || 0})
+        </Link>
         <span className="keyboard-hint">
           Space to play / pause · ← → seek 10s
         </span>

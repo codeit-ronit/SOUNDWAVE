@@ -171,6 +171,7 @@ try {
       ["login", "auth-smoke"],
       ["playlists", "playlists-smoke"],
       ["settings", "settings-smoke"],
+      ["queue", "queue-smoke"],
       ["offline", "offline-smoke"],
       ["restart", "audit-smoke"],
     ])

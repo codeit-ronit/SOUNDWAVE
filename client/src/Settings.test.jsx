@@ -60,6 +60,9 @@ afterEach(cleanup);
 it("shows immutable email/verification/Google metadata and updates the owner name", async () => {
   render(<Settings />);
   await screen.findByText("listener@example.com");
+  await waitFor(() =>
+    expect(screen.getByLabelText("Display name").value).toBe("Listener"),
+  );
   expect(screen.getByText("Verified")).toBeTruthy();
   expect(screen.getByText("Linked to this account")).toBeTruthy();
   expect(screen.queryByRole("textbox", { name: "Email" })).toBeNull();
@@ -81,6 +84,9 @@ it("keeps a rejected name editable and allows correction/retry", async () => {
   api.saveProfile.mockRejectedValueOnce(Error("Name is invalid"));
   render(<Settings />);
   await screen.findByLabelText("Display name");
+  await waitFor(() =>
+    expect(screen.getByLabelText("Display name").value).toBe("Listener"),
+  );
   fireEvent.change(screen.getByLabelText("Display name"), {
     target: { value: " " },
   });
@@ -97,6 +103,9 @@ it("keeps a rejected name editable and allows correction/retry", async () => {
 it("saves typed playback preferences without any identity fields", async () => {
   render(<Settings />);
   await screen.findByLabelText("Display name");
+  await waitFor(() =>
+    expect(screen.getByLabelText("Display name").value).toBe("Listener"),
+  );
   fireEvent.change(screen.getByLabelText("Default playback speed"), {
     target: { value: "1.5" },
   });
@@ -124,6 +133,9 @@ it("discarding an old account response cannot rename the next account's UI", asy
   );
   const result = render(<Settings />);
   await screen.findByLabelText("Display name");
+  await waitFor(() =>
+    expect(screen.getByLabelText("Display name").value).toBe("Listener"),
+  );
   fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
   await waitFor(() => expect(api.saveProfile).toHaveBeenCalledOnce());
   auth = { ...auth, user: { id: "owner-b" }, csrfToken: "csrf-b" };
@@ -150,6 +162,9 @@ it("exposes recoverable load errors and no private forms while signed out", asyn
   await screen.findByText("Profile read failed");
   fireEvent.click(screen.getByRole("button", { name: "Retry profile" }));
   await screen.findByLabelText("Display name");
+  await waitFor(() =>
+    expect(screen.getByLabelText("Display name").value).toBe("Listener"),
+  );
   auth = { user: null, offline: true };
   rendered.rerender(<Settings />);
   expect(screen.queryByLabelText("Display name")).toBeNull();
