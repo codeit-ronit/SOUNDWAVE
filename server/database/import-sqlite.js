@@ -67,7 +67,7 @@ export async function importSqlite(db, path) {
           // Never attach imported memberships to an existing different owner's list.
           if (table === "playlists") {
             const target = await db
-              .prepare("SELECT user_id FROM playlists WHERE id=?")
+              .prepare("SELECT user_id FROM playlists WHERE id=? FOR UPDATE")
               .get(row.id);
             if (target && target.user_id !== row.user_id)
               throw Error("Playlist ownership conflict during import");
@@ -83,6 +83,22 @@ export async function importSqlite(db, path) {
             .run(...columns.map((k) => row[k]));
           counts[table] += result.changes;
         }
+      }
+      // Existing target keys are retained, but newly imported positions must not
+      // collide with the target's next append. Locks above exclude concurrent adds.
+      for (const row of rows.playlists) {
+        const items = await db
+          .prepare(
+            "SELECT COUNT(*) AS count,COALESCE(MAX(position),0) AS last FROM playlist_items WHERE playlist_id=?",
+          )
+          .get(row.id);
+        if (items.count > 100 || items.last >= Number.MAX_SAFE_INTEGER)
+          throw Error("Playlist import exceeds membership/order limits");
+        await db
+          .prepare(
+            "UPDATE playlists SET next_position=GREATEST(next_position,?) WHERE id=? AND user_id=?",
+          )
+          .run(items.last + 1, row.id, row.user_id);
       }
     });
     source.exec("COMMIT");

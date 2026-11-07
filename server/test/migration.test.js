@@ -11,6 +11,7 @@ import { postgresAdapter } from "../database/adapter.js";
 import { migrate } from "../database/migrate.js";
 import { seedCatalog } from "../database/seed.js";
 import { importSqlite } from "../database/import-sqlite.js";
+import { playlistService } from "../services/playlists.js";
 test("SQLite additive auth migration preserves pre-auth listener rows and keeps a legacy event snapshot", () => {
   const folder = mkdtempSync(join(tmpdir(), "soundwave-legacy-"));
   const path = join(folder, "old.sqlite");
@@ -108,15 +109,48 @@ if (process.env.TEST_DATABASE_URL)
           "INSERT INTO playlist_items(playlist_id,story_id,position) VALUES(?,?,?)",
         )
         .run(playlistId, 2, 1);
+      const mergedId = randomUUID();
+      source
+        .prepare(
+          "INSERT INTO playlists(id,user_id,name,next_position) VALUES(?,?,?,?)",
+        )
+        .run(mergedId, "demo-user", "Source collection", 4);
+      source
+        .prepare(
+          "INSERT INTO playlist_items(playlist_id,story_id,position) VALUES(?,?,?)",
+        )
+        .run(mergedId, 2, 3);
+      await db
+        .prepare("INSERT INTO playlists(id,user_id,name) VALUES(?,?,?)")
+        .run(mergedId, "demo-user", "Existing collection");
       source.close();
       const imported = await importSqlite(db, path);
       assert.equal(imported.favorites, 1);
       assert.equal(imported.playlists, 1);
-      assert.equal(imported.playlist_items, 1);
+      assert.equal(imported.playlist_items, 2);
       const repeated = await importSqlite(db, path);
       assert.equal(repeated.favorites, 0);
       assert.equal(repeated.playlists, 0);
       assert.equal(repeated.playlist_items, 0);
+      await playlistService(db).add("demo-user", mergedId, 1);
+      assert.equal(
+        (
+          await db
+            .prepare(
+              "SELECT position FROM playlist_items WHERE playlist_id=? AND story_id=1",
+            )
+            .get(mergedId)
+        ).position,
+        4,
+      );
+      assert.equal(
+        (
+          await db
+            .prepare("SELECT name FROM playlists WHERE id=?")
+            .get(mergedId)
+        ).name,
+        "Existing collection",
+      );
       assert.equal(
         (
           await db
@@ -174,6 +208,44 @@ if (process.env.TEST_DATABASE_URL)
             .get(collision)
         ).n,
         0,
+      );
+      const overfull = randomUUID(),
+        oversizedSource = new Database(path);
+      oversizedSource
+        .prepare("DELETE FROM playlist_items WHERE playlist_id=?")
+        .run(collision);
+      oversizedSource
+        .prepare("DELETE FROM playlists WHERE id=?")
+        .run(collision);
+      oversizedSource
+        .prepare(
+          "INSERT INTO playlists(id,user_id,name,next_position) VALUES(?,?,?,?)",
+        )
+        .run(overfull, "demo-user", "Invalid oversized fixture", 102);
+      for (let i = 0; i < 101; i++) {
+        oversizedSource
+          .prepare(
+            "INSERT INTO stories(id,title,genre,author,tagline,description,color,symbol,popularity) SELECT ?,title,genre,author,tagline,description,color,symbol,popularity FROM stories WHERE id=1",
+          )
+          .run(10000 + i);
+        oversizedSource
+          .prepare(
+            "INSERT INTO playlist_items(playlist_id,story_id,position) VALUES(?,?,?)",
+          )
+          .run(overfull, 10000 + i, i + 1);
+      }
+      oversizedSource.close();
+      await assert.rejects(
+        importSqlite(db, path),
+        /Playlist import exceeds membership\/order limits/,
+      );
+      assert.equal(
+        await db.prepare("SELECT id FROM playlists WHERE id=?").get(overfull),
+        undefined,
+      );
+      assert.equal(
+        await db.prepare("SELECT id FROM stories WHERE id=10000").get(),
+        undefined,
       );
       await assert.rejects(
         db
