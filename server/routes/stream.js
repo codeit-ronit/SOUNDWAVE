@@ -97,6 +97,13 @@ export function createAudioHandler(db) {
           .json({ error: { message: "Audio file not found." } });
       handle = await open(path, "r");
       const stat = await handle.stat();
+      // The browser can disconnect during an awaited open/stat. Its close event
+      // has already fired, so the later stream close listener cannot release this fd.
+      if (res.destroyed) {
+        await handle.close();
+        handle = null;
+        return;
+      }
       if (!stat.isFile()) {
         await handle.close();
         handle = null;
