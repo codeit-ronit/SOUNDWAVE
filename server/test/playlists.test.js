@@ -112,12 +112,16 @@ for (const kind of backends) {
         await c.get("/playlists").expect(200);
         await c.get(`/playlists/${p.id}`).expect(200);
         assert.deepEqual(redis.cacheStats(), before);
+        let inspected = 0;
         for await (const keys of redis.client.scanIterator({
           MATCH: redis.prefix + ":catalog:*",
         })) {
+          if (!keys.length) continue; // SCAN may yield empty batches before completion.
+          inspected += keys.length;
           for (const value of await redis.client.mGet(keys))
             assert.ok(!value?.includes(name));
         }
+        assert.ok(inspected > 0);
       } finally {
         await redis.close();
         await f.close();

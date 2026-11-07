@@ -212,8 +212,48 @@ try {
       .playlists,
     [],
   );
+  const otherEmail = `playlist-other-${randomUUID()}@example.com`;
+  assert.equal(
+    await other.evaluate(
+      async ({ email, password }) => {
+        const s = await fetch("/api/auth/session").then((r) => r.json());
+        return (
+          await fetch("/api/auth/register", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRF-Token": s.csrfToken,
+            },
+            body: JSON.stringify({
+              email,
+              password,
+              displayName: "Other listener",
+            }),
+          })
+        ).status;
+      },
+      { email: otherEmail, password },
+    ),
+    200,
+  );
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await panel.getByLabel("Email", { exact: true }).fill(otherEmail);
+  await panel.getByLabel("Password", { exact: true }).fill(password);
+  await panel.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).waitFor();
+  await section.getByText("Playlist not found.", { exact: true }).waitFor();
+  assert.equal(
+    await page
+      .getByRole("heading", { name: "Night drives", exact: true })
+      .count(),
+    0,
+  );
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page
+    .getByText(/Sign in or start a demo session to manage private playlists/)
+    .waitFor();
   pass(
-    "logout clears private UI and an independent guest cannot read another listener's playlist",
+    "logout clears private UI; another guest and a different registered account in the same browser cannot access the playlist",
   );
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await panel.getByLabel("Email", { exact: true }).fill(email);
