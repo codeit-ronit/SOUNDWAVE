@@ -290,7 +290,7 @@ DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm run test
 
 Database tests create/remove random schemas; restore/system tests additionally create/drop generated databases, so their disposable test role needs the corresponding privileges. `TEST_BACKUP_CONTAINER` must match the same local server as `TEST_DATABASE_URL`. Without it, PostgreSQL cases are not run; the suite still tests real sessions with SQLite. Browser PostgreSQL scripts seed/write the supplied database and must use disposable data.
 
-**Latest Google checkpoint:** 122 backend + 31 frontend tests passed (**153 total, zero failures/skips**), with PostgreSQL, Redis and backup tooling enabled. The production build passed; existing password/guest browser checks (5), offline checks (13), public application checks (9) and real Google widget/provider-page checks (5) passed. Completing a real Google account login remains a manual check; see [GOOGLE_SIGN_IN.md](docs/GOOGLE_SIGN_IN.md).
+**Latest Google checkpoint:** 122 backend + 31 frontend tests passed (**153 total, zero failures/skips**), with PostgreSQL, Redis and backup tooling enabled. The production build passed; existing password/guest browser checks (5), offline checks (13), public application checks (9) and real Google widget/provider-page checks (5) passed. The owner confirmed a successful real Google login on 7 November 2026 (manual verification); see [GOOGLE_SIGN_IN.md](docs/GOOGLE_SIGN_IN.md).
 
 **Earlier catalog checkpoint:** 106 backend + 27 frontend tests passed (**133 total, zero failures/skips**) with real PostgreSQL/Redis/BullMQ and backup tools enabled. The [LibriVox report](docs/LIBRIVOX_INTEGRATION.md) records real-provider MP3/PWA verification, hosted release results and current limits.
 
