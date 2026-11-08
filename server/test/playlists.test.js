@@ -1,3 +1,4 @@
+import { progressBody } from "./progress-body.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -394,7 +395,13 @@ for (const kind of backends) {
       const c = await listener(f),
         user = c.data.user.id;
       await c.write("put", "/library/1").expect(200);
-      await c.write("put", "/progress/101", { positionSeconds: 9 }).expect(200);
+      await c
+        .write(
+          "put",
+          "/progress/101",
+          await progressBody(c, { positionSeconds: 9 }, "/progress/101"),
+        )
+        .expect(200);
       const version =
         kind === "postgres" ? "009_playlists.sql" : "010_playlists.sql";
       // Only this generated fixture is rewound to the pre-playlist schema.

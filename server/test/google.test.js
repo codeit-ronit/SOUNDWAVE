@@ -1,3 +1,4 @@
+import { progressBody } from "./progress-body.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
@@ -124,10 +125,14 @@ for (const kind of backends) {
         .set("X-CSRF-Token", old.csrfToken)
         .send({})
         .expect(200);
+      const progressPayload = await progressBody(
+        { get: (p) => a.agent.get("/api" + p) },
+        { positionSeconds: 12 },
+      );
       await a.agent
         .put("/api/progress/101")
         .set("X-CSRF-Token", old.csrfToken)
-        .send({ positionSeconds: 12 })
+        .send(progressPayload)
         .expect(200);
       const c = await a.challenge();
       const challenge = await f.db

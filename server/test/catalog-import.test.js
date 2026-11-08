@@ -1,3 +1,4 @@
+import { progressBody } from "./progress-body.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -144,7 +145,11 @@ for (const backend of backends) {
       assert.equal((await a.get("/stories?q=Alice").expect(200)).body.total, 1);
       await a.write("put", "/library/1200", {}).expect(200);
       await a
-        .write("put", "/progress/100900001", { positionSeconds: 42 })
+        .write(
+          "put",
+          "/progress/100900001",
+          await progressBody(a, { positionSeconds: 42 }, "/progress/100900001"),
+        )
         .expect(200);
       assert.equal(
         (await b.get("/library").expect(200)).body.stories.length,

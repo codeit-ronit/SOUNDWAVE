@@ -43,6 +43,11 @@ export function readStoredQueue(session) {
       [...s.upcoming, ...s.history].some((e) => !e || typeof e !== "object")
     )
       throw Error("reference");
+    if (
+      s.baseRevision != null &&
+      (!Number.isSafeInteger(s.baseRevision) || s.baseRevision < 0)
+    )
+      throw Error("revision");
     const ids = new Set();
     for (const e of [s.current, ...s.upcoming, ...s.history].filter(Boolean)) {
       if (
@@ -69,6 +74,7 @@ export function writeStoredQueue(
   owner,
   position = 0,
   epoch = queueEpoch,
+  baseRevision = null,
 ) {
   if (epoch !== queueEpoch) return "";
   if (!owner) return "";
@@ -81,6 +87,7 @@ export function writeStoredQueue(
       current: ref(state.current),
       upcoming: state.upcoming.map(ref),
       history: state.history.map(ref),
+      baseRevision,
       position: Math.max(
         0,
         Math.min(Number.isFinite(position) ? position : 0, 604800),

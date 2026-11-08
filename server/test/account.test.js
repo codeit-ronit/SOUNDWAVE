@@ -1,3 +1,4 @@
+import { progressBody } from "./progress-body.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -252,7 +253,13 @@ for (const kind of backends) {
       const a = await guest(f),
         id = a.data.user.id;
       await a.write("put", "/library/1").expect(200);
-      await a.write("put", "/progress/101", { positionSeconds: 8 }).expect(200);
+      await a
+        .write(
+          "put",
+          "/progress/101",
+          await progressBody(a, { positionSeconds: 8 }, "/progress/101"),
+        )
+        .expect(200);
       const version =
         kind === "postgres"
           ? "010_user_preferences.sql"

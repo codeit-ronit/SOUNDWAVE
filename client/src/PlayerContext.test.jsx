@@ -16,6 +16,7 @@ vi.mock("./api", () => ({
     analyticsEvent: vi.fn(),
     settings: vi.fn(),
     saveSettings: vi.fn(),
+    progressChapter: vi.fn(),
   },
 }));
 const story = { id: 1, title: "Test story" };
@@ -40,6 +41,16 @@ const chapters = [
   },
 ];
 let player, preferences, storedPreferences;
+const progressAck = (id, position, completed, _keepalive, version) => ({
+  progress: {
+    chapter_id: id,
+    position_seconds: position,
+    completed,
+    revision: version.expectedRevision + 1,
+  },
+  acknowledgedRevision: version.expectedRevision + 1,
+  replayed: false,
+});
 function Probe() {
   player = usePlayer();
   preferences = usePreferences();
@@ -58,7 +69,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.progress.mockResolvedValue({ progress: [], continueListening: [] });
   api.chapters.mockResolvedValue({ chapters });
-  api.save.mockResolvedValue({});
+  api.save.mockImplementation(async (...args) => progressAck(...args));
+  api.progressChapter.mockResolvedValue({
+    progress: {
+      chapter_id: 101,
+      position_seconds: 0,
+      completed: false,
+      revision: 0,
+    },
+  });
   api.analyticsEvent.mockResolvedValue({});
   storedPreferences = { ...DEFAULT_PREFERENCES };
   api.settings.mockImplementation(async () => ({
@@ -521,11 +540,15 @@ describe("out-of-order progress snapshots", () => {
       audio.currentTime = 12;
       window.dispatchEvent(new Event("pagehide"));
     });
-    const [old, newer] = api.save.mock.calls;
+    expect(api.save).toHaveBeenCalledTimes(1);
+    const old = api.save.mock.calls[0];
+    await act(async () => finishOld(progressAck(...old)));
+    await waitFor(() => expect(api.save).toHaveBeenCalledTimes(2));
+    const newer = api.save.mock.calls[1];
     expect(old[4]?.clientId).toBeTruthy();
-    expect(newer[4]?.clientId).toBe(old[4].clientId);
-    expect(newer[4]?.sequence).toBeGreaterThan(old[4].sequence);
-    await act(async () => finishOld({}));
+    expect(newer[4].clientId).toBe(old[4].clientId);
+    expect(newer[4].sequence).toBeGreaterThan(old[4].sequence);
+    expect(newer[4].expectedRevision).toBe(old[4].expectedRevision + 1);
   });
 });
 
@@ -649,7 +672,7 @@ describe("cross-story editable queue", () => {
     act(() => player.move(1));
     expect(player.active.chapter.id).toBe(102);
     await act(async () => {
-      finish({});
+      finish(progressAck(...api.save.mock.calls[0]));
       await Promise.resolve();
     });
     expect(player.active.chapter.id).toBe(102);
@@ -771,4 +794,265 @@ it("rejects an undownloaded offline enqueue without modifying the queue", async 
     vi.unstubAllGlobals();
     view.unmount();
   }
+});
+
+describe("cross-device player synchronization", () => {
+  const remote = (revision = 1, pos = 12, completed = false) => ({
+    chapter_id: 101,
+    revision,
+    position_seconds: pos,
+    completed,
+  });
+  it("foreground reads preserve active playback and Resume Latest adopts paused without consuming the queue", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    audio.currentTime = 5;
+    const ids = player.queue.upcoming.map((e) => e.id);
+    const loads = HTMLMediaElement.prototype.load.mock.calls.length;
+    api.progressChapter.mockResolvedValueOnce({ progress: remote() });
+    await act(() => player.refreshProgress(true));
+    expect(audio.currentTime).toBe(5);
+    expect(audio.paused).toBe(false);
+    expect(player.progressConflict.server.revision).toBe(1);
+    await act(() => player.resolveProgress("latest"));
+    expect(audio.currentTime).toBe(12);
+    expect(audio.paused).toBe(true);
+    expect(player.queue.upcoming.map((e) => e.id)).toEqual(ids);
+    expect(HTMLMediaElement.prototype.load).toHaveBeenCalledTimes(loads);
+    expect(api.save).not.toHaveBeenCalled();
+  });
+  it("Keep My Position is a conditional write and leaves audio playing", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    audio.currentTime = 5;
+    api.progressChapter.mockResolvedValueOnce({ progress: remote() });
+    await act(() => player.refreshProgress(true));
+    await act(() => player.resolveProgress("keep"));
+    expect(api.save.mock.calls[0][1]).toBe(5);
+    expect(api.save.mock.calls[0][4].expectedRevision).toBe(1);
+    expect(audio.currentTime).toBe(5);
+    expect(audio.paused).toBe(false);
+    expect(player.progressConflict).toBeNull();
+  });
+  it("clean paused progress adopts a newer foreground revision without autoplay or an extra write", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    audio.currentTime = 5;
+    await act(() => player.toggle());
+    const count = api.save.mock.calls.length;
+    api.progressChapter.mockResolvedValueOnce({ progress: remote(2, 15) });
+    await act(() => player.refreshProgress(true));
+    expect(audio.currentTime).toBe(15);
+    expect(audio.paused).toBe(true);
+    expect(api.save).toHaveBeenCalledTimes(count);
+    expect(player.progressConflict).toBeNull();
+  });
+  it("an old chapter's delayed conflict cannot replace the newly selected chapter UI", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    let reject;
+    api.save.mockImplementationOnce(
+      () =>
+        new Promise((_, r) => {
+          reject = r;
+        }),
+    );
+    await act(async () => {
+      audio.currentTime = 5;
+      void player.retrySave();
+      await Promise.resolve();
+    });
+    act(() => player.move(1));
+    await act(async () => {
+      reject(
+        Object.assign(Error("Conflict"), {
+          status: 409,
+          code: "PROGRESS_CONFLICT",
+          progress: remote(),
+        }),
+      );
+      await Promise.resolve();
+    });
+    expect(player.active.chapter.id).toBe(102);
+    expect(player.progressConflict).toBeNull();
+  });
+  it("a conflict on completion cannot silently advance into the next occurrence", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    api.save.mockRejectedValueOnce(
+      Object.assign(Error("Conflict"), { status: 409, progress: remote() }),
+    );
+    await act(async () => {
+      audio.currentTime = 30;
+      audio.dispatchEvent(new Event("ended"));
+      await Promise.resolve();
+    });
+    expect(player.active.chapter.id).toBe(101);
+    expect(player.progressConflict).toBeTruthy();
+    expect(player.hasNext).toBe(true);
+  });
+  it("offline progress stays unsynchronized and reconnection surfaces a newer accepted revision", async () => {
+    const { audio } = setup();
+    await act(() => player.playStory(story));
+    audio.currentTime = 8;
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    try {
+      await act(() => player.toggle());
+      expect(player.saveError).toContain("not synchronized");
+      expect(api.save).not.toHaveBeenCalled();
+      online.mockReturnValue(true);
+      api.progressChapter.mockResolvedValueOnce({ progress: remote(1, 15) });
+      await act(async () => {
+        window.dispatchEvent(new Event("online"));
+        await Promise.resolve();
+      });
+      await waitFor(() => expect(player.progressConflict).toBeTruthy());
+      expect(audio.currentTime).toBe(8);
+      expect(audio.paused).toBe(true);
+      expect(api.save).not.toHaveBeenCalled();
+    } finally {
+      online.mockRestore();
+    }
+  });
+  it("account unmount aborts an outstanding read and discards its delayed result", async () => {
+    const view = setup();
+    await act(() => player.playStory(story));
+    let finish;
+    api.progressChapter.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          finish = r;
+        }),
+    );
+    let pending;
+    await act(async () => {
+      pending = player.refreshProgress(true);
+      await Promise.resolve();
+    });
+    const signal = api.progressChapter.mock.calls.at(-1)[1];
+    view.unmount();
+    setup();
+    await act(async () => {
+      finish({ progress: remote() });
+      await pending;
+    });
+    expect(signal.aborted).toBe(true);
+    expect(player.active).toBeNull();
+    expect(player.progressConflict).toBeNull();
+  });
+});
+
+it("bounds stalled foreground requests and leaves active audio untouched", async () => {
+  vi.useFakeTimers();
+  const view = setup();
+  try {
+    await act(() => player.playStory(story));
+    view.audio.currentTime = 5;
+    api.progressChapter.mockImplementationOnce(() => new Promise(() => {}));
+    let pending;
+    await act(async () => {
+      pending = player.refreshProgress(true);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+      await pending;
+    });
+    expect(player.syncing).toBe(false);
+    expect(player.saveError).toContain("timed out");
+    expect(view.audio.currentTime).toBe(5);
+    expect(view.audio.paused).toBe(false);
+  } finally {
+    view.unmount();
+    vi.useRealTimers();
+  }
+});
+it("coalesces foreground/connectivity bursts without continuously polling playback", async () => {
+  vi.useFakeTimers();
+  const view = setup(),
+    visible = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("visible");
+  try {
+    await act(() => player.playStory(story));
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("online"));
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(api.progressChapter).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("online"));
+      await vi.advanceTimersByTimeAsync(1400);
+    });
+    expect(api.progressChapter).toHaveBeenCalledTimes(1);
+    await act(() => vi.advanceTimersByTimeAsync(101));
+    expect(api.progressChapter).toHaveBeenCalledTimes(2);
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(api.progressChapter).toHaveBeenCalledTimes(2);
+  } finally {
+    view.unmount();
+    visible.mockRestore();
+    vi.useRealTimers();
+  }
+});
+it("a late write retains its original session and cannot update the next account", async () => {
+  const ownerA = {
+      user: { id: "10000000-0000-4000-8000-000000000001" },
+      csrfToken: "csrf-a",
+    },
+    ownerB = {
+      user: { id: "20000000-0000-4000-8000-000000000002" },
+      csrfToken: "csrf-b",
+    };
+  const view = render(
+    <PlayerProvider key="a" session={ownerA}>
+      <Probe />
+    </PlayerProvider>,
+  );
+  await act(() => player.playStory(story));
+  let finish;
+  api.save.mockImplementationOnce(
+    () =>
+      new Promise((r) => {
+        finish = r;
+      }),
+  );
+  let pending;
+  await act(async () => {
+    pending = player.retrySave();
+    await Promise.resolve();
+  });
+  const original = api.save.mock.calls[0];
+  view.rerender(
+    <PlayerProvider key="b" session={ownerB}>
+      <Probe />
+    </PlayerProvider>,
+  );
+  await act(async () => {
+    finish(progressAck(...original));
+    await pending;
+  });
+  expect(original[5]).toEqual(ownerA);
+  expect(player.active).toBeNull();
+  expect(player.progressConflict).toBeNull();
+});
+it("a small pending rewind is not overwritten by a foreground read", async () => {
+  const view = setup();
+  await act(() => player.playStory(story));
+  view.audio.currentTime = 5;
+  await act(() => player.toggle());
+  act(() => player.seek(4.9));
+  api.progressChapter.mockResolvedValueOnce({
+    progress: {
+      chapter_id: 101,
+      revision: 2,
+      position_seconds: 12,
+      completed: false,
+    },
+  });
+  await act(() => player.refreshProgress(true));
+  expect(view.audio.currentTime).toBe(4.9);
+  expect(player.progressConflict.server.revision).toBe(2);
 });

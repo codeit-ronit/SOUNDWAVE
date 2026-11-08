@@ -20,6 +20,8 @@ export async function request(path, options = {}, session = scope) {
         `Request failed (${response.status}). Please try again.`,
     );
     error.status = response.status;
+    error.code = data?.error?.code;
+    error.progress = data?.progress;
     throw error;
   }
   return response.status === 204 ? null : response.json();
@@ -82,25 +84,35 @@ export const api = {
     request(`/stories/${id}/chapters`, { signal }, session),
   genres: (signal) => request("/genres", { signal }),
   progress: (signal) => request("/progress", { signal }),
+  progressChapter: (id, signal, session = scope) =>
+    request(`/progress/${id}`, { signal }, session),
   library: (signal) => request("/library", { signal }),
   recommendations: (signal) => request("/recommendations", { signal }),
   favorite: (id, favorite) =>
     request(`/library/${id}`, { method: favorite ? "PUT" : "DELETE" }),
-  save: (
+  save: async (
     id,
     positionSeconds,
     completed = false,
     keepalive = false,
     version,
     session = scope,
-  ) =>
-    request(
-      `/progress/${id}`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ positionSeconds, completed, ...version }),
-        keepalive,
-      },
-      session,
-    ),
+  ) => {
+    const controller = new AbortController(),
+      timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      return await request(
+        `/progress/${id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ positionSeconds, completed, ...version }),
+          keepalive,
+          signal: controller.signal,
+        },
+        session,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  },
 };

@@ -3038,3 +3038,33 @@ input[type="range"]::-moz-range-thumb {
     align-items: flex-start;
   }
 }
+
+.player-conflict {
+  padding: 12px 20px;
+  border-top: 1px solid #a780fb;
+  background: #251b33;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 12px;
+}
+.player-conflict > span {
+  color: #d1c2e3;
+}
+.player-conflict > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sync-button {
+  color: #cfadfa;
+  background: transparent;
+  white-space: nowrap;
+}
+.progress-status {
+  font-size: 10px;
+  color: #b4a3c7;
+}
+.player-options {
+  flex-wrap: wrap;
+}

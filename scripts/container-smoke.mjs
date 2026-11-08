@@ -46,7 +46,12 @@ if (phase === "seed") {
   });
   state.userId = registration.user.id;
   await call("/library/1", "PUT");
-  await call("/progress/101", "PUT", { positionSeconds: 8.25 });
+  await call("/progress/101", "PUT", {
+    positionSeconds: 8.25,
+    expectedRevision: (await call("/progress/101")).progress.revision,
+    clientId: randomUUID(),
+    sequence: 1,
+  });
   state.overview = await call("/analytics/overview");
   writeFileSync(file, JSON.stringify(state), { mode: 0o600 });
   console.log(

@@ -205,7 +205,57 @@ export function Player() {
           <button onClick={p.dismissQueueError}>Dismiss</button>
         </div>
       )}
+      {p.progressConflict && (
+        <section
+          className="player-conflict"
+          aria-label="Playback progress conflict"
+          role="alert"
+        >
+          <strong>
+            {p.progressConflict.reason === "unsaved"
+              ? "This device has unsaved progress"
+              : "Another session saved this chapter"}
+          </strong>
+          <span>
+            Latest: {timeLabel(p.progressConflict.server.position_seconds)}
+            {p.progressConflict.server.completed ? " · completed" : ""}. Your
+            audio has not moved.
+          </span>
+          <span>
+            Resume Latest loads it paused. Keep My Position explicitly saves
+            your current position and reopens a completed chapter when needed.
+          </span>
+          <div>
+            <button
+              className="button secondary"
+              disabled={p.syncing}
+              onClick={() => p.resolveProgress("latest")}
+            >
+              Resume Latest
+            </button>
+            <button
+              className="button secondary"
+              disabled={p.syncing}
+              onClick={() => p.resolveProgress("keep")}
+            >
+              Keep My Position
+            </button>
+          </div>
+        </section>
+      )}
       <div className="player-options">
+        <button
+          className="sync-button"
+          disabled={!p.active || p.syncing}
+          onClick={() => p.refreshProgress(true)}
+        >
+          {p.syncing ? "Checking progress…" : "Refresh Progress"}
+        </button>
+        {p.progressStatus && (
+          <span className="progress-status" role="status">
+            {p.progressStatus}
+          </span>
+        )}
         <Link to="/queue" className="queue-link">
           Queue ({p.queue?.upcoming.length || 0})
         </Link>

@@ -286,6 +286,7 @@ try {
   const chapters = (await get("/api/stories/1/chapters")).chapters;
   const duration = chapters[0].duration_seconds;
   const clientId = randomUUID();
+  const expectedRevision = (await get("/api/progress/101")).progress.revision;
   for (const [sequence, positionSeconds, completed] of [
     [2, duration, true],
     [1, 0, false],
@@ -298,9 +299,15 @@ try {
         Cookie: cookies,
         "X-CSRF-Token": csrf,
       },
-      body: JSON.stringify({ clientId, sequence, positionSeconds, completed }),
+      body: JSON.stringify({
+        clientId,
+        sequence,
+        positionSeconds,
+        completed,
+        expectedRevision,
+      }),
     });
-    assert.equal(response.status, 200);
+    assert.equal(response.status, sequence === 1 ? 409 : 200);
   }
   const complete = await get("/api/analytics/overview");
   assert.equal(complete.completedChapters, 1);
