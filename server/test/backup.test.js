@@ -40,6 +40,18 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         "INSERT INTO user_preferences(user_id,playback_speed,autoplay_next,default_volume) VALUES($1,1.5,0,0.4)",
         [owner],
       );
+      await client.query(
+        "INSERT INTO listening_progress(user_id,chapter_id,position_seconds,revision) VALUES($1,101,6,3)",
+        [owner],
+      );
+      await client.query(
+        "INSERT INTO progress_write_versions(user_id,chapter_id,client_id,sequence,request_hash,accepted_revision,ack_position,ack_completed,ack_updated_at) VALUES($1,101,$2,9,$3,3,6,0,CURRENT_TIMESTAMP)",
+        [owner, randomUUID(), "a".repeat(64)],
+      );
+      await client.query(
+        "INSERT INTO progress_write_versions(user_id,chapter_id,client_id,sequence,request_hash,accepted_revision,ack_position,ack_completed,result_code) VALUES($1,101,$2,10,$3,3,6,0,'PROGRESS_CONFLICT')",
+        [owner, randomUUID(), "b".repeat(64)],
+      );
       const manifest = await backupDatabase(
         process.env.TEST_DATABASE_URL,
         path,
@@ -47,6 +59,8 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
       );
       assert.equal(Object.keys(manifest.tables).length, 21);
       assert.ok(manifest.tables.user_preferences.count > 0);
+      assert.ok(manifest.tables.listening_progress.count > 0);
+      assert.ok(manifest.tables.progress_write_versions.count > 0);
       assert.ok(manifest.tables.playlists.count > 0);
       assert.ok(manifest.tables.playlist_items.count > 0);
       assert.equal(statSync(path).mode & 0o777, 0o600);
@@ -62,9 +76,19 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
       );
       assert.equal(statSync(path).size, size);
     } finally {
-      await client.query("DELETE FROM users WHERE id=$1", [owner]);
-      await client.end();
-      rmSync(dir, { recursive: true, force: true });
+      try {
+        await client.query(
+          "DELETE FROM progress_write_versions WHERE user_id=$1",
+          [owner],
+        );
+        await client.query("DELETE FROM listening_progress WHERE user_id=$1", [
+          owner,
+        ]);
+        await client.query("DELETE FROM users WHERE id=$1", [owner]);
+      } finally {
+        await client.end();
+        rmSync(dir, { recursive: true, force: true });
+      }
     }
   });
   test("tampered archives fail integrity verification before any restore database is created", async () => {

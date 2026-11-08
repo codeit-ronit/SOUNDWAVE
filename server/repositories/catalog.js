@@ -36,7 +36,7 @@ export function catalogRepository(db, cache = null) {
       (
         await db
           .prepare(
-            `SELECT c.*,(SELECT byte_length FROM chapter_sources x WHERE x.chapter_id=c.id) AS audio_bytes,COALESCE(p.position_seconds,0) AS position_seconds,COALESCE(p.completed,0) AS completed
+            `SELECT c.*,(SELECT byte_length FROM chapter_sources x WHERE x.chapter_id=c.id) AS audio_bytes,COALESCE(p.position_seconds,0) AS position_seconds,COALESCE(p.completed,0) AS completed,COALESCE(p.revision,0) AS revision
       FROM chapters c LEFT JOIN listening_progress p ON p.chapter_id=c.id AND p.user_id=? WHERE c.story_id=? ORDER BY c.chapter_number`,
           )
           .all(user, story)

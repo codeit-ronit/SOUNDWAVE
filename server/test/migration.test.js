@@ -67,7 +67,7 @@ test("SQLite additive auth migration preserves pre-auth listener rows and keeps 
     const again = openDatabase(path);
     assert.equal(
       again.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get().n,
-      11,
+      13,
     );
     again.close();
   } finally {
@@ -98,6 +98,17 @@ if (process.env.TEST_DATABASE_URL)
           "INSERT INTO listening_progress(user_id,chapter_id,position_seconds) VALUES(?,?,?)",
         )
         .run("demo-user", 101, 12.5);
+      const receiptClient = randomUUID();
+      source
+        .prepare(
+          "UPDATE listening_progress SET revision=4 WHERE user_id='demo-user' AND chapter_id=101",
+        )
+        .run();
+      source
+        .prepare(
+          "INSERT INTO progress_write_versions(user_id,chapter_id,client_id,sequence,request_hash,accepted_revision,ack_position,ack_completed,ack_updated_at) VALUES('demo-user',101,?,8,?,4,12.5,0,?)",
+        )
+        .run(receiptClient, "a".repeat(64), new Date().toISOString());
       const playlistId = randomUUID();
       source
         .prepare(
@@ -123,6 +134,12 @@ if (process.env.TEST_DATABASE_URL)
       await db
         .prepare("INSERT INTO playlists(id,user_id,name) VALUES(?,?,?)")
         .run(mergedId, "demo-user", "Existing collection");
+      const rejectedClient = randomUUID();
+      source
+        .prepare(
+          "INSERT INTO progress_write_versions(user_id,chapter_id,client_id,sequence,request_hash,accepted_revision,ack_position,result_code) VALUES('demo-user',101,?,9,?,4,12.5,'PROGRESS_CONFLICT')",
+        )
+        .run(rejectedClient, "b".repeat(64));
       source.close();
       const settingsSource = new Database(path);
       settingsSource
@@ -133,6 +150,42 @@ if (process.env.TEST_DATABASE_URL)
       settingsSource.close();
       const imported = await importSqlite(db, path);
       assert.equal(imported.user_preferences, 1);
+      assert.equal(imported.progress_write_versions, 2);
+      assert.equal(
+        (
+          await db
+            .prepare(
+              "SELECT result_code FROM progress_write_versions WHERE client_id=?",
+            )
+            .get(rejectedClient)
+        ).result_code,
+        "PROGRESS_CONFLICT",
+      );
+      assert.equal(
+        (
+          await db
+            .prepare(
+              "SELECT revision FROM listening_progress WHERE user_id='demo-user'",
+            )
+            .get()
+        ).revision,
+        4,
+      );
+      assert.equal(
+        (
+          await db
+            .prepare(
+              "SELECT accepted_revision FROM progress_write_versions WHERE user_id='demo-user'",
+            )
+            .get()
+        ).accepted_revision,
+        4,
+      );
+      await db
+        .prepare(
+          "UPDATE listening_progress SET revision=6 WHERE user_id='demo-user'",
+        )
+        .run();
       assert.equal(
         (
           await db
@@ -151,6 +204,17 @@ if (process.env.TEST_DATABASE_URL)
       assert.equal(imported.playlist_items, 2);
       const repeated = await importSqlite(db, path);
       assert.equal(repeated.favorites, 0);
+      assert.equal(repeated.progress_write_versions, 0);
+      assert.equal(
+        (
+          await db
+            .prepare(
+              "SELECT revision FROM listening_progress WHERE user_id='demo-user'",
+            )
+            .get()
+        ).revision,
+        6,
+      );
       assert.equal(repeated.playlists, 0);
       assert.equal(repeated.playlist_items, 0);
       assert.equal(repeated.user_preferences, 0);

@@ -55,6 +55,8 @@ export async function importSqlite(db, path) {
           });
           known.add(row.user_id);
         }
+    const retainedProgress = new Set(),
+      importedProgress = new Set();
     await db.transaction(async () => {
       await db
         .prepare("UPDATE catalog_revision SET revision=? WHERE id=1")
@@ -65,6 +67,23 @@ export async function importSqlite(db, path) {
       ]) {
         counts[table] = 0;
         for (const row of data) {
+          if (
+            table === "listening_progress" ||
+            table === "progress_write_versions"
+          )
+            await db.lockProgress(row.user_id, row.chapter_id);
+          if (
+            table === "progress_write_versions" &&
+            row.request_hash &&
+            !importedProgress.has(`${row.user_id}:${row.chapter_id}`)
+          )
+            continue;
+          // A receipt cannot describe a retained target's different progress.
+          if (
+            table === "progress_write_versions" &&
+            retainedProgress.has(`${row.user_id}:${row.chapter_id}`)
+          )
+            continue;
           // Never attach imported memberships to an existing different owner's list.
           if (table === "playlists") {
             const target = await db
@@ -82,6 +101,10 @@ export async function importSqlite(db, path) {
               `INSERT INTO ${table}(${columns.join(",")}) VALUES(${columns.map(() => "?").join(",")}) ON CONFLICT DO NOTHING`,
             )
             .run(...columns.map((k) => row[k]));
+          if (table === "listening_progress" && !result.changes)
+            retainedProgress.add(`${row.user_id}:${row.chapter_id}`);
+          if (table === "listening_progress" && result.changes)
+            importedProgress.add(`${row.user_id}:${row.chapter_id}`);
           counts[table] += result.changes;
         }
       }
