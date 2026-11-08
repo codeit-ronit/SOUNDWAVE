@@ -138,6 +138,10 @@ try {
       "Redis atomically shares request limits across independent application instances",
       "real PostgreSQL backup restores all 21",
       "postgres: account writes serialize concurrent field changes and roll back atomically",
+      "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
+      "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
+      "postgres: rejected valid attempts also reserve their identity and cannot be repurposed",
+      "postgres: progress survives Redis disconnect/reconnect and streaming remains available",
     ];
     const missing = required.filter(
       (evidence) =>
@@ -164,6 +168,8 @@ try {
       "--check",
       "docs/CI.md",
       "docs/CI_FLAKE_INVESTIGATION.md",
+      "docs/M1_CROSS_DEVICE_SYNC.md",
+      "docs/m1-cross-device-verification.json",
     ]);
   }
   if (mode === "browser")
@@ -172,6 +178,7 @@ try {
       ["playlists", "playlists-smoke"],
       ["settings", "settings-smoke"],
       ["queue", "queue-smoke"],
+      ["cross-device", "cross-device-smoke"],
       ["offline", "offline-smoke"],
       ["restart", "audit-smoke"],
     ])

@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-08T09:19:48.190Z",
+  "database": "postgres",
+  "redis": true,
+  "checks": [
+    "two independent authenticated browser contexts restore the same account revision paused",
+    "a stale device cannot rewind accepted state; Resume Latest applies it paused",
+    "a deliberate rewind with the acknowledged revision persists and clean foreground refresh stays paused",
+    "active foreground synchronization does not jump audio; Keep My Position is an explicit conditional write",
+    "remote completion rejects an old device; explicit keep/reset reopens progress without erasing or duplicating completion analytics",
+    "real Redis disconnection rejects private synchronization without changing accepted progress",
+    "downloaded audio works during Redis/network loss; reconnect conflicts preserve local position until an explicit decision",
+    "real contexts racing one revision have one winner; exact retries acknowledge once and changed identity payloads fail",
+    "an old account's delayed synchronization result cannot restore private player/queue state after account switching",
+    "mobile layout and uncaught-error checks pass; synchronization never autoplays restored account progress"
+  ]
+}

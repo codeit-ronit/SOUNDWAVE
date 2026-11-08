@@ -8,7 +8,7 @@
 
 **Deployment status (last verified release):** The public demo was verified with a React frontend and PostgreSQL/authentication backend, with Redis caching/shared limits, BullMQ audio analysis and background analytics. Vercel hosts the frontend and same-origin API proxy; Render Free runs the API/worker and Redis-compatible store; Neon Free stores PostgreSQL data. [Public deployment verification](docs/PUBLIC_DEPLOYMENT.md) records actual browser and restart checks. **Free hosting sleeps when idle, so the first API request can take about a minute.** Redis queue state is volatile on this free plan, and external email delivery is disabled.
 
-Local V3 milestones M1.1–M1.3 have not been pushed or deployed; the public URL is not evidence of these new features.
+Local V3 milestones M1.1–M1.3 and M1.5 have not been pushed or deployed; the public URL is not evidence of these new features.
 
 The submitted resume URL, [zippy-nitrogen-wd3scr3.tmp.now](https://zippy-nitrogen-wd3scr3.tmp.now/), redirects to the existing live demo. Retain its original claimed deployment and hostname-specific redirect. Use the main demo URL for future submissions.
 
@@ -257,7 +257,8 @@ All endpoints use `/api`. JSON errors use `{ "error": { "message": "..." } }`. R
 | GET          | `/library`                         | Current user's favorites; session required                                                              |
 | PUT / DELETE | `/library/:storyId`                | Idempotent current-user favorite changes; session + CSRF                                                |
 | GET          | `/progress`                        | Current-user progress and Continue Listening; session required                                          |
-| PUT          | `/progress/:chapterId`             | `{ positionSeconds, completed?, clientId?, sequence? }`; session + CSRF                                 |
+| GET          | `/progress/:chapterId`             | Current-owner chapter state and revision, including the absent revision-0 default; session required     |
+| PUT          | `/progress/:chapterId`             | `{ positionSeconds, completed?, clientId, sequence, expectedRevision, action? }`; session + CSRF        |
 | GET          | `/recommendations`                 | Rule-based current-user suggestions; public fallback when anonymous                                     |
 | POST         | `/analytics/events`                | `{ id, type, chapterId, listeningSeconds?, playbackRate? }`; session + CSRF                             |
 | GET          | `/analytics/rollups?days=7`        | Current-user background snapshots; session required                                                     |
@@ -267,7 +268,7 @@ All endpoints use `/api`. JSON errors use `{ "error": { "message": "..." } }`. R
 
 For unsafe requests, first obtain a session cookie and CSRF token through `/auth/session`, then send that cookie and `X-CSRF-Token`. The frontend handles this exchange. Missing/expired private identity returns 401; failed CSRF returns 403; conflicting events/account guards return 409; invalid inputs return 400. JSON is limited to 8 KB; excessive requests return 429 and Retry-After.
 
-`q` is limited to 100 characters; `genre` to 40; `sort` allows only `trending`, `title`, `newest`. Prepared parameter binding treats SQL injection and wildcard input as data. Progress requires a finite position within chapter duration; completed chapters must be at their end. Paused/seek/chapter saves are acknowledged; unload saves remain best effort. Same-client version checks reject stale saves; independent clients still use last-arriving writes.
+`q` is limited to 100 characters; `genre` to 40; `sort` allows only `trending`, `title`, `newest`. Prepared parameter binding treats SQL injection and wildcard input as data. Progress requires a finite position within chapter duration; completed chapters must be at their end. Paused/seek/chapter saves are acknowledged; unload saves remain best effort. Every write now requires a server revision precondition and client identity/sequence. PostgreSQL/SQLite transactions reject cross-device stale writes with 409; old unversioned writers receive 428. Completion reopening requires explicit reset. [Full M1.5 contract](docs/M1_CROSS_DEVICE_SYNC.md).
 
 Bundled audio returns **200** for full GET/HEAD, **206** for one valid bounded/open/suffix range, and **416** for malformed/multiple/unsatisfiable ranges. HEAD has no body and ignores Range. If-Range, ETag, Last-Modified and exact content lengths are supported. Both stream and legacy `/audio` routes validate catalog mappings and real paths, including symlinks. Multipart ranges are not implemented. External chapters use a validated 307 redirect to Internet Archive for audio GET, locally validate requested ranges and return catalog-based HEAD metadata. External `/metadata` explicitly identifies provider data and does not pretend it has a measured waveform.
 
@@ -367,3 +368,9 @@ Current local M1.1 verification: **206 application tests passed** (155 backend +
 The persistent player now opens an editable cross-story queue: Play Next, Add to Queue, remove, move up/down, Previous/Next and confirmed clear. Chapter actions appear on story pages; playlist StoryCards enqueue their chapters without changing membership. The owner-scoped queue persists within a tab across refresh and restores paused; logout/account switching clears it. Offline queue playback uses downloaded public chapters. No queue database/API or deployment was added. [Semantics, tests and known limits](docs/M1_QUEUE.md). Run `npm run test:queue:browser` for its disposable local browser checks.
 
 Current local M1.3 verification: **240 application tests** (155 backend + 85 frontend), six CI safety tests and 14 queue browser checks per database passed, alongside all existing browser suites, build and formatting. [Exact evidence](docs/m1-queue-verification.json). Remote Actions remains unverified.
+
+## M1.5 — cross-device progress consistency
+
+Progress writes now require an acknowledged server revision and idempotency identity. PostgreSQL/SQLite transactions reject stale device writes; exact retries do not duplicate effects. The player offers Resume Latest or Keep My Position, preserves active audio and queue state, and refreshes on foreground/reconnection without polling. Old clients must refresh; release requires draining old API writers. Offline playback works, while unsaved progress is labeled and is not a durable offline event queue. No push/deployment occurred. [API, schema, rollout, tests and limitations](docs/M1_CROSS_DEVICE_SYNC.md). Run `npm run test:sync:browser` for disposable browser fixtures.
+
+Current local M1.5 verification: **289 application tests** (175 backend + 114 frontend), six CI safety tests, ten cross-device browser checks per database with real Redis, all existing browser suites, production build and formatting passed. [Exact evidence](docs/m1-cross-device-verification.json). Remote GitHub Actions remains unverified.

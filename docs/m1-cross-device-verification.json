@@ -1,0 +1,317 @@
+{
+  "milestone": "M1.5 Cross-Device Playback Progress Synchronization and Conflict Resolution",
+  "status": "Implemented and locally verified",
+  "verifiedAt": "2026-11-08T09:27:01.473286+00:00",
+  "branch": "feature/m1-private-playlists",
+  "baseCommit": "f13fbcf",
+  "remoteActions": "NOT RUN / NOT VERIFIED",
+  "pushed": false,
+  "deployed": false,
+  "productionResourcesChanged": false,
+  "environment": {
+    "node": "22.21.1",
+    "postgres": "18.6; new local disposable soundwave_ci_sync_20261108 database, generated schemas and restore databases",
+    "redis": "7.4.12; dedicated loopback test container and randomized prefixes",
+    "browser": "local headless Chrome via Playwright 1.64.1; two independent browser contexts authenticate separately",
+    "installation": "Existing lockfile dependencies reused; no dependencies added and npm ci was not repeated"
+  },
+  "contract": {
+    "scope": "authenticated owner/chapter",
+    "precondition": "expectedRevision required for every PUT",
+    "identity": "owner/chapter/client UUID/sequence; canonical request hash",
+    "revision": "starts at 0; state-changing update and explicit reset increment once; equivalent ordinary update acknowledges without another increment",
+    "staleStatus": 409,
+    "legacyStatus": 428,
+    "metadata": "one latest accepted/rejected outcome per client/chapter, at most 32 newly admitted slots; historical slots retained; older sequences retired",
+    "client": "no blind conflict retry; Resume Latest applies paused in place; Keep My Position uses displayed revision; unknown network outcomes retry exact original request",
+    "offline": "public audio remains playable; no durable general offline write/event queue; current tab snapshot may retain one position"
+  },
+  "applicationTests": {
+    "command": "TEST_DATABASE_URL=<disposable-loopback-pg> TEST_REDIS_URL=<dedicated-loopback-redis> TEST_BACKUP_CONTAINER=<matching-test-container> npm test",
+    "backend": 175,
+    "frontend": 114,
+    "total": 289,
+    "existingBaseline": 240,
+    "newTests": 49,
+    "failed": 0,
+    "skipped": 0,
+    "testFileConcurrency": 4,
+    "internalConcurrentRaceTests": "remain simultaneous"
+  },
+  "ciSafetyTests": {
+    "command": "node --test scripts/ci/safety.test.mjs (also executed by CI test runner)",
+    "passed": 6,
+    "failed": 0
+  },
+  "migrations": [
+    "server/migrations/postgres/011_progress_revisions.sql",
+    "server/migrations/postgres/012_progress_attempt_receipts.sql",
+    "server/migrations/sqlite/012_progress_revisions.sql",
+    "server/migrations/sqlite/013_progress_attempt_receipts.sql"
+  ],
+  "schema": {
+    "newTables": 0,
+    "backupTableCount": 21,
+    "fields": {
+      "listening_progress": ["revision"],
+      "progress_write_versions": [
+        "request_hash",
+        "accepted_revision",
+        "ack_position",
+        "ack_completed",
+        "ack_updated_at",
+        "result_code"
+      ]
+    },
+    "existingData": "positions/completion/events/client high-water marks retained; populated fresh/reapply/import/restore tests passed"
+  },
+  "apiChanges": [
+    "GET /api/progress/:chapterId returns own state, including empty revision-0 default",
+    "GET /api/progress and story chapters expose revision",
+    "PUT /api/progress/:chapterId requires expectedRevision/clientId/sequence and supports update/reset",
+    "409 includes stable code and current own state; legacy write 428; metadata admission cap 429"
+  ],
+  "browserChecks": [
+    {
+      "command": "TEST_REDIS_URL=<local-redis> node scripts/cross-device-smoke.mjs docs/m1-cross-device-browser-sqlite.json",
+      "database": "sqlite",
+      "passed": 10
+    },
+    {
+      "command": "TEST_DATABASE_URL=<local-pg> TEST_REDIS_URL=<local-redis> node scripts/cross-device-smoke.mjs docs/m1-cross-device-browser-postgres.json",
+      "database": "postgres",
+      "passed": 10
+    },
+    {
+      "command": "node scripts/browser-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 14
+    },
+    {
+      "command": "node scripts/auth-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 5
+    },
+    {
+      "command": "node scripts/offline-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 13
+    },
+    {
+      "command": "node scripts/keyboard-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 3
+    },
+    {
+      "command": "node scripts/audit-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 7
+    },
+    {
+      "command": "node scripts/playlists-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 10
+    },
+    {
+      "command": "node scripts/settings-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 8
+    },
+    {
+      "command": "node scripts/queue-smoke.mjs",
+      "database": "temporary SQLite",
+      "passed": 14
+    }
+  ],
+  "localCiRunner": {
+    "directory": "dotenv-free disposable export",
+    "commands": [
+      "node scripts/ci/run.mjs test",
+      "node scripts/ci/run.mjs build",
+      "node scripts/ci/run.mjs format",
+      "node scripts/ci/run.mjs browser"
+    ],
+    "results": {
+      "test": [
+        {
+          "name": "ci-safety",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 95
+        },
+        {
+          "name": "migrations",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 329
+        },
+        {
+          "name": "tests",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 27082
+        }
+      ],
+      "build": [
+        {
+          "name": "build",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 2052
+        }
+      ],
+      "format": [
+        {
+          "name": "format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1700
+        },
+        {
+          "name": "ci-doc-format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 533
+        }
+      ],
+      "browser": [
+        {
+          "name": "login",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 5015
+        },
+        {
+          "name": "playlists",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 7650
+        },
+        {
+          "name": "settings",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 11730
+        },
+        {
+          "name": "queue",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 9642
+        },
+        {
+          "name": "cross-device",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 7491
+        },
+        {
+          "name": "offline",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3702
+        },
+        {
+          "name": "restart",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 4774
+        }
+      ]
+    },
+    "requiredIntegrationCoverage": {
+      "required": [
+        "postgres: transaction rollback, concurrent completions and stale progress writes",
+        "PostgreSQL fresh concurrent migrations",
+        "postgres: playlist reads/writes reject anonymous sessions",
+        "postgres: concurrent playlist additions serialize",
+        "Redis atomically shares request limits across independent application instances",
+        "real PostgreSQL backup restores all 21",
+        "postgres: account writes serialize concurrent field changes and roll back atomically",
+        "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
+        "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
+        "postgres: rejected valid attempts also reserve their identity and cannot be repurposed",
+        "postgres: progress survives Redis disconnect/reconnect and streaming remains available"
+      ],
+      "missing": [],
+      "zeroSkipped": true
+    }
+  },
+  "build": {
+    "command": "npm run build",
+    "passed": true,
+    "modules": 1709
+  },
+  "format": {
+    "command": "npm run format:check; explicit Prettier on changed docs/JSON/server package; git diff --check",
+    "passed": true
+  },
+  "findingsAndFixes": [
+    "Independent client IDs previously had no shared precondition: now database CAS and durable latest outcome receipts enforce it",
+    "Valid rejected identities could be repurposed: now outcome codes reserve them transactionally",
+    "Equivalent paused saves created unnecessary revisions: no-op acknowledgements retain the revision",
+    "A saved acknowledgement could clear a later small rewind: capture local edit generations before dispatch and retain dirty state",
+    "A decision could otherwise borrow a later hidden observation: use the displayed conflict revision and show changed state before another decision",
+    "Synchronization unnecessarily reloaded media; a PostgreSQL browser run failed with a media network error. Adoption now seeks the same source paused, with a no-load unit regression",
+    "New backup child rows made fixture cleanup fail/hang: delete its progress children and always close the client",
+    "Observed local concurrent migration lock timeout: bound test files to four without changing internal simultaneous race assertions",
+    "Old tests/scripts now send explicit revisions/reset actions; stale writes that used to be ignored with 200 now assert 409",
+    "A fixture-position expectation accidentally changed during migration-count editing was restored to its original exact value 12"
+  ],
+  "limitations": [
+    "Current-chapter/event-driven sync only; no cross-device queue or global playback lease",
+    "Only latest outcome per admitted client/chapter is replayable; older sequences return retired conflict; 32 new client slots require existing client/operator when full",
+    "No durable general offline progress or analytics queue; cold offline bootstrap requires reload/sign-in before private sync",
+    "Concurrent streams retain existing stream-wall-time analytics; no global overlap deduplication",
+    "All old API writers must be drained for release; old browser shells must refresh (428)",
+    "Local Chrome evidence only; remote Actions, public deployment, external Google provider, full Redis-server/container crash drill and load benchmark not repeated",
+    "M1.3 general Chrome hot-cache concern remains separate and is not claimed universally fixed"
+  ],
+  "changedFiles": [
+    ".github/workflows/ci.yml",
+    "README.md",
+    "client/src/PlayerContext.jsx",
+    "client/src/PlayerContext.test.jsx",
+    "client/src/api.js",
+    "client/src/components.jsx",
+    "client/src/offlineMetadata.test.js",
+    "client/src/progressSync.js",
+    "client/src/progressSync.test.js",
+    "client/src/queueStorage.js",
+    "client/src/styles.css",
+    "docs/ARCHITECTURE.md",
+    "docs/CI.md",
+    "docs/M1_CROSS_DEVICE_SYNC.md",
+    "docs/SOUNDWAVE_V3_ROADMAP.md",
+    "docs/m1-cross-device-browser-postgres.json",
+    "docs/m1-cross-device-browser-sqlite.json",
+    "docs/m1-cross-device-verification.json",
+    "package.json",
+    "scripts/audit-smoke.mjs",
+    "scripts/ci/run.mjs",
+    "scripts/container-smoke.mjs",
+    "scripts/cross-device-smoke.mjs",
+    "server/database/import-sqlite.js",
+    "server/migrations/postgres/011_progress_revisions.sql",
+    "server/migrations/postgres/012_progress_attempt_receipts.sql",
+    "server/migrations/sqlite/012_progress_revisions.sql",
+    "server/migrations/sqlite/013_progress_attempt_receipts.sql",
+    "server/package.json",
+    "server/repositories/catalog.js",
+    "server/repositories/listening.js",
+    "server/routes/api.js",
+    "server/test/account.test.js",
+    "server/test/analytics.test.js",
+    "server/test/api.test.js",
+    "server/test/auth.test.js",
+    "server/test/backup.test.js",
+    "server/test/catalog-import.test.js",
+    "server/test/cross-device.test.js",
+    "server/test/google.test.js",
+    "server/test/http.test.js",
+    "server/test/migration.test.js",
+    "server/test/playlists.test.js",
+    "server/test/progress-body.js"
+  ],
+  "implementationCommits": ["f585e63", "b86b9ec"]
+}

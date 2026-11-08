@@ -82,3 +82,7 @@ The Settings browser script now joins the mandatory bounded browser gate and the
 ## M1.3 regression additions
 
 The mandatory browser runner also executes `scripts/queue-smoke.mjs` against generated PostgreSQL schemas. This covers queue editing, account clearing, refresh, real cross-story transitions and downloaded playback; it has the existing three-minute script deadline and masked failure artifacts. Local evidence and limitations are recorded in [M1_QUEUE.md](M1_QUEUE.md). Remote Actions remains NOT RUN.
+
+## M1.5 concurrency gate additions
+
+The TAP guard requires PostgreSQL cross-device CAS, valid rejected-attempt identity protection, populated revision migration and real Redis-client disconnect/reconnect coverage. The mandatory browser job also runs two independently authenticated contexts through `cross-device-smoke.mjs` against PostgreSQL/Redis. Backend test files use concurrency four to bound local resource use; race tests retain their simultaneous operations. New protocol documentation/evidence is explicitly formatted. [Contract and actual results](M1_CROSS_DEVICE_SYNC.md). Remote Actions remains NOT RUN.
