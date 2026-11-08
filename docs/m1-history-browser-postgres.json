@@ -1,0 +1,13 @@
+{
+  "date": "2026-11-08T11:22:02.088Z",
+  "database": "postgres",
+  "checks": [
+    "isolated guest history uses bounded 20-item pages and loads 26 unique bookmarks with privacy and completion labels",
+    "cancel is harmless; confirmed removal clears only the bookmark and leaves active audio, favorites, playlist and completion intact",
+    "refresh retains removal; stale and ordinary writes cannot resurrect it, while explicit revision-checked replay restores the bookmark",
+    "bulk confirmation detects another device's newer activity; refreshed retry clears all pages and Continue Listening without resetting completion",
+    "guest upgrade preserves tombstones; logout clears private UI and another guest sees none; login restores the correct account state",
+    "temporary history read failures show a recoverable error and Retry restores the real server state",
+    "history and revision data never enter PWA caches; mobile navigation fits and no browser exceptions occur"
+  ]
+}

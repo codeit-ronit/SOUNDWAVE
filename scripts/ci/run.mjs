@@ -142,6 +142,9 @@ try {
       "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
       "postgres: rejected valid attempts also reserve their identity and cannot be repurposed",
       "postgres: progress survives Redis disconnect/reconnect and streaming remains available",
+      "postgres: concurrent history removal and progress updates serialize without resurrection",
+      "postgres: guarded bulk clear is atomic, repeat-safe and does not erase post-clear activity",
+      "postgres: additive history migration preserves bookmarks, completion and revision receipts",
     ];
     const missing = required.filter(
       (evidence) =>
@@ -170,6 +173,8 @@ try {
       "docs/CI_FLAKE_INVESTIGATION.md",
       "docs/M1_CROSS_DEVICE_SYNC.md",
       "docs/m1-cross-device-verification.json",
+      "docs/M1_HISTORY.md",
+      "docs/m1-history-verification.json",
     ]);
   }
   if (mode === "browser")
@@ -179,6 +184,7 @@ try {
       ["settings", "settings-smoke"],
       ["queue", "queue-smoke"],
       ["cross-device", "cross-device-smoke"],
+      ["history", "history-smoke"],
       ["offline", "offline-smoke"],
       ["restart", "audit-smoke"],
     ])

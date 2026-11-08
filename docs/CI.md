@@ -86,3 +86,7 @@ The mandatory browser runner also executes `scripts/queue-smoke.mjs` against gen
 ## M1.5 concurrency gate additions
 
 The TAP guard requires PostgreSQL cross-device CAS, valid rejected-attempt identity protection, populated revision migration and real Redis-client disconnect/reconnect coverage. The mandatory browser job also runs two independently authenticated contexts through `cross-device-smoke.mjs` against PostgreSQL/Redis. Backend test files use concurrency four to bound local resource use; race tests retain their simultaneous operations. New protocol documentation/evidence is explicitly formatted. [Contract and actual results](M1_CROSS_DEVICE_SYNC.md). Remote Actions remains NOT RUN.
+
+## M1.4 history regression additions
+
+The mandatory runner now requires successful PostgreSQL populated history migration, concurrent removal/update and guarded bulk-clear tests, with zero skipped backend tests. `history-smoke.mjs` joins the same bounded browser gate and masked failure artifact handling, using a generated PostgreSQL schema. SQLite is checked locally too. No extra infrastructure or secrets are needed. [Exact current local results](m1-history-verification.json); hosted Actions remains NOT RUN.
