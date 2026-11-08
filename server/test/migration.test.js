@@ -67,7 +67,7 @@ test("SQLite additive auth migration preserves pre-auth listener rows and keeps 
     const again = openDatabase(path);
     assert.equal(
       again.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get().n,
-      13,
+      14,
     );
     again.close();
   } finally {
@@ -265,6 +265,35 @@ if (process.env.TEST_DATABASE_URL)
         ).position_seconds,
         12.5,
       );
+      const hiddenSource = new Database(path);
+      hiddenSource
+        .prepare(
+          "INSERT INTO listening_progress(user_id,chapter_id,position_seconds,completed,revision,history_removed) VALUES('demo-user',102,35,1,7,1)",
+        )
+        .run();
+      hiddenSource.close();
+      await importSqlite(db, path);
+      assert.equal(
+        (
+          await db
+            .prepare(
+              "SELECT history_removed FROM listening_progress WHERE user_id='demo-user' AND chapter_id=102",
+            )
+            .get()
+        ).history_removed,
+        1,
+      );
+      const { historyService } = await import("../services/history.js");
+      await historyService(db).remove("demo-user", 101, 6);
+      await importSqlite(db, path);
+      const tombstone = await db
+        .prepare(
+          "SELECT * FROM listening_progress WHERE user_id='demo-user' AND chapter_id=101",
+        )
+        .get();
+      assert.equal(tombstone.history_removed, 1);
+      assert.equal(tombstone.revision, 7);
+      assert.equal(tombstone.position_seconds, 0);
       const check = new Database(path, { readonly: true });
       assert.equal(
         check.prepare("SELECT COUNT(*) AS n FROM favorites").get().n,

@@ -258,6 +258,9 @@ All endpoints use `/api`. JSON errors use `{ "error": { "message": "..." } }`. R
 | PUT / DELETE | `/library/:storyId`                | Idempotent current-user favorite changes; session + CSRF                                                |
 | GET          | `/progress`                        | Current-user progress and Continue Listening; session required                                          |
 | GET          | `/progress/:chapterId`             | Current-owner chapter state and revision, including the absent revision-0 default; session required     |
+| GET          | `/history?limit=20&cursor=…`       | Private saved chapter bookmarks; cursor pagination default 20/max 50; returns history revision          |
+| DELETE       | `/history/:chapterId`              | `{ expectedRevision }`; hide own bookmark, preserve completion/analytics and advance tombstone revision |
+| DELETE       | `/history`                         | `{ expectedHistoryRevision, confirm: "CLEAR_SAVED_HISTORY" }`; guarded, transactional own-history clear |
 | PUT          | `/progress/:chapterId`             | `{ positionSeconds, completed?, clientId, sequence, expectedRevision, action? }`; session + CSRF        |
 | GET          | `/recommendations`                 | Rule-based current-user suggestions; public fallback when anonymous                                     |
 | POST         | `/analytics/events`                | `{ id, type, chapterId, listeningSeconds?, playbackRate? }`; session + CSRF                             |
@@ -374,3 +377,7 @@ Current local M1.3 verification: **240 application tests** (155 backend + 85 fro
 Progress writes now require an acknowledged server revision and idempotency identity. PostgreSQL/SQLite transactions reject stale device writes; exact retries do not duplicate effects. The player offers Resume Latest or Keep My Position, preserves active audio and queue state, and refreshes on foreground/reconnection without polling. Old clients must refresh; release requires draining old API writers. Offline playback works, while unsaved progress is labeled and is not a durable offline event queue. No push/deployment occurred. [API, schema, rollout, tests and limitations](docs/M1_CROSS_DEVICE_SYNC.md). Run `npm run test:sync:browser` for disposable browser fixtures.
 
 Current local M1.5 verification: **289 application tests** (175 backend + 114 frontend), six CI safety tests, ten cross-device browser checks per database with real Redis, all existing browser suites, production build and formatting passed. [Exact evidence](docs/m1-cross-device-verification.json). Remote GitHub Actions remains unverified.
+
+## M1.4 — listening history and removal controls
+
+History now provides bounded cursor pages, Resume/Replay, confirmed individual removal and guarded bulk clear. Removal hides bookmarks from History and Continue Listening and clears incomplete resume positions. Completion markers, analytics/events, playlists, downloads and the tab queue remain. Server revision tombstones reject stale saves; explicit reset/replay can restore a bookmark. This is not full privacy erasure. See [API, data semantics and limitations](docs/M1_HISTORY.md) and [current local verification](docs/m1-history-verification.json). Local verification: **321 application tests** (195 backend + 126 frontend), **6 CI safety tests**, **98 browser checks**, clean install, build and formatting passed. No public deployment or remote Actions success is claimed.

@@ -145,5 +145,9 @@ export function serializeStory(row) {
   return { ...row, is_favorite: Boolean(row.is_favorite) };
 }
 export function serializeProgress(row) {
-  return { ...row, completed: Boolean(row.completed) };
+  return {
+    ...row,
+    completed: Boolean(row.completed),
+    ...(row.removed !== undefined ? { removed: !!row.removed } : {}),
+  };
 }

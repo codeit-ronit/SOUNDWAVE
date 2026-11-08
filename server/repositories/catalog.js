@@ -36,7 +36,7 @@ export function catalogRepository(db, cache = null) {
       (
         await db
           .prepare(
-            `SELECT c.*,(SELECT byte_length FROM chapter_sources x WHERE x.chapter_id=c.id) AS audio_bytes,COALESCE(p.position_seconds,0) AS position_seconds,COALESCE(p.completed,0) AS completed,COALESCE(p.revision,0) AS revision
+            `SELECT c.*,(SELECT byte_length FROM chapter_sources x WHERE x.chapter_id=c.id) AS audio_bytes,COALESCE(p.position_seconds,0) AS position_seconds,COALESCE(p.completed,0) AS completed,COALESCE(p.revision,0) AS revision,COALESCE(p.history_removed,0) AS removed
       FROM chapters c LEFT JOIN listening_progress p ON p.chapter_id=c.id AND p.user_id=? WHERE c.story_id=? ORDER BY c.chapter_number`,
           )
           .all(user, story)
@@ -62,7 +62,7 @@ export function catalogRepository(db, cache = null) {
         await db
           .prepare(
             `SELECT p.*,c.story_id,c.title AS chapter_title,c.chapter_number,c.duration_seconds FROM listening_progress p JOIN chapters c ON c.id=p.chapter_id
-      WHERE p.user_id=? ORDER BY p.updated_at DESC,p.chapter_id DESC`,
+      WHERE p.user_id=? AND p.history_removed=0 ORDER BY p.updated_at DESC,p.chapter_id DESC`,
           )
           .all(user)
       ).map(serializeProgress),

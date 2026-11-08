@@ -197,3 +197,30 @@ it("a queued snapshot cannot borrow a newer local edit generation", async () => 
   await sync.write(old);
   expect(sync.record(101).dirty).toBe(true);
 });
+it("removal blocks ordinary writes and queued old reset intents until explicit restoration", async () => {
+  sync.adopt(101, { ...state(2, 0), removed: true });
+  expect(
+    (await sync.write({ ...snapshot(8), baseRevision: 1, reset: true }))
+      .removed,
+  ).toBe(true);
+  expect((await sync.write({ ...snapshot(8), baseRevision: 2 })).removed).toBe(
+    true,
+  );
+  expect(api.save).not.toHaveBeenCalled();
+  api.save.mockResolvedValueOnce({
+    progress: { ...state(3, 0), removed: false },
+    acknowledgedRevision: 3,
+  });
+  await sync.write({ ...snapshot(0), baseRevision: 2, reset: true });
+  expect(api.save.mock.calls[0][4]).toMatchObject({
+    action: "reset",
+    expectedRevision: 2,
+  });
+  expect(sync.record(101).removed).toBe(false);
+});
+it("a tombstone is never mistaken for a harmless equivalent-state conflict", async () => {
+  api.save.mockRejectedValueOnce(
+    Object.assign(error(2), { progress: { ...state(2, 0), removed: true } }),
+  );
+  expect((await sync.write(snapshot(0))).conflict.removed).toBe(true);
+});

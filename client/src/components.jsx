@@ -212,9 +212,11 @@ export function Player() {
           role="alert"
         >
           <strong>
-            {p.progressConflict.reason === "unsaved"
-              ? "This device has unsaved progress"
-              : "Another session saved this chapter"}
+            {p.progressConflict.server.removed
+              ? "This chapter was removed from saved history"
+              : p.progressConflict.reason === "unsaved"
+                ? "This device has unsaved progress"
+                : "Another session saved this chapter"}
           </strong>
           <span>
             Latest: {timeLabel(p.progressConflict.server.position_seconds)}
@@ -222,23 +224,32 @@ export function Player() {
             audio has not moved.
           </span>
           <span>
-            Resume Latest loads it paused. Keep My Position explicitly saves
-            your current position and reopens a completed chapter when needed.
+            {p.progressConflict.server.removed
+              ? "Keep Removed leaves current audio and queue unchanged. Restore My Position explicitly restores a saved bookmark."
+              : "Resume Latest loads it paused. Keep My Position explicitly saves your current position and reopens a completed chapter when needed."}
           </span>
           <div>
             <button
               className="button secondary"
               disabled={p.syncing}
-              onClick={() => p.resolveProgress("latest")}
+              onClick={() =>
+                p.resolveProgress(
+                  p.progressConflict.server.removed ? "removed" : "latest",
+                )
+              }
             >
-              Resume Latest
+              {p.progressConflict.server.removed
+                ? "Keep Removed"
+                : "Resume Latest"}
             </button>
             <button
               className="button secondary"
               disabled={p.syncing}
               onClick={() => p.resolveProgress("keep")}
             >
-              Keep My Position
+              {p.progressConflict.server.removed
+                ? "Restore My Position"
+                : "Keep My Position"}
             </button>
           </div>
         </section>

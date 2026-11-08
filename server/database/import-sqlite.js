@@ -58,6 +58,11 @@ export async function importSqlite(db, path) {
     const retainedProgress = new Set(),
       importedProgress = new Set();
     await db.transaction(async () => {
+      // Match runtime owner -> chapter lock ordering for concurrent imports.
+      for (const user of [...users].sort((a, b) => a.id.localeCompare(b.id)))
+        await db
+          .prepare("SELECT id FROM users WHERE id=? FOR UPDATE")
+          .get(user.id);
       await db
         .prepare("UPDATE catalog_revision SET revision=? WHERE id=1")
         .run(randomUUID());
@@ -105,6 +110,12 @@ export async function importSqlite(db, path) {
             retainedProgress.add(`${row.user_id}:${row.chapter_id}`);
           if (table === "listening_progress" && result.changes)
             importedProgress.add(`${row.user_id}:${row.chapter_id}`);
+          if (table === "listening_progress" && result.changes)
+            await db
+              .prepare(
+                "UPDATE users SET history_revision=history_revision+1 WHERE id=?",
+              )
+              .run(row.user_id);
           counts[table] += result.changes;
         }
       }

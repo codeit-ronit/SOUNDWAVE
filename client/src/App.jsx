@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import AccountRecovery from "./AccountRecovery";
 import Settings from "./Settings";
+import History from "./History";
 import QueuePanel from "./QueuePanel";
 import { Account } from "./AuthContext";
 import Analytics from "./Analytics";
@@ -59,6 +60,10 @@ export default function App() {
             <LibraryBig size={20} />
             My library
             <span className="nav-count">{library.stories.length}</span>
+          </NavLink>
+          <NavLink to="/history">
+            <LibraryBig size={18} />
+            History
           </NavLink>
           <NavLink to="/downloads">
             <Download size={20} />
@@ -139,6 +144,10 @@ export default function App() {
             <LibraryBig size={17} />
             My library
           </NavLink>
+          <NavLink to="/history">
+            <LibraryBig size={18} />
+            History
+          </NavLink>
           <NavLink to="/downloads">
             <Download size={17} />
             Downloads
@@ -163,6 +172,7 @@ export default function App() {
             )}
           </div>
           <Routes>
+            <Route path="/history" element={<History />} />
             <Route path="/queue" element={<QueuePanel />} />
             <Route path="/" element={<Discover />} />
             <Route path="/account" element={<AccountRecovery />} />

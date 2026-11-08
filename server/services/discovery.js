@@ -7,11 +7,15 @@ export async function listeningHistory(repo, user) {
   const continueListening = [];
   for (const row of latest.values()) {
     const chapters = await repo.chapters(user, row.story_id);
-    const current = chapters.find((c) => c.id === row.chapter_id);
+    const current = chapters.find((c) => c.id === row.chapter_id && !c.removed);
+    if (!current) continue;
     const next = current.completed
       ? chapters.find(
-          (c) => c.chapter_number > current.chapter_number && !c.completed,
-        ) || chapters.find((c) => !c.completed)
+          (c) =>
+            c.chapter_number > current.chapter_number &&
+            !c.completed &&
+            !c.removed,
+        ) || chapters.find((c) => !c.completed && !c.removed)
       : current;
     if (next)
       continueListening.push({

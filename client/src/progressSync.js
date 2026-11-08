@@ -22,6 +22,7 @@ export function createProgressSync({
         revision: 0,
         position_seconds: 0,
         completed: false,
+        removed: false,
         dirty: false,
         editVersion: 0,
         pending: null,
@@ -40,6 +41,7 @@ export function createProgressSync({
           chapter_id: chapter.id,
           position_seconds: chapter.position_seconds || 0,
           completed: !!chapter.completed,
+          removed: !!chapter.removed,
           revision,
         };
     } else if (!r.dirty && !r.conflict)
@@ -47,6 +49,7 @@ export function createProgressSync({
         revision,
         position_seconds: chapter.position_seconds || 0,
         completed: !!chapter.completed,
+        removed: !!chapter.removed,
       });
     return r;
   }
@@ -84,6 +87,7 @@ export function createProgressSync({
                   revision: r.revision,
                   position_seconds: r.position_seconds,
                   completed: r.completed,
+                  removed: !!r.removed,
                 }
               : data.progress;
         return { conflict: r.conflict };
@@ -96,7 +100,16 @@ export function createProgressSync({
     } catch (error) {
       if (error.status === 409 && error.progress) {
         if (
+          r.removed &&
+          error.progress.removed &&
+          r.revision >= error.progress.revision
+        ) {
+          r.pending = null;
+          return { removed: true, progress: { ...r } };
+        }
+        if (
           error.code === "PROGRESS_CONFLICT" &&
+          !error.progress.removed &&
           error.progress.position_seconds === operation.position &&
           error.progress.completed === operation.completed &&
           error.progress.revision >= r.revision
@@ -126,6 +139,12 @@ export function createProgressSync({
       r = record(id);
     r.dirty = true;
     if (!online()) return { offline: true };
+    if (
+      r.removed &&
+      !resolution &&
+      (!snapshot.reset || (snapshot.baseRevision ?? 0) < r.revision)
+    )
+      return { removed: true, progress: { ...r } };
     if (r.conflict && !resolution) return { conflict: r.conflict };
     if (r.pending) {
       const previous = r.pending,
@@ -151,7 +170,11 @@ export function createProgressSync({
         : r.revision,
       action:
         (snapshot.reset && !completed) ||
-        (resolution && (r.conflict?.completed ?? r.completed) && !completed)
+        (resolution &&
+          ((r.conflict?.completed ?? r.completed) ||
+            r.conflict?.removed ||
+            r.removed) &&
+          !completed)
           ? "reset"
           : "update",
     };

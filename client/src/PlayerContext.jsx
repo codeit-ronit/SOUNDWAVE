@@ -124,6 +124,7 @@ export function PlayerProvider({ children, session }) {
       const snapshot = {
         chapterId: current.chapter.id,
         editVersion: sync.current.record(current.chapter.id).editVersion,
+        baseRevision: sync.current.record(current.chapter.id).revision,
         position: completed
           ? current.chapter.duration_seconds
           : Math.min(audio.currentTime || 0, current.chapter.duration_seconds),
@@ -152,6 +153,12 @@ export function PlayerProvider({ children, session }) {
             setSaveError("");
             setProgressStatus(
               "Progress conflict — choose which position to keep.",
+            );
+          } else if (result?.removed) {
+            setProgressConflict(null);
+            setSaveError("");
+            setProgressStatus(
+              "Removed from saved history. Playback continues without restoring it.",
             );
           } else if (result?.offline) {
             setSaveError(
@@ -249,8 +256,14 @@ export function PlayerProvider({ children, session }) {
       audio.pause();
       const current = { story, chapter, entryId };
       const known = sync.current.seed(chapter);
+      const suppressRestore =
+        (chapter.removed || known.removed) &&
+        chapter.allowHistoryRestore === false;
       resetEntry.current =
-        chapter.completed || chapter.resetProgress ? entryId : null;
+        !suppressRestore &&
+        (chapter.completed || chapter.removed || chapter.resetProgress)
+          ? entryId
+          : null;
       if (resetEntry.current) sync.current.markDirty(chapter.id);
       setProgressConflict(
         known.conflict ? { entryId, server: known.conflict } : null,
@@ -353,6 +366,7 @@ export function PlayerProvider({ children, session }) {
           position_seconds: 0,
           completed: false,
           resetProgress: true,
+          allowHistoryRestore: !completed,
         },
         entry.id,
       );
@@ -581,6 +595,7 @@ export function PlayerProvider({ children, session }) {
             revision: entry.chapter.revision ?? 0,
             position_seconds: entry.chapter.position_seconds || 0,
             completed: !!entry.chapter.completed,
+            removed: !!entry.chapter.removed,
           };
           select(
             entry.story,
@@ -593,6 +608,13 @@ export function PlayerProvider({ children, session }) {
             false,
           );
           sync.current.seed(entry.chapter);
+          if (remote.removed) {
+            sync.current.adopt(entry.chapter.id, remote);
+            resetEntry.current = null;
+            setProgressStatus(
+              "Removed from saved history. Explicit replay can restore it.",
+            );
+          }
           if (!navigator.onLine || session?.offline) {
             sync.current.record(entry.chapter.id).dirty = true;
             setSaveError(
@@ -603,6 +625,7 @@ export function PlayerProvider({ children, session }) {
           if (
             navigator.onLine &&
             session?.user &&
+            !remote.removed &&
             Math.abs(snapshot.position - remote.position_seconds) > 0.05
           ) {
             sync.current.conflict(entry.chapter.id, remote);
@@ -916,15 +939,28 @@ export function PlayerProvider({ children, session }) {
         revision: record.revision,
         position_seconds: record.position_seconds,
         completed: record.completed,
+        removed: !!record.removed,
       };
     const shown = progressConflict.server;
     if (
       remote.revision !== shown.revision ||
       remote.position_seconds !== shown.position_seconds ||
-      remote.completed !== shown.completed
+      remote.completed !== shown.completed ||
+      !!remote.removed !== !!shown.removed
     ) {
       sync.current.conflict(current.chapter.id, remote);
       setProgressConflict({ entryId: current.entryId, server: remote });
+      return;
+    }
+    if (choice === "removed" && remote.removed) {
+      sync.current.adopt(current.chapter.id, remote);
+      resetEntry.current = null;
+      setProgressConflict(null);
+      setSaveError("");
+      setProgressStatus(
+        "Removed from saved history. Current audio and queue are unchanged.",
+      );
+      persistQueue(audioRef.current.currentTime);
       return;
     }
     if (choice === "latest") {
@@ -937,6 +973,7 @@ export function PlayerProvider({ children, session }) {
       snapshot = {
         chapterId: current.chapter.id,
         editVersion: record.editVersion,
+        baseRevision: record.revision,
         position: Math.min(
           audio.currentTime || 0,
           current.chapter.duration_seconds,
@@ -946,6 +983,11 @@ export function PlayerProvider({ children, session }) {
         identity: nextProgressVersion(),
         reset: resetEntry.current === current.entryId,
       };
+    if (remote.removed && snapshot.completed) {
+      snapshot.position = 0;
+      snapshot.completed = false;
+      snapshot.reset = true;
+    }
     try {
       const pending = saveQueue.current
         .catch(() => {})
@@ -991,11 +1033,50 @@ export function PlayerProvider({ children, session }) {
     }
   };
 
+  const historyRemoved = useCallback(
+    async (progress) => {
+      const current = activeRef.current;
+      notify();
+      if (!current) return;
+      try {
+        const state =
+          progress ||
+          (await api.progressChapter(current.chapter.id, undefined, session))
+            .progress;
+        if (
+          !mounted.current ||
+          activeRef.current !== current ||
+          state.chapter_id !== current.chapter.id ||
+          !state.removed ||
+          state.revision < sync.current.record(current.chapter.id).revision
+        )
+          return;
+        sync.current.adopt(current.chapter.id, state);
+        resetEntry.current = null;
+        setProgressConflict(null);
+        setSaveError("");
+        setProgressStatus(
+          "Removed from saved history. Current audio and queue are unchanged.",
+        );
+        persistQueue(audioRef.current.currentTime);
+      } catch (error) {
+        if (mounted.current && activeRef.current === current)
+          setSaveError(
+            `History changed; refresh progress before saving: ${error.message}`,
+          );
+      }
+    },
+    [notify, persistQueue],
+  );
+
   const toggle = () => {
     const audio = audioRef.current;
     if (!active) return;
     if (audio.paused) {
-      if (sync.current.record(activeRef.current.chapter.id).completed)
+      if (
+        sync.current.record(activeRef.current.chapter.id).completed ||
+        sync.current.record(activeRef.current.chapter.id).removed
+      )
         resetEntry.current = activeRef.current.entryId;
       if (audio.ended || audio.currentTime >= duration) {
         endedEntry.current = null;
@@ -1178,6 +1259,7 @@ export function PlayerProvider({ children, session }) {
         move,
         retry,
         retrySave: () => save(false, false, true),
+        historyRemoved,
         progressConflict,
         progressStatus,
         syncing,

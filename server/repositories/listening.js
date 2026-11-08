@@ -60,15 +60,16 @@ export function progressState(row, chapterId) {
     completed: !!row?.completed,
     revision: row?.revision ?? 0,
     updated_at: row?.updated_at ?? null,
+    removed: !!row?.history_removed,
   };
 }
-export const progressFailure = (status, code, message, progress) =>
-  Object.assign(new Error(message), {
-    status,
-    code,
-    progress,
-    progressFailure: true,
-  });
+export { progressFailure } from "./progress-error.js";
+import { progressFailure } from "./progress-error.js";
+import {
+  lockHistoryOwner,
+  advanceHistory,
+  historyNow,
+} from "./history-owner.js";
 export async function readProgress(db, user, chapterId) {
   return progressState(
     await db
@@ -101,6 +102,7 @@ export async function saveProgress(
     )
     .digest("hex");
   const outcome = await db.transaction(async () => {
+    await lockHistoryOwner(db, user);
     await db.lockProgress?.(user, chapter.id);
     const current = await readProgress(db, user, chapter.id);
     const receipt = await db
@@ -174,6 +176,11 @@ export async function saveProgress(
         "PROGRESS_CONFLICT",
         "Another session saved this chapter. Choose which position to keep.",
       );
+    if (current.removed && action !== "reset")
+      return reject(
+        "PROGRESS_RESET_REQUIRED",
+        "This chapter was removed from saved history. Explicitly reset to restore it.",
+      );
     if (current.completed && !isComplete && action !== "reset")
       return reject(
         "PROGRESS_RESET_REQUIRED",
@@ -194,8 +201,8 @@ export async function saveProgress(
     if (changed)
       await db
         .prepare(
-          `INSERT INTO listening_progress(user_id,chapter_id,position_seconds,completed,revision) VALUES(?,?,?,?,?)
-      ON CONFLICT(user_id,chapter_id) DO UPDATE SET position_seconds=excluded.position_seconds,completed=excluded.completed,revision=excluded.revision,updated_at=${db.now}`,
+          `INSERT INTO listening_progress(user_id,chapter_id,position_seconds,completed,revision,updated_at) VALUES(?,?,?,?,?,${historyNow(db)})
+      ON CONFLICT(user_id,chapter_id) DO UPDATE SET position_seconds=excluded.position_seconds,completed=excluded.completed,revision=excluded.revision,history_removed=0,updated_at=${historyNow(db)}`,
         )
         .run(
           user,
@@ -204,6 +211,7 @@ export async function saveProgress(
           Number(isComplete),
           revision,
         );
+    if (changed) await advanceHistory(db, user);
     const saved = await readProgress(db, user, chapter.id);
     await store(saved);
     if (isComplete && !current.completed)

@@ -46,6 +46,7 @@ const progressAck = (id, position, completed, _keepalive, version) => ({
     chapter_id: id,
     position_seconds: position,
     completed,
+    removed: false,
     revision: version.expectedRevision + 1,
   },
   acknowledgedRevision: version.expectedRevision + 1,
@@ -1055,4 +1056,74 @@ it("a small pending rewind is not overwritten by a foreground read", async () =>
   await act(() => player.refreshProgress(true));
   expect(view.audio.currentTime).toBe(4.9);
   expect(player.progressConflict.server.revision).toBe(2);
+});
+
+describe("history removal and active player", () => {
+  it("adopts removal without stopping audio, changing queue order or resaving removed progress", async () => {
+    const view = setup();
+    await act(() => player.playStory(story));
+    view.audio.currentTime = 8;
+    const ids = player.queue.upcoming.map((e) => e.id);
+    await act(() =>
+      player.historyRemoved({
+        chapter_id: 101,
+        position_seconds: 0,
+        completed: false,
+        removed: true,
+        revision: 2,
+      }),
+    );
+    expect(view.audio.currentTime).toBe(8);
+    expect(view.audio.paused).toBe(false);
+    expect(player.queue.upcoming.map((e) => e.id)).toEqual(ids);
+    await act(() => player.retrySave());
+    expect(api.save).not.toHaveBeenCalled();
+    expect(player.progressStatus).toContain("Removed");
+  });
+  it("explicit replay restores a removed chapter through reset", async () => {
+    setup();
+    await act(() => player.playStory(story));
+    await act(() =>
+      player.historyRemoved({
+        chapter_id: 101,
+        position_seconds: 0,
+        completed: false,
+        removed: true,
+        revision: 2,
+      }),
+    );
+    api.chapters.mockResolvedValueOnce({
+      chapters: [{ ...chapters[0], removed: true, revision: 2 }, chapters[1]],
+    });
+    await act(() => player.playStory(story, 101));
+    await act(() => player.retrySave());
+    expect(api.save.mock.calls[0][4]).toMatchObject({
+      action: "reset",
+      expectedRevision: 2,
+    });
+  });
+  it("automatic queue transitions cannot restore a known tombstone", async () => {
+    const view = setup();
+    await act(() => player.playStory(story));
+    await act(() =>
+      player.historyRemoved({
+        chapter_id: 101,
+        position_seconds: 0,
+        completed: false,
+        removed: true,
+        revision: 2,
+      }),
+    );
+    await act(() => player.enqueue(story, 101));
+    act(() => player.move(1));
+    await act(async () => {
+      view.audio.currentTime = 30;
+      view.audio.dispatchEvent(new Event("ended"));
+      await Promise.resolve();
+    });
+    expect(player.active.chapter.id).toBe(101);
+    const before = api.save.mock.calls.length;
+    await act(() => player.retrySave());
+    expect(api.save).toHaveBeenCalledTimes(before);
+  });
 });

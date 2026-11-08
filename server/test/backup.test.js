@@ -52,6 +52,13 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         "INSERT INTO progress_write_versions(user_id,chapter_id,client_id,sequence,request_hash,accepted_revision,ack_position,ack_completed,result_code) VALUES($1,101,$2,10,$3,3,6,0,'PROGRESS_CONFLICT')",
         [owner, randomUUID(), "b".repeat(64)],
       );
+      await client.query("UPDATE users SET history_revision=9 WHERE id=$1", [
+        owner,
+      ]);
+      await client.query(
+        "INSERT INTO listening_progress(user_id,chapter_id,position_seconds,completed,revision,history_removed) SELECT $1,102,duration_seconds,1,7,1 FROM chapters WHERE id=102",
+        [owner],
+      );
       const manifest = await backupDatabase(
         process.env.TEST_DATABASE_URL,
         path,

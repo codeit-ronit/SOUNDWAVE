@@ -22,11 +22,33 @@ export async function request(path, options = {}, session = scope) {
     error.status = response.status;
     error.code = data?.error?.code;
     error.progress = data?.progress;
+    error.historyRevision = data?.historyRevision;
     throw error;
   }
   return response.status === 204 ? null : response.json();
 }
 export const api = {
+  history: (params, signal, session = scope) =>
+    request(`/history?${params}`, { signal }, session),
+  removeHistory: (id, expectedRevision, signal, session = scope) =>
+    request(
+      `/history/${id}`,
+      { method: "DELETE", body: JSON.stringify({ expectedRevision }), signal },
+      session,
+    ),
+  clearHistory: (expectedHistoryRevision, signal, session = scope) =>
+    request(
+      "/history",
+      {
+        method: "DELETE",
+        body: JSON.stringify({
+          expectedHistoryRevision,
+          confirm: "CLEAR_SAVED_HISTORY",
+        }),
+        signal,
+      },
+      session,
+    ),
   profile: (signal, session = scope) =>
     request("/profile", { signal }, session),
   saveProfile: (displayName, session = scope) =>
