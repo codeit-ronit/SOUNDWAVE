@@ -136,7 +136,7 @@ try {
       "postgres: playlist reads/writes reject anonymous sessions",
       "postgres: concurrent playlist additions serialize",
       "Redis atomically shares request limits across independent application instances",
-      "real PostgreSQL backup restores all 21",
+      "real PostgreSQL backup restores all 22",
       "postgres: account writes serialize concurrent field changes and roll back atomically",
       "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
       "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
@@ -145,6 +145,12 @@ try {
       "postgres: concurrent history removal and progress updates serialize without resurrection",
       "postgres: guarded bulk clear is atomic, repeat-safe and does not erase post-clear activity",
       "postgres: additive history migration preserves bookmarks, completion and revision receipts",
+      "postgres: creator authorization requires both active role and exact story ownership, including staff",
+      "postgres: concurrent onboarding and suspension serialize; failed creator transactions roll back",
+      "postgres: additive creator migration preserves populated listener state and marks catalog provenance",
+      "PostgreSQL creator import preserves identity, role, suspension and ownership; conflicts roll back",
+      "postgres: creator identity and suspension survive password and Google sign-in on the same account",
+      "postgres: external provenance is read-only to creators and imports cannot overwrite creator ownership",
     ];
     const missing = required.filter(
       (evidence) =>
@@ -175,6 +181,8 @@ try {
       "docs/m1-cross-device-verification.json",
       "docs/M1_HISTORY.md",
       "docs/m1-history-verification.json",
+      "docs/M2_CREATOR_IDENTITY.md",
+      "docs/m2-creator-identity-verification.json",
     ]);
   }
   if (mode === "browser")
@@ -185,6 +193,7 @@ try {
       ["queue", "queue-smoke"],
       ["cross-device", "cross-device-smoke"],
       ["history", "history-smoke"],
+      ["creator", "creator-smoke"],
       ["offline", "offline-smoke"],
       ["restart", "audit-smoke"],
     ])

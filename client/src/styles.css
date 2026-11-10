@@ -3127,3 +3127,16 @@ input[type="range"]::-moz-range-thumb {
     row-gap: 8px;
   }
 }
+
+.settings-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 100px;
+  resize: vertical;
+  font: inherit;
+  padding: 12px;
+  color: inherit;
+  background: #191821;
+  border: 1px solid #393744;
+  border-radius: 10px;
+}

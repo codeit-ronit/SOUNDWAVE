@@ -14,6 +14,7 @@ export async function importSqlite(db, path) {
         .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?")
         .get(name);
     const tables = [
+      "creator_profiles",
       "stories",
       "chapters",
       "story_sources",
@@ -96,6 +97,32 @@ export async function importSqlite(db, path) {
               .get(row.id);
             if (target && target.user_id !== row.user_id)
               throw Error("Playlist ownership conflict during import");
+          }
+          if (table === "stories") {
+            if (row.ownership_kind === undefined)
+              row.ownership_kind = rows.story_sources.some(
+                (x) => x.story_id === row.id,
+              )
+                ? "external"
+                : "system";
+            const target = await db
+              .prepare(
+                "SELECT owner_id,ownership_kind FROM stories WHERE id=? FOR UPDATE",
+              )
+              .get(row.id);
+            if (
+              target &&
+              (target.ownership_kind !== row.ownership_kind ||
+                target.owner_id !== (row.owner_id ?? null))
+            )
+              throw Error("Story ownership conflict during import");
+          }
+          if (table === "chapters") {
+            const target = await db
+              .prepare("SELECT story_id FROM chapters WHERE id=? FOR UPDATE")
+              .get(row.id);
+            if (target && target.story_id !== row.story_id)
+              throw Error("Chapter ownership conflict during import");
           }
           // Column names originate only in the known SQLite schema, not requests.
           const columns = Object.keys(row).filter((k) => k !== "event_order");

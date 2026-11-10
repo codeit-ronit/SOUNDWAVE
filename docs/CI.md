@@ -90,3 +90,7 @@ The TAP guard requires PostgreSQL cross-device CAS, valid rejected-attempt ident
 ## M1.4 history regression additions
 
 The mandatory runner now requires successful PostgreSQL populated history migration, concurrent removal/update and guarded bulk-clear tests, with zero skipped backend tests. `history-smoke.mjs` joins the same bounded browser gate and masked failure artifact handling, using a generated PostgreSQL schema. SQLite is checked locally too. No extra infrastructure or secrets are needed. [Exact current local results](m1-history-verification.json); hosted Actions remains NOT RUN.
+
+## M2.1 creator identity gates
+
+The mandatory integration guard requires PostgreSQL active-role/ownership checks, concurrent onboarding/suspension and rollback, populated creator migration, Google/password identity preservation, provider protection and SQLite import conflict preservation. Full backup/restore now verifies 22 tables, including creator profile/status and staff/story ownership columns. `creator-smoke.mjs` joins the bounded mandatory browser job with generated PostgreSQL schemas; SQLite is also checked locally. No new services/secrets are required. [Current local evidence](m2-creator-identity-verification.json); remote Actions remains NOT RUN.

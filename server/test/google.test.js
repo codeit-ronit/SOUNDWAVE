@@ -419,3 +419,48 @@ test("Google sign-in cannot recreate a session revoked while token verification 
     await f.close();
   }
 });
+for (const kind of backends)
+  test(`${kind}: creator identity and suspension survive password and Google sign-in on the same account`, async () => {
+    const f = await setup(kind);
+    try {
+      const a = await f.client();
+      await a.write("/demo");
+      await a.write("/register", {
+        email: "alice@gmail.com",
+        password,
+        displayName: "Creator listener",
+      });
+      const id = a.data.user.id;
+      await a.agent
+        .post("/api/creator")
+        .set("X-CSRF-Token", a.data.csrfToken)
+        .send({ displayName: "Linked creator", bio: "Same account" })
+        .expect(200);
+      const before = (await a.get("/creator").expect(200)).body;
+      await a.google();
+      assert.equal(a.data.user.id, id);
+      assert.deepEqual((await a.get("/creator").expect(200)).body, before);
+      await f.db
+        .prepare(
+          "UPDATE creator_profiles SET status='suspended' WHERE user_id=?",
+        )
+        .run(id);
+      await a.write("/logout", {}, 204);
+      const b = await f.client();
+      await b.google();
+      assert.equal(b.data.user.id, id);
+      assert.equal((await b.get("/creator")).body.creator.status, "suspended");
+      await b.agent
+        .post("/api/creator")
+        .set("X-CSRF-Token", b.data.csrfToken)
+        .send({ displayName: "Bypass", bio: "" })
+        .expect(403);
+      await b.write("/logout", {}, 204);
+      const c = await f.client();
+      await c.write("/login", { email: "alice@gmail.com", password });
+      assert.equal(c.data.user.id, id);
+      assert.equal((await c.get("/creator")).body.creator.status, "suspended");
+    } finally {
+      await f.close();
+    }
+  });

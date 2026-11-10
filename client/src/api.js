@@ -28,6 +28,24 @@ export async function request(path, options = {}, session = scope) {
   return response.status === 204 ? null : response.json();
 }
 export const api = {
+  creator: (signal, session = scope) =>
+    request("/creator", { signal }, session),
+  saveCreator: (action, profile, signal, session = scope) =>
+    request(
+      "/creator",
+      {
+        method: action === "activate" ? "POST" : "PUT",
+        body: JSON.stringify(profile),
+        signal,
+      },
+      session,
+    ),
+  deactivateCreator: (signal, session = scope) =>
+    request(
+      "/creator/deactivate",
+      { method: "POST", body: "{}", signal },
+      session,
+    ),
   history: (params, signal, session = scope) =>
     request(`/history?${params}`, { signal }, session),
   removeHistory: (id, expectedRevision, signal, session = scope) =>

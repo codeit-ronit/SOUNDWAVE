@@ -144,10 +144,11 @@ export async function importLibrivoxBook(
       )
       .get(projectId);
     const occupiedStory = await db
-      .prepare("SELECT id FROM stories WHERE id=?")
+      .prepare("SELECT id,ownership_kind FROM stories WHERE id=?")
       .get(book.storyId);
     if (
-      (occupiedStory && !previous) ||
+      (occupiedStory &&
+        (!previous || occupiedStory.ownership_kind !== "external")) ||
       (previous && previous.story_id !== book.storyId)
     )
       throw sourceError("Catalog ID collision; existing story retained");
@@ -177,8 +178,8 @@ export async function importLibrivoxBook(
       );
     await db
       .prepare(
-        `INSERT INTO stories(id,title,genre,author,tagline,description,color,symbol,popularity) VALUES(?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(id) DO UPDATE SET title=excluded.title,genre=excluded.genre,author=excluded.author,tagline=excluded.tagline,description=excluded.description,color=excluded.color,symbol=excluded.symbol`,
+        `INSERT INTO stories(id,title,genre,author,tagline,description,color,symbol,popularity,ownership_kind) VALUES(?,?,?,?,?,?,?,?,?,'external')
+      ON CONFLICT(id) DO UPDATE SET title=excluded.title,genre=excluded.genre,author=excluded.author,tagline=excluded.tagline,description=excluded.description,color=excluded.color,symbol=excluded.symbol WHERE stories.ownership_kind='external' AND stories.owner_id IS NULL`,
       )
       .run(
         book.storyId,

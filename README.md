@@ -229,45 +229,47 @@ Back up both databases before a real cutover. The importer opens the source read
 
 All endpoints use `/api`. JSON errors use `{ "error": { "message": "..." } }`. Responses carry `X-Request-ID`. Private JSON uses `Cache-Control: private, no-store` and `Vary: Cookie`.
 
-| Method       | Path                               | Access / behavior                                                                                       |
-| ------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| GET          | `/auth/session`                    | Pre-login session or current sanitized identity, CSRF token, expiry and demo availability; never cached |
-| POST         | `/auth/demo`                       | CSRF-protected independent guest creation; only when enabled and signed out                             |
-| POST         | `/auth/register`                   | `{ email, password, displayName }`; create account or upgrade current guest                             |
-| POST         | `/auth/google/challenge`           | Session + CSRF; issues a short-lived, single-use Google nonce                                           |
-| POST         | `/auth/google`                     | `{ credential }`; verify Google ID token, sign in or explicitly link current password account           |
-| POST         | `/auth/login`                      | `{ email, password }`; rotate session on valid credentials                                              |
-| POST         | `/auth/forgot-password`            | Generic accepted response; queues reset mail when configured                                            |
-| POST         | `/auth/request-verification`       | Resend for current registered account; session + CSRF                                                   |
-| POST         | `/auth/verify-email`               | One-use `{ token }`; CSRF                                                                               |
-| POST         | `/auth/reset-password`             | `{ token, password }`; reset and all-session revocation; CSRF                                           |
-| GET          | `/ready`                           | Database/Redis dependency readiness                                                                     |
-| POST         | `/auth/logout`                     | CSRF-protected revocation; 204                                                                          |
-| GET          | `/health`                          | Database connectivity and adapter type; public                                                          |
-| GET          | `/genres`                          | Public genre list                                                                                       |
-| GET          | `/stories?q=&genre=&sort=trending` | Public catalog; current user's favorite flags only                                                      |
-| GET          | `/stories/:id`                     | Public story details                                                                                    |
-| GET          | `/stories/:id/chapters`            | Chapters with current user's progress, neutral for anonymous visitors                                   |
-| GET          | `/playlists?limit=20&cursor=…`     | Private owner list; default 20/max 50; opaque next cursor                                               |
-| POST         | `/playlists`                       | Session + CSRF; `{ name }`, 1–80 Unicode characters; 201                                                |
-| GET          | `/playlists/:id`                   | Own playlist + up to 100 stories in insertion order                                                     |
-| PUT          | `/playlists/:id`                   | Session + CSRF; rename own list with `{ name }`                                                         |
-| DELETE       | `/playlists/:id`                   | Session + CSRF; remove own collection/membership only; 204                                              |
-| PUT / DELETE | `/playlists/:id/stories/:storyId`  | Session + CSRF; idempotent add/remove; unique membership, 100-story cap                                 |
-| GET          | `/library`                         | Current user's favorites; session required                                                              |
-| PUT / DELETE | `/library/:storyId`                | Idempotent current-user favorite changes; session + CSRF                                                |
-| GET          | `/progress`                        | Current-user progress and Continue Listening; session required                                          |
-| GET          | `/progress/:chapterId`             | Current-owner chapter state and revision, including the absent revision-0 default; session required     |
-| GET          | `/history?limit=20&cursor=…`       | Private saved chapter bookmarks; cursor pagination default 20/max 50; returns history revision          |
-| DELETE       | `/history/:chapterId`              | `{ expectedRevision }`; hide own bookmark, preserve completion/analytics and advance tombstone revision |
-| DELETE       | `/history`                         | `{ expectedHistoryRevision, confirm: "CLEAR_SAVED_HISTORY" }`; guarded, transactional own-history clear |
-| PUT          | `/progress/:chapterId`             | `{ positionSeconds, completed?, clientId, sequence, expectedRevision, action? }`; session + CSRF        |
-| GET          | `/recommendations`                 | Rule-based current-user suggestions; public fallback when anonymous                                     |
-| POST         | `/analytics/events`                | `{ id, type, chapterId, listeningSeconds?, playbackRate? }`; session + CSRF                             |
-| GET          | `/analytics/rollups?days=7`        | Current-user background snapshots; session required                                                     |
-| GET          | `/analytics/overview`              | Current-user totals, genres, daily activity and recent events; session required                         |
-| GET          | `/chapters/:id/metadata`           | 202 while pending; real analyzed format/duration/RMS/waveform when complete                             |
-| GET / HEAD   | `/chapters/:id/stream`             | Public full/range audio with validated file resolution                                                  |
+| Method           | Path                               | Access / behavior                                                                                       |
+| ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| GET              | `/auth/session`                    | Pre-login session or current sanitized identity, CSRF token, expiry and demo availability; never cached |
+| POST             | `/auth/demo`                       | CSRF-protected independent guest creation; only when enabled and signed out                             |
+| POST             | `/auth/register`                   | `{ email, password, displayName }`; create account or upgrade current guest                             |
+| POST             | `/auth/google/challenge`           | Session + CSRF; issues a short-lived, single-use Google nonce                                           |
+| POST             | `/auth/google`                     | `{ credential }`; verify Google ID token, sign in or explicitly link current password account           |
+| POST             | `/auth/login`                      | `{ email, password }`; rotate session on valid credentials                                              |
+| POST             | `/auth/forgot-password`            | Generic accepted response; queues reset mail when configured                                            |
+| POST             | `/auth/request-verification`       | Resend for current registered account; session + CSRF                                                   |
+| POST             | `/auth/verify-email`               | One-use `{ token }`; CSRF                                                                               |
+| POST             | `/auth/reset-password`             | `{ token, password }`; reset and all-session revocation; CSRF                                           |
+| GET              | `/ready`                           | Database/Redis dependency readiness                                                                     |
+| POST             | `/auth/logout`                     | CSRF-protected revocation; 204                                                                          |
+| GET              | `/health`                          | Database connectivity and adapter type; public                                                          |
+| GET              | `/genres`                          | Public genre list                                                                                       |
+| GET              | `/stories?q=&genre=&sort=trending` | Public catalog; current user's favorite flags only                                                      |
+| GET              | `/stories/:id`                     | Public story details                                                                                    |
+| GET              | `/stories/:id/chapters`            | Chapters with current user's progress, neutral for anonymous visitors                                   |
+| GET              | `/playlists?limit=20&cursor=…`     | Private owner list; default 20/max 50; opaque next cursor                                               |
+| POST             | `/playlists`                       | Session + CSRF; `{ name }`, 1–80 Unicode characters; 201                                                |
+| GET              | `/playlists/:id`                   | Own playlist + up to 100 stories in insertion order                                                     |
+| PUT              | `/playlists/:id`                   | Session + CSRF; rename own list with `{ name }`                                                         |
+| DELETE           | `/playlists/:id`                   | Session + CSRF; remove own collection/membership only; 204                                              |
+| PUT / DELETE     | `/playlists/:id/stories/:storyId`  | Session + CSRF; idempotent add/remove; unique membership, 100-story cap                                 |
+| GET              | `/library`                         | Current user's favorites; session required                                                              |
+| PUT / DELETE     | `/library/:storyId`                | Idempotent current-user favorite changes; session + CSRF                                                |
+| GET              | `/progress`                        | Current-user progress and Continue Listening; session required                                          |
+| GET              | `/progress/:chapterId`             | Current-owner chapter state and revision, including the absent revision-0 default; session required     |
+| GET / POST / PUT | `/creator`                         | Own creator status/profile; explicit registered-only activation and active-profile editing              |
+| POST             | `/creator/deactivate`              | `{}`; soft deactivation; suspension cannot be bypassed                                                  |
+| GET              | `/history?limit=20&cursor=…`       | Private saved chapter bookmarks; cursor pagination default 20/max 50; returns history revision          |
+| DELETE           | `/history/:chapterId`              | `{ expectedRevision }`; hide own bookmark, preserve completion/analytics and advance tombstone revision |
+| DELETE           | `/history`                         | `{ expectedHistoryRevision, confirm: "CLEAR_SAVED_HISTORY" }`; guarded, transactional own-history clear |
+| PUT              | `/progress/:chapterId`             | `{ positionSeconds, completed?, clientId, sequence, expectedRevision, action? }`; session + CSRF        |
+| GET              | `/recommendations`                 | Rule-based current-user suggestions; public fallback when anonymous                                     |
+| POST             | `/analytics/events`                | `{ id, type, chapterId, listeningSeconds?, playbackRate? }`; session + CSRF                             |
+| GET              | `/analytics/rollups?days=7`        | Current-user background snapshots; session required                                                     |
+| GET              | `/analytics/overview`              | Current-user totals, genres, daily activity and recent events; session required                         |
+| GET              | `/chapters/:id/metadata`           | 202 while pending; real analyzed format/duration/RMS/waveform when complete                             |
+| GET / HEAD       | `/chapters/:id/stream`             | Public full/range audio with validated file resolution                                                  |
 
 For unsafe requests, first obtain a session cookie and CSRF token through `/auth/session`, then send that cookie and `X-CSRF-Token`. The frontend handles this exchange. Missing/expired private identity returns 401; failed CSRF returns 403; conflicting events/account guards return 409; invalid inputs return 400. JSON is limited to 8 KB; excessive requests return 429 and Retry-After.
 
@@ -381,3 +383,7 @@ Current local M1.5 verification: **289 application tests** (175 backend + 114 fr
 ## M1.4 — listening history and removal controls
 
 History now provides bounded cursor pages, Resume/Replay, confirmed individual removal and guarded bulk clear. Removal hides bookmarks from History and Continue Listening and clears incomplete resume positions. Completion markers, analytics/events, playlists, downloads and the tab queue remain. Server revision tombstones reject stale saves; explicit reset/replay can restore a bookmark. This is not full privacy erasure. See [API, data semantics and limitations](docs/M1_HISTORY.md) and [current local verification](docs/m1-history-verification.json). Local verification: **321 application tests** (195 backend + 126 frontend), **6 CI safety tests**, **98 browser checks**, clean install, build and formatting passed. No public deployment or remote Actions success is claimed.
+
+## M2.1 — creator identity and ownership
+
+Registered listeners can explicitly activate a private creator profile at `/creator`, edit their name/bio and deactivate/reactivate access. Guests cannot become creators; suspension is operator-controlled and preserves listener features. Staff roles require explicit operator provisioning and are never self-assigned. Story ownership/provenance constraints, shared service authorization, seed/import guards and fail-closed creator-content visibility prepare for private Studio drafts. Uploading and publishing are not implemented. [Policy, API and operator commands](docs/M2_CREATOR_IDENTITY.md) · [Local verification](docs/m2-creator-identity-verification.json): **355 application tests, 6 CI safety tests and 114 browser check groups passed**, alongside clean install, build and formatting. No deployment or remote CI success is claimed.

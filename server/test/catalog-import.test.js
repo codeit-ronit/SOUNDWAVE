@@ -382,3 +382,72 @@ if (process.env.TEST_REDIS_URL) {
     }
   });
 }
+for (const backend of backends)
+  test(`${backend}: external provenance is read-only to creators and imports cannot overwrite creator ownership`, async () => {
+    const f = await fixture(backend),
+      u = upstream(),
+      owner = randomUUID();
+    try {
+      await f.db
+        .prepare(
+          "INSERT INTO users(id,email,password_hash,display_name,kind) VALUES(?,?,'fixture-only','Creator','registered')",
+        )
+        .run(owner, `${owner}@example.com`);
+      await f.db
+        .prepare(
+          "INSERT INTO creator_profiles(user_id,display_name) VALUES(?,'Creator')",
+        )
+        .run(owner);
+      await importLibrivoxBook(f.db, 200, { fetchImpl: u.fetch });
+      assert.equal(
+        (
+          await f.db
+            .prepare("SELECT ownership_kind FROM stories WHERE id=1200")
+            .get()
+        ).ownership_kind,
+        "external",
+      );
+      const { authorizationService } =
+        await import("../services/authorization.js");
+      await assert.rejects(
+        authorizationService(f.db).ownedStory({ id: owner }, 1200),
+        (e) => e.status === 404,
+      );
+      const previous = (
+        await f.db
+          .prepare("SELECT content_hash FROM story_sources WHERE story_id=1200")
+          .get()
+      ).content_hash;
+      await f.db
+        .prepare(
+          "UPDATE stories SET ownership_kind='creator',owner_id=?,title='Retained creator title' WHERE id=1200",
+        )
+        .run(owner);
+      await assert.rejects(
+        importLibrivoxBook(f.db, 200, { fetchImpl: u.fetch }),
+        /collision/,
+      );
+      u.book.title = "Provider changed title";
+      await assert.rejects(
+        importLibrivoxBook(f.db, 200, { fetchImpl: u.fetch }),
+        /collision/,
+      );
+      assert.equal(
+        (await f.db.prepare("SELECT title FROM stories WHERE id=1200").get())
+          .title,
+        "Retained creator title",
+      );
+      assert.equal(
+        (
+          await f.db
+            .prepare(
+              "SELECT content_hash FROM story_sources WHERE story_id=1200",
+            )
+            .get()
+        ).content_hash,
+        previous,
+      );
+    } finally {
+      await f.close();
+    }
+  });

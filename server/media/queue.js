@@ -52,7 +52,7 @@ export async function enqueueCatalogMedia(db, queue) {
     skipped = 0;
   for (const { id } of await db
     .prepare(
-      "SELECT id FROM chapters WHERE NOT EXISTS (SELECT 1 FROM chapter_sources s WHERE s.chapter_id=chapters.id) ORDER BY id",
+      "SELECT id FROM chapters WHERE NOT EXISTS (SELECT 1 FROM chapter_sources s WHERE s.chapter_id=chapters.id) AND EXISTS(SELECT 1 FROM stories b WHERE b.id=chapters.story_id AND b.ownership_kind='system') ORDER BY id",
     )
     .all()) {
     const hash = await sourceHash(await audioPath(db, id));

@@ -33,7 +33,9 @@ export function createAudioHandler(db) {
           .status(400)
           .json({ error: { message: "Invalid chapter ID." } });
       const chapter = await db
-        .prepare("SELECT audio_url FROM chapters WHERE id=?")
+        .prepare(
+          "SELECT c.audio_url FROM chapters c JOIN stories s ON s.id=c.story_id WHERE c.id=? AND s.ownership_kind IN ('system','external')",
+        )
         .get(Number(req.params.id));
       if (!chapter)
         return res
@@ -180,7 +182,9 @@ export function legacyAudioRouter(db) {
   const serve = createAudioHandler(db);
   const legacy = async (req, res, next) => {
     const chapter = await db
-      .prepare("SELECT id FROM chapters WHERE audio_url=?")
+      .prepare(
+        "SELECT c.id FROM chapters c JOIN stories s ON s.id=c.story_id WHERE c.audio_url=? AND s.ownership_kind IN ('system','external') ORDER BY c.id LIMIT 1",
+      )
       .get(`/audio/${req.params.filename}`);
     if (!chapter)
       return res

@@ -63,7 +63,11 @@ export function playlistRepository(db) {
         )
         .get(id, story),
     storyExists: (story) =>
-      db.prepare("SELECT id FROM stories WHERE id=?").get(story),
+      db
+        .prepare(
+          "SELECT id FROM stories WHERE id=? AND ownership_kind IN ('system','external')",
+        )
+        .get(story),
     add: (id, story, position) =>
       db
         .prepare(

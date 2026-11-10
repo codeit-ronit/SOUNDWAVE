@@ -21,6 +21,7 @@ import {
 import AccountRecovery from "./AccountRecovery";
 import Settings from "./Settings";
 import History from "./History";
+import Creator from "./Creator";
 import QueuePanel from "./QueuePanel";
 import { Account } from "./AuthContext";
 import Analytics from "./Analytics";
@@ -72,6 +73,10 @@ export default function App() {
           <NavLink to="/analytics">
             <BarChart3 size={20} />
             Insights
+          </NavLink>
+          <NavLink to="/creator">
+            <Settings2 size={18} />
+            Creator access
           </NavLink>
           <NavLink to="/settings">
             <Settings2 size={20} />
@@ -156,6 +161,10 @@ export default function App() {
             <BarChart3 size={17} />
             Insights
           </NavLink>
+          <NavLink to="/creator">
+            <Settings2 size={18} />
+            Creator access
+          </NavLink>
           <NavLink to="/settings">
             <Settings2 size={17} />
             Settings
@@ -172,6 +181,7 @@ export default function App() {
             )}
           </div>
           <Routes>
+            <Route path="/creator" element={<Creator />} />
             <Route path="/history" element={<History />} />
             <Route path="/queue" element={<QueuePanel />} />
             <Route path="/" element={<Discover />} />

@@ -14,6 +14,7 @@ import { analyticsRouter } from "./routes/analytics.js";
 import { streamRouter, legacyAudioRouter } from "./routes/stream.js";
 import { apiRouter } from "./routes/api.js";
 import { playlistRouter } from "./routes/playlists.js";
+import { creatorRouter } from "./routes/creators.js";
 import { historyRouter } from "./routes/history.js";
 import { accountRouter } from "./routes/account.js";
 export function createApp(
@@ -104,6 +105,7 @@ export function createApp(
   app.use("/api", streamRouter(db));
   app.use("/api/playlists", playlistRouter(db));
   app.use("/api/history", historyRouter(db));
+  app.use("/api/creator", creatorRouter(db));
   app.use("/api", accountRouter(db));
   app.use("/api", analyticsRouter(db));
   app.use(

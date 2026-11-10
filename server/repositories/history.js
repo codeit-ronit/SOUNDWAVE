@@ -12,7 +12,7 @@ export function historyRepository(db) {
           `SELECT p.chapter_id,p.position_seconds,p.completed,p.revision,p.updated_at,c.title AS chapter_title,c.chapter_number,c.duration_seconds,c.story_id,s.title AS story_title,s.color AS story_color,s.symbol AS story_symbol,s.genre AS story_genre,
     ${db.dialect === "postgres" ? `to_char(p.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')` : "p.updated_at"} AS cursor_time
     FROM listening_progress p JOIN chapters c ON c.id=p.chapter_id JOIN stories s ON s.id=c.story_id
-    WHERE p.user_id=? AND p.history_removed=0 ${cursor ? "AND (p.updated_at<? OR (p.updated_at=? AND p.chapter_id<?))" : ""}
+    WHERE p.user_id=? AND p.history_removed=0 AND s.ownership_kind IN ('system','external') ${cursor ? "AND (p.updated_at<? OR (p.updated_at=? AND p.chapter_id<?))" : ""}
     ORDER BY p.updated_at DESC,p.chapter_id DESC LIMIT ?`,
         )
         .all(

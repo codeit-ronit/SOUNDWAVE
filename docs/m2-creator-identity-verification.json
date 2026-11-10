@@ -1,0 +1,468 @@
+{
+  "milestone": "M2.1 Creator Onboarding, Roles and Ownership",
+  "status": "Implemented and locally verified",
+  "verifiedAt": "2026-11-10T04:34:57.132447+00:00",
+  "branch": "feature/m1-private-playlists",
+  "baseCommit": "72b620b",
+  "commitNote": "This evidence is generated before its own atomic delivery commit; inspect git log for the commit hash. No remote run or deployment is implied.",
+  "remoteActions": "NOT RUN / NOT VERIFIED",
+  "pushed": false,
+  "deployed": false,
+  "productionResourcesChanged": false,
+  "developerDataChanged": false,
+  "environment": {
+    "node": "22.21.1",
+    "postgres": "18.6; new disposable loopback soundwave_ci_creator_20261110 database, generated schemas and restore databases",
+    "redis": "7.4.12; dedicated loopback test container with randomized namespaces",
+    "browser": "Local headless Google Chrome via Playwright 1.64.1 on Apple Silicon macOS",
+    "installation": "Clean npm ci in dotenv-free disposable export; no new dependencies"
+  },
+  "roleModel": {
+    "loginKinds": "Existing registered/guest/legacy unchanged",
+    "staffRole": "users.platform_role: listener(default)/moderator/admin; staff only for registered accounts",
+    "creatorPermission": "Derived from current active creator_profiles row; keyed to stable registered account UUID, independent of password/Google provider",
+    "onboarding": "Explicit registered-only automatic activation; duplicate calls preserve existing fields. No email-verification prerequisite for this private identity-only capability. No uploads, publishing or moderation permission is granted.",
+    "lifecycle": "active/inactive/suspended; inactive self-reactivates, suspended cannot edit/deactivate/reactivate; only trusted operator restores suspension",
+    "staffProvisioning": "Explicit database environment and --confirm-operator CLI, never HTTP; no first-user/admin signup shortcut",
+    "authorization": "Session-derived ID, current DB role/status, active creator AND exact story owner; no staff cross-creator edit bypass; future writes must authorize and mutate inside one outer transaction"
+  },
+  "applicationTests": {
+    "command": "TEST_DATABASE_URL=<disposable-local-pg> TEST_REDIS_URL=<dedicated-local-redis> TEST_BACKUP_CONTAINER=<matching-test-container> npm test; exact local CI test runner",
+    "baseline": 321,
+    "backend": 221,
+    "frontend": 134,
+    "total": 355,
+    "newBackend": 26,
+    "newFrontend": 8,
+    "failed": 0,
+    "skipped": 0,
+    "frontendFiles": 15
+  },
+  "ciSafetyTests": {
+    "passed": 6,
+    "failed": 0,
+    "command": "node --test scripts/ci/safety.test.mjs; executed by exact CI test runner"
+  },
+  "browserChecks": [
+    {
+      "suite": "core",
+      "database": "sqlite",
+      "passed": 14,
+      "command": "node scripts/browser-smoke.mjs"
+    },
+    {
+      "suite": "keyboard",
+      "database": "sqlite",
+      "passed": 3,
+      "command": "node scripts/keyboard-smoke.mjs"
+    },
+    {
+      "suite": "login",
+      "database": "sqlite",
+      "passed": 5,
+      "command": "CI browser: auth-smoke.mjs"
+    },
+    {
+      "suite": "playlists",
+      "database": "postgres",
+      "passed": 10,
+      "command": "CI browser: playlists-smoke.mjs"
+    },
+    {
+      "suite": "settings",
+      "database": "postgres",
+      "passed": 8,
+      "command": "CI browser: settings-smoke.mjs"
+    },
+    {
+      "suite": "queue",
+      "database": "postgres",
+      "passed": 14,
+      "command": "CI browser: queue-smoke.mjs"
+    },
+    {
+      "suite": "cross-device",
+      "database": "postgres",
+      "passed": 10,
+      "command": "CI browser: cross-device-smoke.mjs"
+    },
+    {
+      "suite": "history",
+      "database": "postgres",
+      "passed": 7,
+      "command": "CI browser: history-smoke.mjs"
+    },
+    {
+      "suite": "history",
+      "database": "sqlite",
+      "passed": 7,
+      "command": "node scripts/history-smoke.mjs /private/tmp/m2-history-browser-sqlite.json"
+    },
+    {
+      "suite": "creator",
+      "database": "postgres",
+      "passed": 8,
+      "command": "TEST_DATABASE_URL=<disposable-local-pg> node scripts/creator-smoke.mjs; also CI browser"
+    },
+    {
+      "suite": "creator",
+      "database": "sqlite",
+      "passed": 8,
+      "command": "node scripts/creator-smoke.mjs"
+    },
+    {
+      "suite": "offline",
+      "database": "sqlite",
+      "passed": 13,
+      "command": "CI browser: offline-smoke.mjs"
+    },
+    {
+      "suite": "restart",
+      "database": "sqlite",
+      "passed": 7,
+      "command": "CI browser: audit-smoke.mjs"
+    }
+  ],
+  "browserTotal": 114,
+  "browserCountSemantics": "Script-reported check groups, not individual assertions; duplicate direct/CI executions counted once. Final Creator UI checked again on both databases after its status-message refinement.",
+  "localCIGates": {
+    "install": {
+      "mode": "install",
+      "environment": {
+        "database": "soundwave_ci_creator_20261110",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "install",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8013
+        }
+      ]
+    },
+    "test": {
+      "mode": "test",
+      "environment": {
+        "database": "soundwave_ci_creator_20261110",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "ci-safety",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 76
+        },
+        {
+          "name": "migrations",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 270
+        },
+        {
+          "name": "tests",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 22540
+        }
+      ]
+    },
+    "build": {
+      "mode": "build",
+      "environment": {
+        "database": "soundwave_ci_creator_20261110",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "build",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 2846
+        }
+      ]
+    },
+    "format": {
+      "mode": "format",
+      "environment": {
+        "database": "soundwave_ci_creator_20261110",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 2243
+        },
+        {
+          "name": "ci-doc-format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 388
+        }
+      ]
+    },
+    "browser": {
+      "mode": "browser",
+      "environment": {
+        "database": "soundwave_ci_creator_20261110",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "login",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 6408
+        },
+        {
+          "name": "playlists",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8295
+        },
+        {
+          "name": "settings",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 7636
+        },
+        {
+          "name": "queue",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 9351
+        },
+        {
+          "name": "cross-device",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 7380
+        },
+        {
+          "name": "history",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 6248
+        },
+        {
+          "name": "creator",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 5638
+        },
+        {
+          "name": "offline",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3366
+        },
+        {
+          "name": "restart",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 4673
+        }
+      ]
+    }
+  },
+  "integrationCoverage": {
+    "required": [
+      "postgres: transaction rollback, concurrent completions and stale progress writes",
+      "PostgreSQL fresh concurrent migrations",
+      "postgres: playlist reads/writes reject anonymous sessions",
+      "postgres: concurrent playlist additions serialize",
+      "Redis atomically shares request limits across independent application instances",
+      "real PostgreSQL backup restores all 22",
+      "postgres: account writes serialize concurrent field changes and roll back atomically",
+      "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
+      "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
+      "postgres: rejected valid attempts also reserve their identity and cannot be repurposed",
+      "postgres: progress survives Redis disconnect/reconnect and streaming remains available",
+      "postgres: concurrent history removal and progress updates serialize without resurrection",
+      "postgres: guarded bulk clear is atomic, repeat-safe and does not erase post-clear activity",
+      "postgres: additive history migration preserves bookmarks, completion and revision receipts",
+      "postgres: creator authorization requires both active role and exact story ownership, including staff",
+      "postgres: concurrent onboarding and suspension serialize; failed creator transactions roll back",
+      "postgres: additive creator migration preserves populated listener state and marks catalog provenance",
+      "PostgreSQL creator import preserves identity, role, suspension and ownership; conflicts roll back",
+      "postgres: creator identity and suspension survive password and Google sign-in on the same account",
+      "postgres: external provenance is read-only to creators and imports cannot overwrite creator ownership"
+    ],
+    "missing": [],
+    "zeroSkipped": true
+  },
+  "migrations": [
+    "server/migrations/postgres/014_creator_identity.sql",
+    "server/migrations/sqlite/015_creator_identity.sql"
+  ],
+  "databaseChanges": {
+    "newTables": ["creator_profiles"],
+    "columns": {
+      "users": ["platform_role"],
+      "stories": ["ownership_kind", "owner_id"]
+    },
+    "constraints": [
+      "Registered-only composite creator/user-kind FK",
+      "Constrained role/status/name/bio",
+      "Creator owner required; system/external owner forbidden",
+      "Owned story restricts creator deletion"
+    ],
+    "indexes": [
+      "users_identity_kind_idx",
+      "creators_status_idx",
+      "stories_owner_idx"
+    ],
+    "backupTables": 22,
+    "preservation": "Fresh/populated/reapply migrations, complete existing listener suite, read-only SQLite import with target-role/status retention, and real full-inventory PostgreSQL backup/restore passed",
+    "legacyBackupScope": "Earlier 21-table manifest inventory accepted and tested against a current archive; no claim of a historical pre-M2 archive restore drill"
+  },
+  "apiChanges": [
+    "GET /api/creator: own eligibility/staff role/profile; guests ineligible, anonymous401",
+    "POST /api/creator: explicit registered activation/reactivation; duplicate active request has no effects",
+    "PUT /api/creator: active owner profile edit only",
+    "POST /api/creator/deactivate: confirmed UI soft-deactivation; suspended creators denied; no owner/role/status input accepted"
+  ],
+  "ownershipProtection": [
+    "All creator-owned stories hidden from listener catalog, genre/search/recommendation/detail/chapter/media/stream paths until publishing exists",
+    "Public story serializers omit ownership metadata",
+    "Public favorites/playlists/progress cannot add or read unavailable creator content",
+    "Startup seeds preserve creator/provider parents and foreign chapter ID collisions",
+    "External importer checks creator ownership before unchanged-hash shortcut",
+    "System WAV scan excludes creator chapters",
+    "SQLite import rejects owner/provenance or chapter-parent conflicts transactionally",
+    "Private creator/session data excluded from Redis catalog and PWA caches"
+  ],
+  "testsCover": [
+    "Guest/registered eligibility and guest account upgrade without listener-data loss",
+    "Onboarding duplicates/concurrency and rollback",
+    "Forged roles, owners, status, selectors, invalid bounds, CSRF and anonymous access",
+    "Current profile ownership and cross-creator story isolation, including admin attempts",
+    "Password/Google stable identity, linked profiles and retained suspension with actual signed local JWT verification",
+    "Deactivation/reactivation, suspended write denial and immediate staff-role revocation",
+    "Database guest-role/profile constraints and ownership FK/check constraints",
+    "Public draft exclusion and existing byte-range streaming",
+    "Populated migration, provider attribution, source import and startup seed/scan preservation",
+    "22-table fingerprint restore including creator/staff/story ownership; legacy manifest compatibility and unsupported table rejection",
+    "Real operator CLI confirmation/validation and fixture-only role/status provisioning from server-workspace test",
+    "Pending UI reads/mutations during account changes; retry/error/mobile/HTML-as-text",
+    "Existing playback, analytics, progress tombstones, queue, offline download/seek/storage failures and restart regressions"
+  ],
+  "checks": {
+    "productionBuild": "PASS in clean CI export and final workspace build",
+    "formatting": "PASS npm run format:check, CI documentation formatter and explicit architecture/roadmap/browser evidence checks",
+    "gitDiffCheck": "PASS",
+    "workflow": "Existing runner extended; Prettier YAML parsing passed. No additional actionlint or hosted Actions run claimed."
+  },
+  "issuesFoundAndFixed": [
+    "Initial unprivileged test launch hit sandbox listen EPERM; isolated approved execution passed (not a product failure)",
+    "New Google test initially reused a revoked CSRF token after logout; corrected to obtain a fresh anonymous session, retaining CSRF assertions",
+    "Operator CLI test uses an absolute script path so npm server-workspace execution exercises the actual tool",
+    "Existing unconditional seeds/import source matching could overwrite future creator content; protected by tested ownership predicates and conflict checks",
+    "No unresolved application or browser regressions at delivery"
+  ],
+  "limits": [
+    "Creator activation is not identity, licensing or publication approval",
+    "No public creator pages, Story/Chapter CRUD, uploads, transcoding, publishing, moderation routes/UI or new infrastructure",
+    "Staff authorization primitives and operator provisioning exist; no moderation capabilities are claimed",
+    "No durable operator audit trail yet; status UI refresh is explicit while server authorization reads current DB state",
+    "Profile edits use serialized last-accepted-write semantics, not optimistic edit revisions",
+    "Drain old seed/import binaries before introducing creator-owned content; old binaries lack ownership guards",
+    "SQLite imports require trusted operator snapshots and are never a user upload interface",
+    "Existing progress/backup-retired-writer recovery limitations remain; an old backup does not establish current revisions",
+    "Local Chrome/macOS coverage does not establish cross-browser compatibility, remote CI success, production readiness or scalability"
+  ],
+  "notRun": [
+    "Remote GitHub Actions, public deployment and production/developer mutations",
+    "Real external Google account chooser or live catalog-provider network import in this milestone (signed verifier fixtures/provider fixtures used)",
+    "Optional live SMTP, worker/load/supervisor experiments and cross-browser matrix not rerun for this identity-only milestone"
+  ],
+  "recommendedM2_2": "Private draft story/chapter metadata CRUD with server-generated stable IDs, immutable current creator ownership, bounded owner lists, optimistic edit revisions, deterministic chapter ordering, rollback and suspension-race tests. Reuse authorizationService in the same transaction; keep public reads fail-closed. Do not add uploads or publishing yet.",
+  "changedFiles": [
+    ".github/workflows/ci.yml",
+    "README.md",
+    "client/src/App.jsx",
+    "client/src/Creator.jsx",
+    "client/src/Creator.test.jsx",
+    "client/src/api.js",
+    "client/src/styles.css",
+    "docs/ARCHITECTURE.md",
+    "docs/CI.md",
+    "docs/M2_CREATOR_IDENTITY.md",
+    "docs/SOUNDWAVE_V3_ROADMAP.md",
+    "docs/m2-creator-browser-postgres.json",
+    "docs/m2-creator-browser-sqlite.json",
+    "docs/m2-creator-identity-verification.json",
+    "package.json",
+    "scripts/ci/run.mjs",
+    "scripts/creator-smoke.mjs",
+    "server/app.js",
+    "server/catalog/import.js",
+    "server/database/import-sqlite.js",
+    "server/database/seed.js",
+    "server/db.js",
+    "server/media/queue.js",
+    "server/migrations/postgres/014_creator_identity.sql",
+    "server/migrations/sqlite/015_creator_identity.sql",
+    "server/operations/backup.js",
+    "server/repositories/catalog.js",
+    "server/repositories/creators.js",
+    "server/repositories/history.js",
+    "server/repositories/playlists.js",
+    "server/routes/creators.js",
+    "server/routes/stream.js",
+    "server/scripts/creator.js",
+    "server/services/authorization.js",
+    "server/services/creator-operator.js",
+    "server/services/creators.js",
+    "server/test/backup.test.js",
+    "server/test/catalog-import.test.js",
+    "server/test/creator-operator.test.js",
+    "server/test/creators-import.test.js",
+    "server/test/creators.test.js",
+    "server/test/google.test.js",
+    "server/test/migration.test.js"
+  ],
+  "verifiedSourceHashes": {
+    "client/src/App.jsx": "9cd9f870377a663110cf8af74f71c8b5da8426b3657d1a52f2d418149ea00084",
+    "client/src/Creator.jsx": "b97b7591ff0480cf1363a841e854533249ae389e40fbca421c0b4ab190f661d7",
+    "client/src/Creator.test.jsx": "60f9c2ca89c008f7bbb6dad987e06ddec8e4a3b1c12ad951fb3857dc96c66ccc",
+    "client/src/api.js": "42155f08af529e2510b7a3c4a350e8ee17d933bf19f677443fece20cae81a6da",
+    "client/src/styles.css": "22df7306c496accb8a9add3aa815cfd36906ecfca574d2fe2769b205d99654f3",
+    "scripts/ci/run.mjs": "fcfc43ec20d74eda107dcf2c367e2c5a08f435e2928f79ac54b267e71cfbdaa2",
+    "scripts/creator-smoke.mjs": "c7b0a458d565c1b4927636b8c6a89b903b87d81202fc3a73542c3dd03d97648a",
+    "server/app.js": "c87df3b84aa5ea6597bd85d4c09795d4626e82da6fb0d2f68cdbfbc3cf53c9e7",
+    "server/catalog/import.js": "cbdde31ff6340125483047553b6cb4787377df920725bec959e0df7e72db11b0",
+    "server/database/import-sqlite.js": "627437f9b62f477cc4a2bd8b43f0eb276317bdbdd648e2c979aa7efba0f8eee2",
+    "server/database/seed.js": "237c54c3b855b926e6c975d8ea7d370758550b6f89672759d86db51ad11b53f4",
+    "server/db.js": "9d794a487a12e157a77a81ce946b067833fb8fcf6e985a8b8a5d0ab0b0668179",
+    "server/media/queue.js": "efe5b579964f000782982bf7a93ea80e044afda527726621563034b1982ba94f",
+    "server/migrations/postgres/014_creator_identity.sql": "21f363316fb308791a9a3f772dda404b6fbf6af88eb4a2892a180b02112ae142",
+    "server/migrations/sqlite/015_creator_identity.sql": "0cd2f8ee8924f79e4bae9285dbda83c045fb20656a450d450d37d5cf1de1c251",
+    "server/operations/backup.js": "7a0bed78ff76fdf91960c1d565993db182ec85982127ff6081c9d3f6afe96dc1",
+    "server/repositories/catalog.js": "ff726fa5efd6c2980427ab608fdf6e6364f201604188b13864122ed0b32d03fa",
+    "server/repositories/creators.js": "5c1e8f0120e24c4c99628ea542a5f50b3b5673d177b0d3542208ed24033a21d4",
+    "server/repositories/history.js": "fd35209b31768d3e3b25de88356c516c167d5d5711cae33ba58c66b2da4ffeeb",
+    "server/repositories/playlists.js": "a91700277ffc3ce4e90ee6d536c0226d91d86a90e910e895943157f9ca0db54e",
+    "server/routes/creators.js": "34705ef287220c8e006b8342b8377be80d1c50d59b26f9f484fbcce6c332bc8a",
+    "server/routes/stream.js": "2e3099b3f3d986bf95bc425281861b5efba559297fb7e42cc69506f5cbb5e5f4",
+    "server/scripts/creator.js": "b30d844261a947f4471a2b4f675bfc8d631531115f9984828cc1ba2445a89454",
+    "server/services/authorization.js": "087e23deec493847aed4b39fe93fc79b99fec18dce39fd881fe95e0f71656a2b",
+    "server/services/creator-operator.js": "5b1b2366689eac833d1969b842efe23ae2d5e791c72234d396b8e133bba274b8",
+    "server/services/creators.js": "c9a5161d1c6a839d7dea4c7546c5741b9b77a69ed2a486dbc4adee8a4eb07239",
+    "server/test/backup.test.js": "b632a4eff3ebc914593135eec535e712ce96ddcb96d77eacba208ebfac516595",
+    "server/test/catalog-import.test.js": "2c6bedf2de1eaebf5c5f6c1cb9f5a47d18b2c8f422140609f6acd263be16eda9",
+    "server/test/creator-operator.test.js": "b09aa149d13a0d84f638511901189311f3bb0863209ae45cce913c19ce034930",
+    "server/test/creators-import.test.js": "1c6837fbf0dcd6d762fd838debf53aba31b2cd4de2c66ecf3d1f7cfb22e3d821",
+    "server/test/creators.test.js": "f614bfb065d91bf05d72f4dcf9b363b44da69090b4fc8330567c3b167cee6f68",
+    "server/test/google.test.js": "fbc2a65855227a38668709941d84ed678c983d1188283326cc20d84cfaa4c1a4",
+    "server/test/migration.test.js": "9e4d4698c8a535e6c2801c35341d6e9fd8774144602f6d9118a32d86d9b696ce"
+  }
+}
