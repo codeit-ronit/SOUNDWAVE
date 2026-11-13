@@ -1,3 +1,4 @@
+import { processingIntents } from "../services/processing-intents.js";
 import { connectDatabase } from "../database/index.js";
 import { loadConfig } from "../config.js";
 import { privateMediaService } from "../services/private-media.js";
@@ -19,35 +20,44 @@ const db = await connectDatabase(),
   service = privateMediaService(db, loadConfig());
 try {
   if (action === "cleanup") {
+    const processing = processingIntents(db, loadConfig(), service.storage);
+    await processing.reconcile();
+    await processing.sweep();
     await service.sweep();
     console.log(JSON.stringify({ action, batchLimit: 50 }));
   } else {
     let cursor = "",
       checked = 0,
       unavailable = 0;
-    while (true) {
-      const rows = await db
-        .prepare(
-          "SELECT id,object_key,checksum,byte_size FROM private_media_assets WHERE status='validated' AND id>? ORDER BY id LIMIT 50",
-        )
-        .all(cursor);
-      if (!rows.length) break;
-      for (const a of rows) {
-        let h;
-        checked++;
-        try {
-          h = await service.storage.read(a.object_key);
-          if ((await h.stat()).size !== a.byte_size) throw Error("size");
-          const hash = createHash("sha256");
-          for await (const chunk of h.createReadStream({ autoClose: false }))
-            hash.update(chunk);
-          if (hash.digest("hex") !== a.checksum) throw Error("hash");
-        } catch {
-          unavailable++;
-        } finally {
-          await h?.close().catch(() => {});
+    for (const [table, status] of [
+      ["private_media_assets", "validated"],
+      ["private_media_outputs", "ready"],
+    ]) {
+      cursor = "";
+      while (true) {
+        const rows = await db
+          .prepare(
+            `SELECT id,object_key,checksum,byte_size FROM ${table} WHERE status='${status}' AND id>? ORDER BY id LIMIT 50`,
+          )
+          .all(cursor);
+        if (!rows.length) break;
+        for (const a of rows) {
+          let h;
+          checked++;
+          try {
+            h = await service.storage.read(a.object_key);
+            if ((await h.stat()).size !== a.byte_size) throw Error("size");
+            const hash = createHash("sha256");
+            for await (const chunk of h.createReadStream({ autoClose: false }))
+              hash.update(chunk);
+            if (hash.digest("hex") !== a.checksum) throw Error("hash");
+          } catch {
+            unavailable++;
+          } finally {
+            await h?.close().catch(() => {});
+          }
+          cursor = a.id;
         }
-        cursor = a.id;
       }
     }
     console.log(JSON.stringify({ action, checked, unavailable }));

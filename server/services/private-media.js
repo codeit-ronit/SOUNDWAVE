@@ -1,3 +1,9 @@
+import {
+  persistProcessingIntent,
+  privateUsage,
+  processingView,
+  outputView,
+} from "./processing-intents.js";
 import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { authorizationService } from "./authorization.js";
 import { localPrivateStorage } from "../storage/local-private.js";
@@ -61,16 +67,7 @@ export function privateMediaService(
     db
       .prepare("SELECT * FROM private_media_heads WHERE chapter_id=?")
       .get(chapterId);
-  const usage = async (user) =>
-    Number(
-      (
-        await db
-          .prepare(
-            "SELECT COALESCE(SUM(reserved_bytes),0) AS n FROM private_media_assets WHERE user_id=? AND storage_released=0",
-          )
-          .get(user)
-      ).n,
-    );
+  const usage = (user) => privateUsage(db, user);
   async function status(principal, storyId, chapterId) {
     return db.transaction(async () => {
       const state = await chapter(principal, storyId, chapterId);
@@ -80,7 +77,25 @@ export function privateMediaService(
             "SELECT * FROM private_media_assets WHERE user_id=? AND chapter_id=? ORDER BY created_at DESC,id DESC LIMIT 5",
           )
           .all(principal.id, chapterId);
+      const current = h?.asset_id ? await row(h.asset_id) : null;
+      const processing = current
+        ? await db
+            .prepare(
+              "SELECT * FROM private_processing_intents WHERE asset_id=?",
+            )
+            .get(current.id)
+        : null;
+      const derivative =
+        processing?.status === "ready"
+          ? await db
+              .prepare(
+                "SELECT * FROM private_media_outputs WHERE intent_id=? AND status='ready'",
+              )
+              .get(processing.id)
+          : null;
       return {
+        processingIntent: processingView(processing),
+        derivative: outputView(derivative),
         canPreview:
           state.story.draft_state === "draft" && !state.c.draft_removed,
         headRevision: h?.revision || 0,
@@ -107,6 +122,14 @@ export function privateMediaService(
         let a = await row(candidate.id);
         if (!a || a.storage_released) return;
         if (a.lease_until && a.lease_until > now()) return;
+        if (
+          await db
+            .prepare(
+              "SELECT id FROM private_processing_intents WHERE asset_id=? AND lease_until>?",
+            )
+            .get(a.id, now())
+        )
+          return;
         const c = await db
           .prepare(
             "SELECT s.draft_state,c.draft_removed FROM chapters c JOIN stories s ON s.id=c.story_id WHERE c.id=?",
@@ -139,6 +162,14 @@ export function privateMediaService(
           )
           .run(a.id);
         try {
+          if (
+            await db
+              .prepare(
+                "SELECT id FROM private_media_outputs WHERE object_key=?",
+              )
+              .get(a.object_key)
+          )
+            throw Error("ambiguous_key");
           await storage.remove(a.object_key);
           await db
             .prepare(
@@ -348,6 +379,12 @@ export function privateMediaService(
             "UPDATE private_media_heads SET asset_id=?,revision=revision+1 WHERE chapter_id=?",
           )
           .run(id, c);
+        await persistProcessingIntent(
+          db,
+          await row(id),
+          await head(c),
+          chapterRow,
+        );
         return publicAsset(await row(id));
       }),
     fail: async (id, token, code) => {

@@ -1,3 +1,8 @@
+import {
+  processingIntents,
+  processingView,
+  outputView,
+} from "../services/processing-intents.js";
 import { Router } from "express";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -205,11 +210,67 @@ export function privateMediaRouter(db, config, injectedStorage) {
       await read?.close().catch(() => {});
     }
   });
+  const processing = processingIntents(db, config, service.storage);
+  r.get(base + "/:asset/processing", async (req, res) => {
+    cleanQuery(req);
+    await service.read(...ids(req), req.params.asset);
+    const p = await db
+      .prepare("SELECT * FROM private_processing_intents WHERE asset_id=?")
+      .get(req.params.asset);
+    const output =
+      p?.status === "ready"
+        ? await db
+            .prepare(
+              "SELECT * FROM private_media_outputs WHERE intent_id=? AND status='ready'",
+            )
+            .get(p.id)
+        : null;
+    res.json({
+      processingIntent: processingView(p),
+      derivative: outputView(output),
+    });
+  });
+  r.post(base + "/:asset/processing/retry", async (req, res) => {
+    cleanQuery(req);
+    fields(req.body, ["expectedRevision"]);
+    if (!revision(req.body.expectedRevision))
+      throw mediaError(
+        400,
+        "INVALID_MEDIA_REQUEST",
+        "expectedRevision is required.",
+      );
+    await service.read(...ids(req), req.params.asset);
+    res.json({
+      processingIntent: await processing.retry(
+        req.user,
+        req.params.asset,
+        req.body.expectedRevision,
+      ),
+    });
+  });
   async function preview(req, res, next) {
     let h;
     try {
       cleanQuery(req);
-      const a = await service.preview(...ids(req), req.params.asset);
+      let a = await service.preview(...ids(req), req.params.asset);
+      const derivative = req.path.endsWith("/derivative");
+      if (derivative) {
+        const p = await db
+          .prepare("SELECT * FROM private_processing_intents WHERE asset_id=?")
+          .get(a.id);
+        if (
+          !p ||
+          p.status !== "ready" ||
+          processing.invalid(p, await processing.context(p))
+        )
+          throw mediaError(404, "MEDIA_NOT_FOUND", "Media not found.");
+        a = await db
+          .prepare(
+            "SELECT * FROM private_media_outputs WHERE intent_id=? AND status='ready'",
+          )
+          .get(p.id);
+        if (!a) throw mediaError(404, "MEDIA_NOT_FOUND", "Media not found.");
+      }
       h = await service.storage.read(a.object_key);
       const stat = await h.stat();
       if (stat.size !== a.byte_size)
@@ -222,8 +283,10 @@ export function privateMediaRouter(db, config, injectedStorage) {
         ? parseRange(req.get("Range"), stat.size)
         : null;
       res.set({
-        "Content-Type": "audio/wav",
-        "Content-Disposition": 'inline; filename="private-audio.wav"',
+        "Content-Type": derivative ? "audio/mpeg" : "audio/wav",
+        "Content-Disposition": derivative
+          ? 'inline; filename="private-audio.mp3"'
+          : 'inline; filename="private-audio.wav"',
         "X-Content-Type-Options": "nosniff",
         "Cross-Origin-Resource-Policy": "same-origin",
         "Accept-Ranges": "bytes",
@@ -271,6 +334,9 @@ export function privateMediaRouter(db, config, injectedStorage) {
       );
     }
   }
+  r.route(base + "/:asset/derivative")
+    .get(preview)
+    .head(preview);
   r.route(base + "/:asset/preview")
     .get(preview)
     .head(preview);

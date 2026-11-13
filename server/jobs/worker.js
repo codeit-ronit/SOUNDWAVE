@@ -2,12 +2,15 @@ import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { jobQueue } from "./queue.js";
 import { jobHandlers } from "./handlers.js";
-export async function runOnce(db, { mail, worker = randomUUID() } = {}) {
+export async function runOnce(
+  db,
+  { mail, privateQueue, worker = randomUUID() } = {},
+) {
   const queue = jobQueue(db),
-    job = await queue.claim(worker);
+    job = await queue.claim(worker, 30000, new Date(), !privateQueue);
   if (!job) return false;
   try {
-    const handler = jobHandlers(db, { mail })[job.kind];
+    const handler = jobHandlers(db, { mail, privateQueue })[job.kind];
     if (!handler)
       throw Object.assign(Error("Unknown job"), { code: "unknown_job" });
     await queue.perform(job, handler);
@@ -21,7 +24,10 @@ export async function runOnce(db, { mail, worker = randomUUID() } = {}) {
   }
   return true;
 }
-export async function runWorker(db, { mail, signal, onTick } = {}) {
+export async function runWorker(
+  db,
+  { mail, privateQueue, signal, onTick } = {},
+) {
   const worker = randomUUID();
   while (!signal?.aborted) {
     try {
@@ -29,7 +35,7 @@ export async function runWorker(db, { mail, signal, onTick } = {}) {
       await jobQueue(db).enqueue("maintenance", {
         key: `maintenance:${bucket}`,
       });
-      const worked = await runOnce(db, { mail, worker });
+      const worked = await runOnce(db, { mail, privateQueue, worker });
       onTick?.();
       if (!worked) await delay(500, undefined, { signal });
     } catch (error) {

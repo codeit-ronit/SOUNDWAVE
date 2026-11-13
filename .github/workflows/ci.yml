@@ -58,6 +58,8 @@ jobs:
           node-version: "22"
           cache: npm
           package-manager-cache: false
+      - name: Install FFmpeg for real private-media tests
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Clean dependency installation
         run: node scripts/ci/run.mjs install
       - name: Migrations, complete test suite and integration coverage gate
@@ -113,13 +115,15 @@ jobs:
           node-version: "22"
           cache: npm
           package-manager-cache: false
+      - name: Install FFmpeg for real private-media tests
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Clean dependency installation
         run: node scripts/ci/run.mjs install
       - name: Install pinned Playwright Chromium and OS dependencies
         run: node scripts/ci/run.mjs browsers
       - name: Production build
         run: node scripts/ci/run.mjs build
-      - name: Login, PostgreSQL playlists/settings/queue, cross-device sync, history, creator identity/drafts/uploads, offline and restart smoke
+      - name: Login, PostgreSQL playlists/settings/queue, cross-device sync, history, creator identity/drafts/uploads/processing, offline and restart smoke
         run: node scripts/ci/run.mjs browser
       - name: Upload sanitized logs and masked failure screenshots
         if: failure()

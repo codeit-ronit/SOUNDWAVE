@@ -470,6 +470,9 @@ for (const kind of backends) {
         .write("delete", "/history/101", { expectedRevision: 1 })
         .expect(200);
       const before = (await a.get("/progress/101")).body.progress;
+      await f.db.prepare("DROP TABLE private_media_outputs").run();
+      await f.db.prepare("DROP TABLE private_processing_intents").run();
+      await f.db.prepare("DROP INDEX processing_asset_binding_idx").run();
       await f.db.prepare("DROP TABLE private_media_heads").run();
       await f.db.prepare("DROP TABLE private_media_assets").run();
       await f.db.prepare("DROP INDEX creator_drafts_list_idx").run();

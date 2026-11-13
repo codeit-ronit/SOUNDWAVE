@@ -136,7 +136,7 @@ try {
       "postgres: playlist reads/writes reject anonymous sessions",
       "postgres: concurrent playlist additions serialize",
       "Redis atomically shares request limits across independent application instances",
-      "real PostgreSQL backup restores all 26",
+      "real PostgreSQL backup restores all 28",
       "postgres: account writes serialize concurrent field changes and roll back atomically",
       "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
       "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
@@ -150,6 +150,13 @@ try {
       "postgres: additive creator migration preserves populated listener state and marks catalog provenance",
       "PostgreSQL creator import preserves identity, role, suspension and ownership; conflicts roll back",
       "postgres: creator identity and suspension survive password and Google sign-in on the same account",
+      "postgres: real FFmpeg private MP3 conversion is checked, playable and idempotent",
+      "postgres: expired processing fences cannot publish or remove a newer immutable result",
+      "postgres: durable outbox dispatch and Redis-loss replay recover the same processing identity",
+      "postgres: worker crash during transcoding, after output and after commit recovers without duplicate artifacts",
+      "postgres: additive processing migration backfills validated uploads and durable outbox atomically",
+      "postgres: replacement, deletion, archive and suspension cannot publish stale processing output",
+      "postgres: invalid encoder output is rejected and chapter edits fence in-flight intent revisions",
       "postgres: private upload persists validated PCM, checksums and owner-only range preview",
       "postgres: quota reservation is shared, idempotent and safe across simultaneous chapters",
       "postgres: streaming byte limit, interruption and timeout release quota after cleanup",
@@ -197,6 +204,8 @@ try {
       "docs/m1-cross-device-verification.json",
       "docs/M1_HISTORY.md",
       "docs/m1-history-verification.json",
+      "docs/M2_MEDIA_PROCESSING.md",
+      "docs/m2-media-processing-verification.json",
       "docs/M2_MEDIA_UPLOADS.md",
       "docs/m2-media-uploads-verification.json",
       "docs/M2_CREATOR_DRAFTS.md",
@@ -216,6 +225,7 @@ try {
       ["creator", "creator-smoke"],
       ["drafts", "drafts-smoke"],
       ["uploads", "uploads-smoke"],
+      ["processing", "processing-smoke"],
       ["offline", "offline-smoke"],
       ["restart", "audit-smoke"],
     ])
@@ -229,6 +239,12 @@ try {
       ["demo-supervisor", "demo-smoke"],
     ])
       await node(name, `scripts/${file}.mjs`, [], 240000);
+    await node(
+      "private-processing-docker",
+      "scripts/private-processing-systems.mjs",
+      [join(dir, "private-processing-docker.json")],
+      600000,
+    );
     await node("http-load", "scripts/http-load.mjs", [
       join(dir, "http-load.json"),
     ]);

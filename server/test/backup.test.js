@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { backupDatabase, verifyBackup } from "../operations/backup.js";
 if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
-  test("real PostgreSQL backup restores all 26 public table fingerprints and never overwrites its archive", async () => {
+  test("real PostgreSQL backup restores all 28 public table fingerprints and never overwrites its archive", async () => {
     const dir = mkdtempSync(join(tmpdir(), "soundwave-backup-")),
       path = join(dir, "database.dump"),
       options = { container: process.env.TEST_BACKUP_CONTAINER };
@@ -90,16 +90,48 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         "INSERT INTO private_media_heads(chapter_id,story_id,user_id,asset_id,revision) VALUES(900000000,900000000,$1,$2,1)",
         [owner, mediaId],
       );
+      const intent = randomUUID(),
+        output = randomUUID();
+      await client.query(
+        "INSERT INTO private_processing_intents(id,asset_id,user_id,story_id,chapter_id,source_hash,processor_version,job_key,status,stage,source_revision,head_revision,chapter_revision,next_attempt_at,created_at,updated_at) VALUES($1,$2,$3,900000000,900000000,$4,1,$5,'ready','ready',1,1,7,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        [
+          intent,
+          mediaId,
+          owner,
+          "d".repeat(64),
+          "private-audio:" + mediaId + ":" + "d".repeat(64) + ":processor-v1",
+        ],
+      );
+      await client.query(
+        "INSERT INTO private_media_outputs(id,intent_id,object_key,fence_token,status,reserved_bytes,byte_size,checksum,format,duration_seconds,sample_rate,channels,created_at) VALUES($1,$2,$3,$4,'ready',1024,1024,$3,'mp3',1,44100,2,CURRENT_TIMESTAMP)",
+        [output, intent, "f".repeat(64), randomUUID()],
+      );
+      const dispatch = randomUUID();
+      await client.query(
+        "INSERT INTO background_jobs(id,kind,dedupe_key,owner_id,payload,status,dispatch_topic,completed_at) VALUES($1,'maintenance',$2,$3,$4,'completed','private_audio',CURRENT_TIMESTAMP)",
+        [
+          dispatch,
+          "private-audio:" + mediaId + ":" + "d".repeat(64) + ":processor-v1",
+          owner,
+          JSON.stringify({ intentId: intent }),
+        ],
+      );
+      await client.query(
+        "UPDATE private_processing_intents SET outbox_id=$1 WHERE id=$2",
+        [dispatch, intent],
+      );
       const manifest = await backupDatabase(
         process.env.TEST_DATABASE_URL,
         path,
         options,
       );
-      assert.equal(Object.keys(manifest.tables).length, 26);
+      assert.equal(Object.keys(manifest.tables).length, 28);
       assert.ok(manifest.tables.user_preferences.count > 0);
       assert.ok(manifest.tables.creator_profiles.count > 0);
       assert.ok(manifest.tables.private_media_assets.count > 0);
       assert.ok(manifest.tables.private_media_heads.count > 0);
+      assert.ok(manifest.tables.private_processing_intents.count > 0);
+      assert.ok(manifest.tables.private_media_outputs.count > 0);
       assert.ok(manifest.tables.creator_id_allocations.count >= 2);
       assert.ok(manifest.tables.draft_create_receipts.count > 0);
       assert.ok(manifest.tables.listening_progress.count > 0);
@@ -110,7 +142,7 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
       assert.equal(statSync(path + ".json").mode & 0o777, 0o600);
       assert.deepEqual(
         await verifyBackup(process.env.TEST_DATABASE_URL, path, options),
-        { verified: true, tables: 26 },
+        { verified: true, tables: 28 },
       );
       // Older version-1 manifests covered the previous 21-table inventory.
       // Verify that allowlisted legacy inventory is accepted, without weakening
@@ -118,6 +150,8 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
       const manifestPath = path + ".json",
         original = readFileSync(manifestPath, "utf8"),
         legacy = JSON.parse(original);
+      delete legacy.tables.private_media_outputs;
+      delete legacy.tables.private_processing_intents;
       delete legacy.tables.private_media_heads;
       delete legacy.tables.private_media_assets;
       delete legacy.tables.creator_profiles;
@@ -154,6 +188,14 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
           "DELETE FROM draft_create_receipts WHERE user_id=$1",
           [owner],
         );
+        await client.query(
+          "DELETE FROM private_media_outputs WHERE intent_id IN (SELECT id FROM private_processing_intents WHERE user_id=$1)",
+          [owner],
+        );
+        await client.query(
+          "DELETE FROM private_processing_intents WHERE user_id=$1",
+          [owner],
+        );
         await client.query("DELETE FROM private_media_heads WHERE user_id=$1", [
           owner,
         ]);
@@ -166,6 +208,9 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
           "DELETE FROM stories WHERE id=900000000 AND owner_id=$1",
           [owner],
         );
+        await client.query("DELETE FROM background_jobs WHERE owner_id=$1", [
+          owner,
+        ]);
         await client.query("DELETE FROM users WHERE id=$1", [owner]);
       } finally {
         await client.end();

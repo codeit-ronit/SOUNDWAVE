@@ -21,6 +21,9 @@ RUN mkdir -p /app/private-media && chown node:node /app/private-media && chmod 7
 USER node
 EXPOSE 3001
 FROM runtime AS worker
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg util-linux procps && rm -rf /var/lib/apt/lists/*
+USER node
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s CMD ["node","server/scripts/worker-health.js"]
 CMD ["node","server/scripts/worker.js"]
 

@@ -10,7 +10,9 @@ export default function DraftAudio({ storyId, chapter, scope, readOnly }) {
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [unknown, setUnknown] = useState(false),
-    [confirm, setConfirm] = useState(false);
+    [confirm, setConfirm] = useState(false),
+    [derivativeError, setDerivativeError] = useState(false);
+  const container = useRef(null);
   const live = useRef(true),
     controller = useRef(null),
     attempt = useRef(null),
@@ -21,11 +23,11 @@ export default function DraftAudio({ storyId, chapter, scope, readOnly }) {
       asset && ["reserved", "uploading", "quarantined"].includes(asset.status);
   useEffect(() => {
     live.current = true;
+    const node = container.current;
     return () => {
       live.current = false;
       controller.current?.abort();
-      const a = preview.current;
-      if (a) {
+      for (const a of node?.querySelectorAll("audio") || []) {
         a.pause();
         a.removeAttribute("src");
         a.load();
@@ -164,7 +166,38 @@ export default function DraftAudio({ storyId, chapter, scope, readOnly }) {
       setFile(null);
       setMessage("Private audio removed. Cleanup may finish asynchronously.");
       const d = await api.privateMediaStatus(...args, c.signal, scope);
-      if (live.current && !c.signal.aborted) setData(d);
+      if (live.current && !c.signal.aborted) {
+        setData(d);
+        setDerivativeError(false);
+      }
+    } catch (e) {
+      if (live.current && !c.signal.aborted) setError(e.message);
+    } finally {
+      running.current = false;
+      if (live.current) setBusy(false);
+    }
+  }
+  async function retryProcessing() {
+    if (running.current || !data?.current || !data.processingIntent) return;
+    running.current = true;
+    setBusy(true);
+    setError("");
+    const c = new AbortController();
+    controller.current?.abort();
+    controller.current = c;
+    try {
+      await api.retryPrivateProcessing(
+        ...args,
+        data.current.id,
+        data.processingIntent.revision,
+        c.signal,
+        scope,
+      );
+      const d = await api.privateMediaStatus(...args, c.signal, scope);
+      if (live.current && !c.signal.aborted) {
+        setData(d);
+        setDerivativeError(false);
+      }
     } catch (e) {
       if (live.current && !c.signal.aborted) setError(e.message);
     } finally {
@@ -174,11 +207,20 @@ export default function DraftAudio({ storyId, chapter, scope, readOnly }) {
   }
   const locked = busy || unknown || pending;
   return (
-    <div className="studio-audio">
+    <div className="studio-audio" ref={container}>
       <button
         className="button secondary"
         disabled={busy}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (open)
+            for (const a of container.current?.querySelectorAll("audio") ||
+              []) {
+              a.pause();
+              a.removeAttribute("src");
+              a.load();
+            }
+          setOpen(!open);
+        }}
       >
         {open ? "Hide audio for" : "Manage audio for"} {chapter.title}
       </button>
@@ -217,6 +259,52 @@ export default function DraftAudio({ storyId, chapter, scope, readOnly }) {
               <p>
                 Current audio: {data.current ? data.current.status : "none"}
               </p>
+              {data.processingIntent && (
+                <section aria-label="Derivative processing">
+                  <p role="status">
+                    Processing: {data.processingIntent.status} · Stage:{" "}
+                    {data.processingIntent.stage} · Attempts:{" "}
+                    {data.processingIntent.attempts}
+                  </p>
+                  {data.processingIntent.errorCode && (
+                    <p role="alert">{data.processingIntent.errorCode}</p>
+                  )}
+                  <p>
+                    Processed means technical MP3 output only. Content remains
+                    private and unpublished.
+                  </p>
+                  {(data.processingIntent.status === "failed" ||
+                    derivativeError) &&
+                    !readOnly && (
+                      <button
+                        className="button secondary"
+                        disabled={busy}
+                        onClick={() => void retryProcessing()}
+                      >
+                        Retry Processing
+                      </button>
+                    )}
+                  {data.processingIntent.status === "ready" &&
+                    data.derivative &&
+                    data.canPreview !== false && (
+                      <audio
+                        aria-label={`Private MP3 preview for ${chapter.title}`}
+                        onError={() => {
+                          if (live.current) {
+                            setDerivativeError(true);
+                            setError(
+                              "MP3 preview unavailable. Refresh or retry processing to verify storage.",
+                            );
+                          }
+                        }}
+                        controls
+                        preload="none"
+                        onKeyDown={(e) => e.stopPropagation()}
+                        src={`/api/creator/stories/${storyId}/chapters/${chapter.id}/media/${data.current.id}/derivative`}
+                      />
+                    )}
+                </section>
+              )}
               {asset && (
                 <p role="status">
                   Upload status: {asset.status}

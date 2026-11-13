@@ -1,3 +1,4 @@
+import { processPrivateMedia } from "../media/private-processor.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
@@ -15,6 +16,10 @@ if (process.env.TEST_DATABASE_URL)
         .write("put", `${source.path}/${a.id}/bytes`, wav())
         .set("Content-Type", "audio/wav")
         .expect(200);
+      const intent = await source.db
+        .prepare("SELECT * FROM private_processing_intents WHERE asset_id=?")
+        .get(a.id);
+      await processPrivateMedia(source.db, source.config, intent.id);
       const path = join(source.dir, "source.sqlite");
       await source.db.raw.backup(path);
       // Targets contain unrelated owners; private numeric-ID conflicts are intentionally
@@ -31,6 +36,26 @@ if (process.env.TEST_DATABASE_URL)
       const counts = await importSqlite(target.db, path);
       assert.equal(counts.private_media_assets, 1);
       assert.equal(counts.private_media_heads, 1);
+      assert.equal(counts.private_processing_intents, 1);
+      assert.equal(counts.private_media_outputs, 1);
+      assert.equal(
+        (
+          await target.db
+            .prepare("SELECT status FROM private_processing_intents WHERE id=?")
+            .get(intent.id)
+        ).status,
+        "failed",
+      );
+      assert.equal(
+        (
+          await target.db
+            .prepare(
+              "SELECT storage_released FROM private_media_outputs WHERE intent_id=?",
+            )
+            .get(intent.id)
+        ).storage_released,
+        1,
+      );
       const imported = await target.db
         .prepare("SELECT * FROM private_media_assets WHERE id=?")
         .get(a.id);

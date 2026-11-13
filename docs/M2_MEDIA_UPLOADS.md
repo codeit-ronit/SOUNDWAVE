@@ -2,6 +2,8 @@
 
 Local implementation on `feature/m1-private-playlists`, based on `582c24e`. Private upload endpoints require authentication; publishing remains unavailable. **423 application tests, 6 CI safety tests and 148 browser check groups passed locally**, plus clean installation, build, formatting and Docker storage checks. Exact executed results are recorded in [m2-media-uploads-verification.json](m2-media-uploads-verification.json); remote GitHub Actions remains NOT RUN. No deployment or production/developer database changes were performed.
 
+This document preserves the Campaign A checkpoint. Current derivative processing is documented in [M2.5](M2_MEDIA_PROCESSING.md).
+
 ## Scope and storage
 
 Active registered creators can upload **canonical PCM 16-bit WAV** to their own non-archived, non-removed draft chapters, view status, cancel/delete and preview technically validated audio. The allowlist is deliberately narrow: mono/stereo, 8–192 kHz, a 44-byte RIFF/fmt/data header, correct byte rate/alignment/length and complete PCM frames. Metadata/ancillary chunks, compressed WAV, MP3 and other input formats are unsupported. Every PCM sample is inspected with the existing bounded WAV analyzer; a signature alone never sets validated status. This is technical format validation, not malware certification, rights review or publishing approval. Default byte/rate bounds imply at most about 655 seconds of mono 8 kHz audio; actual sample rate and byte size determine duration.

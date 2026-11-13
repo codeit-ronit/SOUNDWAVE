@@ -45,7 +45,9 @@
     "test:creator:browser": "npm run build && node scripts/creator-smoke.mjs",
     "test:drafts:browser": "npm run build && node scripts/drafts-smoke.mjs",
     "test:uploads:browser": "npm run build && node scripts/uploads-smoke.mjs",
-    "media:private": "node server/scripts/private-media.js"
+    "media:private": "node server/scripts/private-media.js",
+    "test:processing:browser": "npm run build && node scripts/processing-smoke.mjs",
+    "test:processing:systems": "node scripts/private-processing-systems.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",

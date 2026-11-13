@@ -16,6 +16,7 @@ vi.mock("./api", () => ({
     privateAsset: vi.fn(),
     reservePrivateMedia: vi.fn(),
     removePrivateMedia: vi.fn(),
+    retryPrivateProcessing: vi.fn(),
   },
   uploadPrivateAudio: vi.fn(),
 }));
@@ -211,4 +212,78 @@ it("private preview keyboard controls keep native defaults without reaching glob
   } finally {
     window.removeEventListener("keydown", key);
   }
+});
+
+it("shows real processing stages and a private ready MP3 without fake percentages", async () => {
+  await open();
+  status = {
+    ...status,
+    current: validated,
+    processingIntent: {
+      id: "p",
+      status: "pending",
+      stage: "pending",
+      attempts: 0,
+      revision: 1,
+    },
+  };
+  fireEvent.click(screen.getByRole("button", { name: "Refresh media status" }));
+  await screen.findByText("Processing: pending · Stage: pending · Attempts: 0");
+  status = {
+    ...status,
+    processingIntent: {
+      ...status.processingIntent,
+      status: "ready",
+      stage: "ready",
+      attempts: 1,
+    },
+    derivative: { id: "d" },
+  };
+  fireEvent.click(screen.getByRole("button", { name: "Refresh media status" }));
+  await screen.findByText("Processing: ready · Stage: ready · Attempts: 1");
+  const mp3 = screen.getByLabelText("Private MP3 preview for Private chapter");
+  expect(mp3.getAttribute("src")).toContain("/asset-a/derivative");
+  expect(mp3.getAttribute("preload")).toBe("none");
+  expect(
+    screen
+      .getByRole("region", { name: "Derivative processing" })
+      .querySelector("progress"),
+  ).toBe(null);
+});
+it("processing retry is explicit, scoped and revision guarded", async () => {
+  await open();
+  status = {
+    ...status,
+    current: validated,
+    processingIntent: {
+      id: "p",
+      status: "failed",
+      stage: "failed",
+      attempts: 1,
+      revision: 9,
+      errorCode: "SOURCE_MISSING",
+    },
+  };
+  fireEvent.click(screen.getByRole("button", { name: "Refresh media status" }));
+  await screen.findByRole("button", { name: "Retry Processing" });
+  api.retryPrivateProcessing.mockImplementation(async () => {
+    status = {
+      ...status,
+      processingIntent: {
+        ...status.processingIntent,
+        status: "pending",
+        stage: "pending",
+      },
+    };
+    return { processingIntent: status.processingIntent };
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Retry Processing" }));
+  await screen.findByText("Processing: pending · Stage: pending · Attempts: 1");
+  expect(api.retryPrivateProcessing.mock.calls[0].slice(0, 4)).toEqual([
+    900000000,
+    900000001,
+    "asset-a",
+    9,
+  ]);
+  expect(api.retryPrivateProcessing.mock.calls[0][5]).toEqual(scope);
 });

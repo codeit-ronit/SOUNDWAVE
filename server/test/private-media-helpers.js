@@ -6,9 +6,10 @@ import { randomUUID } from "node:crypto";
 import { fixture, password } from "./phase2-helpers.js";
 import { privateMediaService } from "../services/private-media.js";
 import { wav } from "./private-wav-fixture.js";
-export async function setup(kind, config = {}) {
+export async function setup(kind, config = {}, options = {}) {
   const dir = await mkdtemp(join(tmpdir(), "soundwave-upload-"));
   const f = await fixture(kind, {
+      ...options,
       config: {
         privateMediaRoot: join(dir, "media"),
         uploadSeconds: 1,

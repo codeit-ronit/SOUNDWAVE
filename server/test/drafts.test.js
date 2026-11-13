@@ -646,6 +646,19 @@ for (const kind of backends) {
           "INSERT INTO stories(id,title,description,genre,author,tagline,color,symbol,popularity,ownership_kind,owner_id) VALUES(900000042,'Existing creator','','Test','Creator','','#abc','radio',0,'creator',?)",
         )
         .run(a.data.user.id);
+      await f.db.prepare("DROP TABLE private_media_outputs").run();
+      await f.db.prepare("DROP TABLE private_processing_intents").run();
+      await f.db.prepare("DROP INDEX processing_asset_binding_idx").run();
+      await f.db
+        .prepare("ALTER TABLE background_jobs DROP COLUMN dispatch_topic")
+        .run();
+      await f.db
+        .prepare("DELETE FROM schema_migrations WHERE version=?")
+        .run(
+          kind === "postgres"
+            ? "017_private_processing.sql"
+            : "018_private_processing.sql",
+        );
       await f.db.prepare("DROP TABLE private_media_heads").run();
       await f.db.prepare("DROP TABLE private_media_assets").run();
       await f.db

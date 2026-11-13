@@ -30,6 +30,16 @@ export async function request(path, options = {}, session = scope) {
   return response.status === 204 ? null : response.json();
 }
 export const api = {
+  retryPrivateProcessing: (s, c, id, revision, signal, session = scope) =>
+    request(
+      `/creator/stories/${s}/chapters/${c}/media/${id}/processing/retry`,
+      {
+        method: "POST",
+        body: JSON.stringify({ expectedRevision: revision }),
+        signal,
+      },
+      session,
+    ),
   privateMediaStatus: (s, c, signal, session = scope) =>
     request(`/creator/stories/${s}/chapters/${c}/media`, { signal }, session),
   privateAsset: (s, c, id, signal, session = scope) =>

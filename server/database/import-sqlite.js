@@ -21,6 +21,8 @@ export async function importSqlite(db, path) {
       "draft_create_receipts",
       "private_media_assets",
       "private_media_heads",
+      "private_processing_intents",
+      "private_media_outputs",
       "story_sources",
       "chapter_sources",
       "favorites",
@@ -223,6 +225,49 @@ export async function importSqlite(db, path) {
               row.lease_until = null;
               row.error_code = "RESTORE_BYTES_REQUIRED";
             } else row.asset_id = null;
+          }
+          if (table === "private_processing_intents") {
+            if (
+              retainedDrafts.has(row.story_id) ||
+              !importedChapters.has(row.chapter_id)
+            )
+              continue;
+            const existing = await db
+              .prepare(
+                "SELECT * FROM private_processing_intents WHERE id=? OR asset_id=?",
+              )
+              .get(row.id, row.asset_id);
+            if (existing) {
+              if (
+                existing.user_id !== row.user_id ||
+                existing.asset_id !== row.asset_id
+              )
+                throw Error("Processing ownership conflict during import");
+              continue;
+            }
+            row.status = "failed";
+            row.stage = "failed";
+            row.error_code = "RESTORE_BYTES_REQUIRED";
+            row.revision++;
+            row.outbox_id = null;
+            row.lease_token = null;
+            row.lease_until = null;
+          }
+          if (table === "private_media_outputs") {
+            const parent = rows.private_processing_intents.find(
+              (p) => p.id === row.intent_id,
+            );
+            if (
+              !parent ||
+              retainedDrafts.has(parent.story_id) ||
+              !importedChapters.has(parent.chapter_id)
+            )
+              continue;
+            row.status = "deleted";
+            row.storage_released = 1;
+            row.lease_until = null;
+            row.cleanup_error = 0;
+            row.object_key = randomBytes(32).toString("hex");
           }
           // Column names originate only in the known SQLite schema, not requests.
           const columns = Object.keys(row).filter((k) => k !== "event_order");

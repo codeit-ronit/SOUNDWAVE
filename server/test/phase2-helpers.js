@@ -14,7 +14,12 @@ export const backends = [
 export const password = "a strong test password for SoundWave!";
 export async function fixture(
   kind,
-  { email = false, redis, config: overrides = {} } = {},
+  {
+    email = false,
+    redis,
+    config: overrides = {},
+    sqlitePath = ":memory:",
+  } = {},
 ) {
   let db, admin, schema;
   if (kind === "postgres") {
@@ -25,7 +30,7 @@ export async function fixture(
     await migrate(db);
     await seedCatalog(db);
   } else {
-    const raw = openDatabase(":memory:");
+    const raw = openDatabase(sqlitePath);
     seedDatabase(raw);
     db = sqliteAdapter(raw);
   }

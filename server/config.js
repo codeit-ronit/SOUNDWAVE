@@ -58,6 +58,15 @@ export function loadConfig(env = process.env) {
     privateMediaRoot:
       env.PRIVATE_MEDIA_ROOT ||
       fileURLToPath(new URL("./data/private-media/", import.meta.url)),
+    ffmpegPath: env.FFMPEG_PATH || "ffmpeg",
+    ffprobePath: env.FFPROBE_PATH || "ffprobe",
+    processingSeconds: positive("PROCESSING_TIMEOUT_SECONDS", 20, 60),
+    derivativeMaxBytes: positive("DERIVATIVE_MAX_BYTES", 8388608, 16777216),
+    processingMemoryBytes: positive(
+      "PROCESSING_MEMORY_BYTES",
+      268435456,
+      536870912,
+    ),
     uploadMaxBytes: positive("UPLOAD_MAX_BYTES", 10485760, 52428800),
     creatorStorageBytes: positive("CREATOR_STORAGE_BYTES", 52428800, 524288000),
     uploadSeconds: positive("UPLOAD_TIMEOUT_SECONDS", 60, 120),

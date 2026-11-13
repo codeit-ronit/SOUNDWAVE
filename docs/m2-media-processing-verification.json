@@ -1,0 +1,542 @@
+{
+  "milestone": "M2.5 Durable asynchronous FFmpeg audio processing",
+  "status": "Implemented and locally verified",
+  "verifiedAt": "2026-11-13T14:45:47.010988+00:00",
+  "baseCommit": "b815ec5",
+  "branch": "feature/m1-private-playlists",
+  "commitNote": "Recorded before the atomic local delivery commit; inspect git log for its hash. No push or deployment.",
+  "remoteActions": "NOT RUN / NOT VERIFIED",
+  "pushed": false,
+  "deployed": false,
+  "productionResourcesChanged": false,
+  "developerApplicationDataChanged": false,
+  "environment": {
+    "node": "22.21.1 on Apple Silicon macOS",
+    "ffmpeg": "Host FFmpeg 9.0.2 with libmp3lame; ffprobe 9.0.2",
+    "dockerFfmpeg": "5.1.9-0+deb12u1 inside the real Debian worker image",
+    "postgres": "18.6; new disposable soundwave_ci_processing_20261113 database, generated schemas and restore databases",
+    "redis": "7.4.12 dedicated loopback fixture; isolated volatile Redis 7.4 Docker instance for restart drill",
+    "browser": "Local headless Google Chrome via Playwright 1.64.1",
+    "dependencyChanges": "No new npm dependencies. FFmpeg installed through Homebrew; Docker worker installs ffmpeg/util-linux/procps; mandatory CI installs FFmpeg. Clean npm ci installed 341 packages in a dotenv-free export."
+  },
+  "applicationTests": {
+    "baseline": 423,
+    "backend": 290,
+    "frontend": 156,
+    "total": 446,
+    "newBackend": 21,
+    "newFrontend": 2,
+    "frontendFiles": 18,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "command": "node scripts/ci/run.mjs test with explicit disposable PostgreSQL/Redis and matching backup container; full suite executed once after implementation stabilized"
+  },
+  "ciSafetyTests": {
+    "passed": 6,
+    "failed": 0
+  },
+  "browserChecks": [
+    {
+      "suite": "login",
+      "database": "sqlite",
+      "passed": 5,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "playlists",
+      "database": "postgres",
+      "passed": 10,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "settings",
+      "database": "postgres",
+      "passed": 8,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "queue",
+      "database": "postgres",
+      "passed": 14,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "cross-device",
+      "database": "postgres",
+      "passed": 10,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "history",
+      "database": "postgres",
+      "passed": 7,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "creator",
+      "database": "postgres",
+      "passed": 8,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "drafts",
+      "database": "postgres",
+      "passed": 10,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "uploads",
+      "database": "postgres",
+      "passed": 7,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "processing",
+      "database": "postgres",
+      "passed": 5,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "offline",
+      "database": "sqlite",
+      "passed": 13,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "restart",
+      "database": "sqlite",
+      "passed": 7,
+      "command": "node scripts/ci/run.mjs browser"
+    },
+    {
+      "suite": "browser-smoke",
+      "database": "sqlite",
+      "passed": 14,
+      "command": "node scripts/browser-smoke.mjs (TEST_DATABASE_URL unset)"
+    },
+    {
+      "suite": "keyboard-smoke",
+      "database": "sqlite",
+      "passed": 3,
+      "command": "node scripts/keyboard-smoke.mjs (TEST_DATABASE_URL unset)"
+    },
+    {
+      "suite": "history-smoke",
+      "database": "sqlite",
+      "passed": 7,
+      "command": "node scripts/history-smoke.mjs (TEST_DATABASE_URL unset)"
+    },
+    {
+      "suite": "creator-smoke",
+      "database": "sqlite",
+      "passed": 8,
+      "command": "node scripts/creator-smoke.mjs (TEST_DATABASE_URL unset)"
+    },
+    {
+      "suite": "drafts-smoke",
+      "database": "sqlite",
+      "passed": 10,
+      "command": "node scripts/drafts-smoke.mjs (TEST_DATABASE_URL unset)"
+    },
+    {
+      "suite": "uploads-smoke",
+      "database": "sqlite",
+      "passed": 7,
+      "command": "node scripts/uploads-smoke.mjs (TEST_DATABASE_URL unset)"
+    },
+    {
+      "suite": "processing-smoke",
+      "database": "sqlite",
+      "passed": 5,
+      "command": "node scripts/processing-smoke.mjs (TEST_DATABASE_URL unset)"
+    }
+  ],
+  "browserCheckTotal": 158,
+  "previousBrowserBaseline": 148,
+  "newProcessingBrowserGroups": 10,
+  "standaloneBrowserEvidence": [
+    "docs/m2-processing-browser-sqlite.json",
+    "docs/m2-processing-browser-postgres.json"
+  ],
+  "dockerSystemEvidence": "docs/m2-processing-docker.json",
+  "dockerSystemGroupsPassed": 6,
+  "localCiGates": {
+    "install": {
+      "mode": "install",
+      "environment": {
+        "database": "soundwave_ci_processing_20261113",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "install",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 5922
+        }
+      ]
+    },
+    "test": {
+      "mode": "test",
+      "environment": {
+        "database": "soundwave_ci_processing_20261113",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "ci-safety",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 72
+        },
+        {
+          "name": "migrations",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 316
+        },
+        {
+          "name": "tests",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 40122
+        }
+      ]
+    },
+    "build": {
+      "mode": "build",
+      "environment": {
+        "database": "soundwave_ci_processing_20261113",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "build",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 5769
+        }
+      ]
+    },
+    "format": {
+      "mode": "format",
+      "environment": {
+        "database": "soundwave_ci_processing_20261113",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 2322
+        },
+        {
+          "name": "ci-doc-format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 694
+        }
+      ]
+    },
+    "browser": {
+      "mode": "browser",
+      "environment": {
+        "database": "soundwave_ci_processing_20261113",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "login",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 12281
+        },
+        {
+          "name": "playlists",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8293
+        },
+        {
+          "name": "settings",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8331
+        },
+        {
+          "name": "queue",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 10492
+        },
+        {
+          "name": "cross-device",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 9359
+        },
+        {
+          "name": "history",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 6407
+        },
+        {
+          "name": "creator",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8331
+        },
+        {
+          "name": "drafts",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 10483
+        },
+        {
+          "name": "uploads",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 5137
+        },
+        {
+          "name": "processing",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 10870
+        },
+        {
+          "name": "offline",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3732
+        },
+        {
+          "name": "restart",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 9635
+        }
+      ]
+    }
+  },
+  "requiredIntegrationCoverage": {
+    "required": [
+      "postgres: transaction rollback, concurrent completions and stale progress writes",
+      "PostgreSQL fresh concurrent migrations",
+      "postgres: playlist reads/writes reject anonymous sessions",
+      "postgres: concurrent playlist additions serialize",
+      "Redis atomically shares request limits across independent application instances",
+      "real PostgreSQL backup restores all 28",
+      "postgres: account writes serialize concurrent field changes and roll back atomically",
+      "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
+      "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
+      "postgres: rejected valid attempts also reserve their identity and cannot be repurposed",
+      "postgres: progress survives Redis disconnect/reconnect and streaming remains available",
+      "postgres: concurrent history removal and progress updates serialize without resurrection",
+      "postgres: guarded bulk clear is atomic, repeat-safe and does not erase post-clear activity",
+      "postgres: additive history migration preserves bookmarks, completion and revision receipts",
+      "postgres: creator authorization requires both active role and exact story ownership, including staff",
+      "postgres: concurrent onboarding and suspension serialize; failed creator transactions roll back",
+      "postgres: additive creator migration preserves populated listener state and marks catalog provenance",
+      "PostgreSQL creator import preserves identity, role, suspension and ownership; conflicts roll back",
+      "postgres: creator identity and suspension survive password and Google sign-in on the same account",
+      "postgres: real FFmpeg private MP3 conversion is checked, playable and idempotent",
+      "postgres: expired processing fences cannot publish or remove a newer immutable result",
+      "postgres: durable outbox dispatch and Redis-loss replay recover the same processing identity",
+      "postgres: worker crash during transcoding, after output and after commit recovers without duplicate artifacts",
+      "postgres: additive processing migration backfills validated uploads and durable outbox atomically",
+      "postgres: replacement, deletion, archive and suspension cannot publish stale processing output",
+      "postgres: invalid encoder output is rejected and chapter edits fence in-flight intent revisions",
+      "postgres: private upload persists validated PCM, checksums and owner-only range preview",
+      "postgres: quota reservation is shared, idempotent and safe across simultaneous chapters",
+      "postgres: streaming byte limit, interruption and timeout release quota after cleanup",
+      "postgres: suspension and chapter changes during upload prevent attachment",
+      "postgres: replacement and delete races retain only a validated current asset",
+      "postgres: storage failures retain quota until recoverable cleanup succeeds; abandoned leases expire",
+      "postgres: private media additive migration preserves populated drafts and listener state",
+      "PostgreSQL private media import preserves metadata but invalidates unavailable bytes and retained target pointers",
+      "private upload bytes, current pointer and single-use identity survive a real API process restart",
+      "postgres: draft role and ownership checks deny guests, suspended creators and staff bypasses",
+      "postgres: same-resource draft edits conflict while independent resources retain both accepted edits",
+      "postgres: concurrent membership/order writes and suspension races serialize safely",
+      "postgres: allocation, receipts, ordering and revisions roll back together on real constraint failures",
+      "postgres: draft migrations preserve populated catalog and initialize allocation above existing reserved IDs",
+      "PostgreSQL draft import preserves receipts, tombstones and ID high-water marks without overwriting retained collections",
+      "postgres: drafts stay invisible to every listener catalog, streaming and collection API",
+      "postgres: external provenance is read-only to creators and imports cannot overwrite creator ownership"
+    ],
+    "missing": [],
+    "zeroSkipped": true
+  },
+  "verificationHighlights": {
+    "realProcessing": "Actual PCM WAV fixtures encoded by FFmpeg to MP3, probed, fully decoded for duration and SHA-256 checked through authenticated HTTP. Original WAV bytes unchanged; duplicate/concurrent deliveries commit one output.",
+    "durability": "Real outbox/BullMQ dispatch, queue obliteration after SQL dispatch acknowledgement, reconstructed dispatch, actual closed producer connection and reconnect; SQL intent remains authoritative.",
+    "nodeCrashRecovery": "Production handler forked as a real Node process on both PostgreSQL and persistent SQLite, SIGKILL during partial output, after verified output/before commit, and after commit/before handler acknowledgement. Restart retains one ready reference and two files; attempts=2 before commit, attempts=1 after commit.",
+    "faultInjectionDisclosure": "Persisted lease/output deadlines are moved into the past after the worker is killed to accelerate takeover; cooldown timestamps are backdated to exercise lost-Redis replay. These are explicit fault injections, not sleeps or weakened readiness assertions.",
+    "retirementAndOwnership": "Replace/delete/archive/suspend during actual processing never commit stale output; current-owner/role/head/source revisions checked. Late old fences cannot commit/delete newer results. Chapter edits require explicit retry.",
+    "failureAndLimits": "Corrupted source, invalid generated output, missing FFmpeg dependency, output cap, quota denial, four-attempt exhaustion, bounded subprocess timeout and orphan cleanup exercised. Missing/corrupt ready derivative requires actual server-side integrity failure before explicit repair.",
+    "migrations": "Fresh PostgreSQL/SQLite and populated upgrade backfill preserve source/favorites and atomically create pending intent/outbox; backfilled work is immediately due. Existing schema simulation fixtures retain preservation assertions.",
+    "importAndBackup": "Actual processed source imported SQLite→PostgreSQL with metadata retained, unavailable outputs retired/uncharged, intent failed and no stale dispatch; existing target result wins. Real populated 28-table PostgreSQL backup/restore fingerprints include intent, output and typed outbox data. Files are outside the database archive.",
+    "operations": "Checksum verification CLI checks original and ready output; existing upload restart check still verifies source-only operation.",
+    "browser": "Both databases show real pending/claimed/ready state, native MP3 playback, original WAV, actual missing-file error/controlled rebuild, refresh and private no-caching under an actively controlling PWA; mobile/logout behavior checked.",
+    "docker": "Current API/worker images built. Genuine upload pending before worker exists; actual 1 CPU/512 MiB worker dispatches/encodes. Worker SIGKILL + volatile Redis restart recover SQL work; API restart preserves WAV/MP3 references/range bytes on a new private volume. Anonymous/public reads denied. Only new test containers/network/volume removed.",
+    "buildAndFormat": "Clean-export and workspace production builds passed; formatting, changed docs/Compose formatting and git diff --check passed."
+  },
+  "schema": {
+    "postgresMigration": "server/migrations/postgres/017_private_processing.sql",
+    "sqliteMigration": "server/migrations/sqlite/018_private_processing.sql",
+    "newTables": ["private_processing_intents", "private_media_outputs"],
+    "outboxExtension": "background_jobs.dispatch_topic=private_audio typed maintenance envelope; no destructive rebuild of the constrained job table",
+    "backupTableCount": 28,
+    "sourceOwnershipBinding": "Composite FK against private asset/user/story/chapter; unique ready output per intent"
+  },
+  "contract": {
+    "identity": "private-audio:{assetUUID}:{sha256}:processor-v1 in SQL; SHA-256(identity:generation) BullMQ ID avoids forbidden colons",
+    "states": "pending, processing (hashing/transcoding/validating), ready, failed, superseded; output writing/ready/orphan/deleted",
+    "retries": "Four encoding attempts/generation, 1/2/4-second exponential backoff (60-second cap), explicit revision-guarded retry/repair, ten generations and forty attempts maximum",
+    "lease": "Three subprocess timeouts + 45 seconds; no SQL transaction held during FFmpeg; current exact fence/eligibility required at commit",
+    "retention": "Immutable per-attempt keys registered before creation; source and unreleased derivative reservations share creator quota. Deletion only frees quota after confirmed unlink, and never targets another attempt/current source key.",
+    "sourceIdentity": "Full source hash plus hash/count of bytes actually fed into FFmpeg; complete generated-file SHA-256 and decode validation",
+    "format": "Private MP3, libmp3lame 96 kb/s stereo 44100 Hz; ready is technical readiness, never publication authority"
+  },
+  "resourceLimits": {
+    "defaultSubprocessSeconds": 20,
+    "defaultDerivativeBytes": 8388608,
+    "maximumDerivativeBytes": 16777216,
+    "defaultRssWatchdogBytes": 268435456,
+    "linuxAddressSpaceFloorBytes": 1073741824,
+    "dockerWorkerMemoryBytes": 536870912,
+    "dockerWorkerCpu": 1,
+    "privateJobConcurrency": 1,
+    "stderrBytes": 65536,
+    "probeJsonBytes": 16384,
+    "recoveryBatchRows": 50,
+    "recoverySeconds": 5
+  },
+  "issuesFoundAndFixed": [
+    "Crash test initially exited before its partial-output checkpoint because the optional output hook was not forwarded; wiring the real stream checkpoint now proves bytes exist before SIGKILL on both databases.",
+    "Browser media buffers masked a deleted file. A fresh media element after reload and an explicit 503 HEAD check now exercise actual storage failure and guarded rebuild, without arbitrary sleeps.",
+    "The Docker API ephemeral host port changed across restart. The drill follows docker port after restart rather than polling a stale address.",
+    "PostgreSQL backfill timestamps could defer immediately eligible work relative to the worker clock. Backfilled intent/outbox availability is now explicitly already due, while creation timestamps remain audited.",
+    "Source hashing now covers the exact stream fed into FFmpeg as well as admission, and process-exit guards prevent late RSS callbacks signalling a completed subprocess group.",
+    "Typed outbox ownership, missing binary classification, original/attempt cleanup lease protection and missing-outbox recreation are explicit; no broker-only readiness or fake progress is used."
+  ],
+  "infrastructureIncident": "A final Docker rebuild timed out and then hit a containerd snapshot input/output error; host storage headroom was low. A normal non-destructive Colima stop/start restored image-store reads. The complete final Docker drill subsequently passed all six checks. No global prune, filesystem repair or developer-volume recreation was performed.",
+  "limitations": [
+    "Private local-volume storage only; S3/multi-host filesystem behavior, public deployment and remote GitHub Actions remain unverified.",
+    "macOS uses sampled RSS monitoring rather than an instantaneous hard OS ceiling. Linux uses process CPU/address-space limits plus the tested Docker 1 CPU/512 MiB cgroup. Actual RAM-OOM/power-loss/kernel-I/O-hang fault injection was not performed.",
+    "Only small genuine PCM fixtures (including partial-output crash work) and local Chrome were tested. No new throughput/capacity benchmarks, cross-browser or production-scale/security certification claim.",
+    "Database and source/derivative volume backups must match; no atomic live DB/filesystem snapshot or full remote disaster-recovery drill. Database-only import deliberately invalidates unavailable bytes.",
+    "Per-creator quotas do not provide a global disk budget. Retained asset/attempt metadata is bounded but operational disk/backlog monitoring and long-term retention policy remain follow-up work.",
+    "Synchronized host clocks are required for timely leases/deadlines; token fencing rejects stale commits after takeover. Exact-once execution and byte-identical MP3 across encoder versions are not claimed.",
+    "No public publishing, licensing attestation, moderation, signed/public CDN media, additional input formats, WebSockets or creator analytics were introduced.",
+    "Optional unrelated SMTP/supervisor/load checks were not rerun. New resource-intensive private Docker drill was run locally and remains optional CI tooling."
+  ],
+  "m26Readiness": {
+    "available": "Current source/head identities, original WAV, checked immutable MP3 metadata, processor version and fenced ready status can be reused as technical eligibility inputs.",
+    "notImplemented": [
+      "Rights/license attestations and explicit review/publish/unpublish transitions.",
+      "Creator/admin object permissions and revision-safe publication transaction binding the current ready source/output.",
+      "Public catalog/search/cache invalidation and public media routing/storage policy; use real derivative duration rather than draft placeholders.",
+      "Removal/replacement/unpublish rules, offline-download/revocation limits and publication visibility/rollback tests."
+    ],
+    "status": "Ready to implement M2.6 policy/gates; NOT ready to expose private drafts by merely changing a ready flag."
+  },
+  "changedFiles": [
+    ".env.example",
+    ".github/workflows/ci.yml",
+    "Dockerfile",
+    "README.md",
+    "client/src/DraftAudio.jsx",
+    "client/src/DraftAudio.test.jsx",
+    "client/src/api.js",
+    "compose.yaml",
+    "docs/ARCHITECTURE.md",
+    "docs/CI.md",
+    "docs/M2_MEDIA_PROCESSING.md",
+    "docs/M2_MEDIA_UPLOADS.md",
+    "docs/SOUNDWAVE_V3_ROADMAP.md",
+    "docs/m2-media-processing-verification.json",
+    "docs/m2-processing-browser-postgres.json",
+    "docs/m2-processing-browser-sqlite.json",
+    "docs/m2-processing-docker.json",
+    "package.json",
+    "scripts/ci/run.mjs",
+    "scripts/private-processing-systems.mjs",
+    "scripts/processing-smoke.mjs",
+    "server/config.js",
+    "server/database/import-sqlite.js",
+    "server/jobs/handlers.js",
+    "server/jobs/queue.js",
+    "server/jobs/worker.js",
+    "server/media/private-ffmpeg.js",
+    "server/media/private-processor.js",
+    "server/media/private-queue.js",
+    "server/migrations/postgres/017_private_processing.sql",
+    "server/migrations/sqlite/018_private_processing.sql",
+    "server/operations/backup.js",
+    "server/routes/private-media.js",
+    "server/scripts/private-media.js",
+    "server/scripts/worker.js",
+    "server/services/private-media.js",
+    "server/services/processing-intents.js",
+    "server/test/backup.test.js",
+    "server/test/creators.test.js",
+    "server/test/drafts.test.js",
+    "server/test/migration.test.js",
+    "server/test/phase2-helpers.js",
+    "server/test/private-media-helpers.js",
+    "server/test/private-media-import.test.js",
+    "server/test/private-media.test.js",
+    "server/test/private-processing-recovery.test.js",
+    "server/test/private-processing.test.js",
+    "server/test/processing-child.mjs"
+  ],
+  "verifiedSourceHashes": {
+    ".env.example": "b6b8666291bbea1889906a42c313b603a1d5bcec6a4cfd94c80cecc7928d673b",
+    ".github/workflows/ci.yml": "727c556d0edfff2bcd1d9666a54504ee75772fb08c111122b57c301b39895982",
+    "Dockerfile": "2f9e09c5be119179d9ad0beff85e4e2ffc68a3d832fe48b84a37296dcad6e006",
+    "client/src/DraftAudio.jsx": "c2d0d993c29dc5a2da0d59306fd719ca3a3913740e4767faffc591660876fa46",
+    "client/src/DraftAudio.test.jsx": "c9aee96eca1c119ca4be154f0ec25cc7514399576daab6a0280e4a8dda8a65eb",
+    "client/src/api.js": "e9116f7da507d0a3311ad9a6a6887ea568c3d94670371c693416a99ebde8e1c5",
+    "compose.yaml": "fddb19bc27348871037cdb4678e0694a9cd0feb4129f1786b6f2d2b4edc68798",
+    "scripts/ci/run.mjs": "dc8a331607a6b756417e78db6d55b0c80cfe557b7e716aba1a603f150a33cea1",
+    "scripts/private-processing-systems.mjs": "ecdbc0e784b6470ae348aac097830f6137589a52611b2cf2eb1537add494f328",
+    "scripts/processing-smoke.mjs": "345ad1a6ca39d63814d71a0f4673e25aa8ae6bf73bb959431acfb0799ec3ed0f",
+    "server/config.js": "378291be260e08d4c0f8ca9ad45b74720848fb233503efd4f1e52119d3a1be78",
+    "server/database/import-sqlite.js": "7c4c9343665e75d4832fed587ad388d76b61e82c480167b257627230a2c84b04",
+    "server/jobs/handlers.js": "ba5a357a35bcc5808a28f2b7948f2316aa71416de377cb62854d565c58c1669d",
+    "server/jobs/queue.js": "be91cb5e2e8d4f40c18d82d2ce1161d22d4031f66997f28060a5c6ba15b01fc6",
+    "server/jobs/worker.js": "da7a45ebc13e8bb65077e793c95b6a5666bfac8ee7e2397224941cf4af23dc92",
+    "server/media/private-ffmpeg.js": "e7734ad42ed40f34aed4da96f730c10bf334c290adeba96e2e1778d919ece4a6",
+    "server/media/private-processor.js": "8e9def70853e95199069354318ff4e94872e63a97f02e05f99a527b91eaaf1dc",
+    "server/media/private-queue.js": "937e67e46b51c032e91cbcaf6a95aa04f333c15284bfb4f2a5a4463d25a04045",
+    "server/migrations/postgres/017_private_processing.sql": "d76227d0aef742387d714791970037e3ecdcabf28eaa34d78529b547882775c7",
+    "server/migrations/sqlite/018_private_processing.sql": "5050a514cc13ebe948cb690d275ad06bfb596e15c8cc333b7bfbd4e8e0b87ae9",
+    "server/operations/backup.js": "f262f72661430151e9cfd508f02bcb8eaa033295b2891a534c5fb6ef938c4f17",
+    "server/routes/private-media.js": "e256d21ccceb0c7488add00da9b9ba0a6ef97177cf6d877845bfdc1bcaa56efb",
+    "server/scripts/private-media.js": "672c8f50ba6f161a92b7143d1f7d24826755f35afd6f6f7bdeae487a2e6ad687",
+    "server/scripts/worker.js": "6f3c353b8216e34b95bbd286251e18ec9635992d657f491d33b9c4c25c3412c7",
+    "server/services/private-media.js": "a4322374f5af912ed7f193e8ad4af2eca3eb77e07a76e9cbd6655e33bab5fb19",
+    "server/services/processing-intents.js": "98972148a9f8abaf9ae7e554ef3746791b2e26d0a24311f1f278c965822c191b",
+    "server/test/backup.test.js": "e166b3dbcb078362a9e954488c42faf2c60c3716c4c92e2e1996a13b7a2f7919",
+    "server/test/creators.test.js": "06ad99267c7498ec6eb7562d8ac6baf1951ca79ddd4592d1f7184df4647dc92e",
+    "server/test/drafts.test.js": "673efc59ed3d005f220ac482ca2cb644b83bc8290b011f7c4465a50be3d5948f",
+    "server/test/migration.test.js": "0bf5f2384b9e773116ef6ebe2be680faacc848c68d44cab06e456deefbf5b6ee",
+    "server/test/phase2-helpers.js": "cb4a755e927029bdc1609109b55d32346bc0d1d49f52d3b4d72396df3d0abcd0",
+    "server/test/private-media-helpers.js": "3f181fadcb1f9f0f1c6a8addf4dc58a8502fe631a86606117f346e12a461d461",
+    "server/test/private-media-import.test.js": "76131db5f032b7df06a92e7f87b3e6d6f60351f489ae679dc120ad5909521d65",
+    "server/test/private-media.test.js": "f2449790c3b05376d6eb6782974d9eb2e5d9dd1f36e1404980d6833bd9dc257f",
+    "server/test/private-processing-recovery.test.js": "3fba8f77380d01df4421504d2c27b7b58dec73ae68225be2a3267f573a79e008",
+    "server/test/private-processing.test.js": "a789504ec4ed76f7364a877ffd9421fefc47c65dafc07ef0cd1332ada5cb32b5",
+    "server/test/processing-child.mjs": "fd14b83290fc1ae0e18eb841925d64831899299cb0f557df5477215f50db77a8"
+  }
+}

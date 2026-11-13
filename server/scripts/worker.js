@@ -1,3 +1,8 @@
+import {
+  privateProcessingQueue,
+  startPrivateProcessingWorker,
+  runPrivateProcessingRecovery,
+} from "../media/private-queue.js";
 import { runPrivateMediaCleanup } from "../media/private-cleanup.js";
 import { redisInfrastructure } from "../infrastructure/redis.js";
 import { writeFileSync, unlinkSync } from "node:fs";
@@ -23,6 +28,13 @@ const media =
   config.redisUrl && config.mediaEnabled
     ? { queue: mediaQueue(config), worker: startMediaWorker(db, config) }
     : null;
+const privateQueue =
+  config.redisUrl && config.mediaEnabled
+    ? privateProcessingQueue(config)
+    : null;
+const privateWorker = privateQueue
+  ? startPrivateProcessingWorker(db, config, { signal: controller.signal })
+  : null;
 const healthRedis = media
   ? redisInfrastructure(config.redisUrl, { prefix: config.redisPrefix })
   : null;
@@ -36,7 +48,11 @@ const tick = () =>
       pid: process.pid,
       at: Date.now(),
       mediaEnabled: !!media,
-      mediaReady: !media || (healthRedis.ready() && media.worker.isRunning()),
+      mediaReady:
+        !media ||
+        (healthRedis.ready() &&
+          media.worker.isRunning() &&
+          privateWorker.isRunning()),
     }),
     { mode: 0o600 },
   );
@@ -44,8 +60,14 @@ tick();
 console.log("SoundWave worker started");
 try {
   await Promise.all([
-    runWorker(db, { mail, signal: controller.signal, onTick: tick }),
+    runWorker(db, {
+      mail,
+      privateQueue,
+      signal: controller.signal,
+      onTick: tick,
+    }),
     runPrivateMediaCleanup(db, config, controller.signal),
+    runPrivateProcessingRecovery(db, config, controller.signal),
     ...(media
       ? [
           runMediaScheduler(db, media.queue, controller.signal, {
@@ -55,6 +77,8 @@ try {
       : []),
   ]);
 } finally {
+  if (privateWorker) await privateWorker.close();
+  if (privateQueue) await privateQueue.close();
   if (media) {
     await media.worker.close();
     await media.queue.close();
