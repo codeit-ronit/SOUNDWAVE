@@ -9,6 +9,7 @@ RUN npm run build
 
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
+ENV PRIVATE_MEDIA_ROOT=/app/private-media
 WORKDIR /app
 COPY package*.json ./
 COPY client/package.json client/package.json
@@ -16,6 +17,7 @@ COPY server/package.json server/package.json
 RUN npm ci --omit=dev && npm cache clean --force
 COPY server server
 COPY --from=build /app/client/dist client/dist
+RUN mkdir -p /app/private-media && chown node:node /app/private-media && chmod 700 /app/private-media
 USER node
 EXPOSE 3001
 FROM runtime AS worker

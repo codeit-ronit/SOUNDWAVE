@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { backupDatabase, verifyBackup } from "../operations/backup.js";
 if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
-  test("real PostgreSQL backup restores all 24 public table fingerprints and never overwrites its archive", async () => {
+  test("real PostgreSQL backup restores all 26 public table fingerprints and never overwrites its archive", async () => {
     const dir = mkdtempSync(join(tmpdir(), "soundwave-backup-")),
       path = join(dir, "database.dump"),
       options = { container: process.env.TEST_BACKUP_CONTAINER };
@@ -81,14 +81,25 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         "INSERT INTO draft_create_receipts(user_id,request_id,request_hash,kind,story_id,chapter_id) VALUES($1,$2,$3,'chapter',900000000,900000000)",
         [owner, randomUUID(), "c".repeat(64)],
       );
+      const mediaId = randomUUID();
+      await client.query(
+        "INSERT INTO private_media_assets(id,user_id,story_id,chapter_id,request_id,request_hash,object_key,status,reserved_bytes,byte_size,checksum,detected_type,duration_seconds,validation_version,expected_chapter_revision,expected_head_revision,expires_at) VALUES($1,$2,900000000,900000000,$3,$4,$5,'validated',44,44,$4,'audio/wav',1,1,7,0,CURRENT_TIMESTAMP)",
+        [mediaId, owner, randomUUID(), "d".repeat(64), "e".repeat(64)],
+      );
+      await client.query(
+        "INSERT INTO private_media_heads(chapter_id,story_id,user_id,asset_id,revision) VALUES(900000000,900000000,$1,$2,1)",
+        [owner, mediaId],
+      );
       const manifest = await backupDatabase(
         process.env.TEST_DATABASE_URL,
         path,
         options,
       );
-      assert.equal(Object.keys(manifest.tables).length, 24);
+      assert.equal(Object.keys(manifest.tables).length, 26);
       assert.ok(manifest.tables.user_preferences.count > 0);
       assert.ok(manifest.tables.creator_profiles.count > 0);
+      assert.ok(manifest.tables.private_media_assets.count > 0);
+      assert.ok(manifest.tables.private_media_heads.count > 0);
       assert.ok(manifest.tables.creator_id_allocations.count >= 2);
       assert.ok(manifest.tables.draft_create_receipts.count > 0);
       assert.ok(manifest.tables.listening_progress.count > 0);
@@ -99,7 +110,7 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
       assert.equal(statSync(path + ".json").mode & 0o777, 0o600);
       assert.deepEqual(
         await verifyBackup(process.env.TEST_DATABASE_URL, path, options),
-        { verified: true, tables: 24 },
+        { verified: true, tables: 26 },
       );
       // Older version-1 manifests covered the previous 21-table inventory.
       // Verify that allowlisted legacy inventory is accepted, without weakening
@@ -107,6 +118,8 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
       const manifestPath = path + ".json",
         original = readFileSync(manifestPath, "utf8"),
         legacy = JSON.parse(original);
+      delete legacy.tables.private_media_heads;
+      delete legacy.tables.private_media_assets;
       delete legacy.tables.creator_profiles;
       delete legacy.tables.creator_id_allocations;
       delete legacy.tables.draft_create_receipts;
@@ -139,6 +152,13 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         ]);
         await client.query(
           "DELETE FROM draft_create_receipts WHERE user_id=$1",
+          [owner],
+        );
+        await client.query("DELETE FROM private_media_heads WHERE user_id=$1", [
+          owner,
+        ]);
+        await client.query(
+          "DELETE FROM private_media_assets WHERE user_id=$1",
           [owner],
         );
         await client.query("DELETE FROM chapters WHERE story_id=900000000");

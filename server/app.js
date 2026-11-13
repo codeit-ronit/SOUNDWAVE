@@ -14,6 +14,7 @@ import { analyticsRouter } from "./routes/analytics.js";
 import { streamRouter, legacyAudioRouter } from "./routes/stream.js";
 import { apiRouter } from "./routes/api.js";
 import { playlistRouter } from "./routes/playlists.js";
+import { privateMediaRouter } from "./routes/private-media.js";
 import { draftRouter } from "./routes/drafts.js";
 import { creatorRouter } from "./routes/creators.js";
 import { historyRouter } from "./routes/history.js";
@@ -31,6 +32,7 @@ export function createApp(
     authLimit,
     redis,
     googleVerifier,
+    privateStorage,
   } = {},
 ) {
   db = sqliteAdapter(db);
@@ -106,6 +108,7 @@ export function createApp(
   app.use("/api", streamRouter(db));
   app.use("/api/playlists", playlistRouter(db));
   app.use("/api/history", historyRouter(db));
+  app.use("/api/creator", privateMediaRouter(db, config, privateStorage));
   app.use("/api/creator/stories", draftRouter(db));
   app.use("/api/creator", creatorRouter(db));
   app.use("/api", accountRouter(db));

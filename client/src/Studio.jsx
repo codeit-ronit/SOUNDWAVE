@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { api } from "./api";
+import DraftAudio from "./DraftAudio";
 const blankStory = { title: "", description: "", genre: "", language: "en" },
   blankChapter = { title: "", summary: "" };
 const storyFields = (story) => ({
@@ -659,6 +660,12 @@ function DraftEditor({ id, scope, back }) {
                     <span>Revision {c.revision}</span>
                     <p>{c.summary}</p>
                   </div>
+                  <DraftAudio
+                    storyId={id}
+                    chapter={c}
+                    scope={scope}
+                    readOnly={archived || locked}
+                  />
                   {!archived && (
                     <div className="studio-actions">
                       <button

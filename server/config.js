@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { fileURLToPath } from "node:url";
 export function loadConfig(env = process.env) {
   const production = env.NODE_ENV === "production";
   const positive = (name, fallback, max) => {
@@ -54,6 +55,13 @@ export function loadConfig(env = process.env) {
   }
   return {
     production,
+    privateMediaRoot:
+      env.PRIVATE_MEDIA_ROOT ||
+      fileURLToPath(new URL("./data/private-media/", import.meta.url)),
+    uploadMaxBytes: positive("UPLOAD_MAX_BYTES", 10485760, 52428800),
+    creatorStorageBytes: positive("CREATOR_STORAGE_BYTES", 52428800, 524288000),
+    uploadSeconds: positive("UPLOAD_TIMEOUT_SECONDS", 60, 120),
+    uploadReservationSeconds: positive("UPLOAD_RESERVATION_SECONDS", 600, 3600),
     googleClientId,
     trustedProxies,
     redisUrl: env.REDIS_URL || null,

@@ -43,7 +43,9 @@
     "test:history:browser": "npm run build && node scripts/history-smoke.mjs",
     "identity:provision": "node server/scripts/creator.js",
     "test:creator:browser": "npm run build && node scripts/creator-smoke.mjs",
-    "test:drafts:browser": "npm run build && node scripts/drafts-smoke.mjs"
+    "test:drafts:browser": "npm run build && node scripts/drafts-smoke.mjs",
+    "test:uploads:browser": "npm run build && node scripts/uploads-smoke.mjs",
+    "media:private": "node server/scripts/private-media.js"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",

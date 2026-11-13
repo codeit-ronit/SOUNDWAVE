@@ -34,6 +34,8 @@ const tables = [
   "creator_profiles",
   "creator_id_allocations",
   "draft_create_receipts",
+  "private_media_assets",
+  "private_media_heads",
 ];
 const pool = (url) => {
   const value = new pg.Pool({
@@ -168,6 +170,8 @@ export async function backupDatabase(url, path, { container } = {}) {
       createdAt: new Date().toISOString(),
       sha256: await sha(path),
       tables: counts,
+      privateMediaFiles:
+        "Not included. Restore the matching private storage volume separately and verify checksums before enabling uploads/preview.",
     };
     writeFileSync(path + ".json", JSON.stringify(metadata, null, 2) + "\n", {
       flag: "wx",
@@ -191,12 +195,15 @@ export async function verifyBackup(url, path, { container } = {}) {
   if (manifest.version !== 1 || manifest.sha256 !== (await sha(path)))
     throw Error("Archive integrity check failed");
   const names = Object.keys(manifest.tables || {});
-  const previous = tables.filter(
+  const drafts = tables.filter(
+    (t) => !["private_media_assets", "private_media_heads"].includes(t),
+  );
+  const previous = drafts.filter(
     (t) => !["creator_id_allocations", "draft_create_receipts"].includes(t),
   );
   const expected = previous.filter((t) => t !== "creator_profiles");
   if (
-    ![expected, previous, tables].some(
+    ![expected, previous, drafts, tables].some(
       (set) =>
         set.length === names.length && set.every((t) => names.includes(t)),
     )

@@ -1,3 +1,4 @@
+import { runPrivateMediaCleanup } from "../media/private-cleanup.js";
 import { redisInfrastructure } from "../infrastructure/redis.js";
 import { writeFileSync, unlinkSync } from "node:fs";
 import {
@@ -44,6 +45,7 @@ console.log("SoundWave worker started");
 try {
   await Promise.all([
     runWorker(db, { mail, signal: controller.signal, onTick: tick }),
+    runPrivateMediaCleanup(db, config, controller.signal),
     ...(media
       ? [
           runMediaScheduler(db, media.queue, controller.signal, {

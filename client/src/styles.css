@@ -3189,3 +3189,29 @@ input[type="range"]::-moz-range-thumb {
   white-space: normal;
   overflow-wrap: anywhere;
 }
+
+.studio-audio {
+  width: 100%;
+  min-width: 0;
+}
+.studio-audio audio,
+.studio-audio input,
+.studio-audio progress {
+  max-width: 100%;
+}
+.studio-audio label {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 1rem;
+}
+.studio-audio progress {
+  display: block;
+  margin-top: 1rem;
+}
+.studio-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.studio-audio input[type="file"] {
+  width: 100%;
+  min-width: 0;
+}

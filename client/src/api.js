@@ -30,6 +30,30 @@ export async function request(path, options = {}, session = scope) {
   return response.status === 204 ? null : response.json();
 }
 export const api = {
+  privateMediaStatus: (s, c, signal, session = scope) =>
+    request(`/creator/stories/${s}/chapters/${c}/media`, { signal }, session),
+  privateAsset: (s, c, id, signal, session = scope) =>
+    request(
+      `/creator/stories/${s}/chapters/${c}/media/${id}`,
+      { signal },
+      session,
+    ),
+  reservePrivateMedia: (s, c, body, signal, session = scope) =>
+    request(
+      `/creator/stories/${s}/chapters/${c}/media`,
+      { method: "POST", body: JSON.stringify(body), signal },
+      session,
+    ),
+  removePrivateMedia: (s, c, id, revision, signal, session = scope) =>
+    request(
+      `/creator/stories/${s}/chapters/${c}/media/${id}`,
+      {
+        method: "DELETE",
+        body: JSON.stringify({ expectedRevision: revision }),
+        signal,
+      },
+      session,
+    ),
   drafts: (params, signal, session = scope) =>
     request(`/creator/stories?${params}`, { signal }, session),
   draft: (id, signal, session = scope) =>
@@ -212,3 +236,61 @@ export const api = {
     }
   },
 };
+
+// XMLHttpRequest exposes actual transfer progress; no multipart parser or filenames.
+export function uploadPrivateAudio(
+  story,
+  chapter,
+  asset,
+  file,
+  { signal, session = scope, onProgress } = {},
+) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const abort = () => xhr.abort();
+    const done = () => signal?.removeEventListener("abort", abort);
+    xhr.open(
+      "PUT",
+      `/api/creator/stories/${story}/chapters/${chapter}/media/${asset}/bytes`,
+    );
+    xhr.setRequestHeader("Content-Type", "audio/wav");
+    if (session?.csrfToken)
+      xhr.setRequestHeader("X-CSRF-Token", session.csrfToken);
+    if (session?.user?.id)
+      xhr.setRequestHeader("X-Session-User", session.user.id);
+    xhr.timeout = 125000;
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable)
+        onProgress?.(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      done();
+      let data;
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {}
+      if (xhr.status >= 200 && xhr.status < 300 && data) resolve(data);
+      else
+        reject(
+          Object.assign(
+            Error(
+              data?.error?.message || "Upload outcome unknown. Refresh status.",
+            ),
+            { status: xhr.status, code: data?.error?.code },
+          ),
+        );
+    };
+    xhr.onerror = xhr.ontimeout = () => {
+      done();
+      reject(Error("Upload outcome unknown. Refresh status."));
+    };
+    xhr.onabort = () => {
+      done();
+      reject(new DOMException("Upload cancelled", "AbortError"));
+    };
+    if (signal?.aborted)
+      return reject(new DOMException("Request retired", "AbortError"));
+    signal?.addEventListener("abort", abort, { once: true });
+    xhr.send(file);
+  });
+}

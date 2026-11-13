@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import Database from "better-sqlite3";
 import { storyMetadata, chapterMetadata } from "../services/draft-contract.js";
 // An explicit administrative operation. Source is read-only, held at one SQLite
@@ -19,6 +19,8 @@ export async function importSqlite(db, path) {
       "stories",
       "chapters",
       "draft_create_receipts",
+      "private_media_assets",
+      "private_media_heads",
       "story_sources",
       "chapter_sources",
       "favorites",
@@ -181,6 +183,46 @@ export async function importSqlite(db, path) {
                 : importedChapters.has(row.chapter_id))
             )
               continue;
+          }
+          if (
+            table === "private_media_assets" ||
+            table === "private_media_heads"
+          ) {
+            const target = await db
+              .prepare(
+                `SELECT * FROM ${table} WHERE ${table === "private_media_assets" ? "id" : "chapter_id"}=?`,
+              )
+              .get(table === "private_media_assets" ? row.id : row.chapter_id);
+            if (
+              target &&
+              (target.user_id !== row.user_id ||
+                target.chapter_id !== row.chapter_id ||
+                target.story_id !== row.story_id)
+            )
+              throw Error("Private media ownership conflict during import");
+            if (
+              retainedDrafts.has(row.story_id) ||
+              target ||
+              !importedChapters.has(row.chapter_id)
+            )
+              continue;
+            if (
+              !Number.isSafeInteger(row.revision) ||
+              row.revision >= Number.MAX_SAFE_INTEGER
+            )
+              throw Error("Invalid imported media revision");
+            // Database import does not transport private files. Never claim an
+            // imported pointer is playable or delete objects belonging to this root.
+            row.revision++;
+            if (table === "private_media_assets") {
+              row.status = row.status === "deleted" ? "deleted" : "failed";
+              row.object_key = randomBytes(32).toString("hex");
+              row.storage_released = 1;
+              row.cleanup_error = 0;
+              row.lease_token = null;
+              row.lease_until = null;
+              row.error_code = "RESTORE_BYTES_REQUIRED";
+            } else row.asset_id = null;
           }
           // Column names originate only in the known SQLite schema, not requests.
           const columns = Object.keys(row).filter((k) => k !== "event_order");
