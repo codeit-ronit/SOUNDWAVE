@@ -136,7 +136,7 @@ try {
       "postgres: playlist reads/writes reject anonymous sessions",
       "postgres: concurrent playlist additions serialize",
       "Redis atomically shares request limits across independent application instances",
-      "real PostgreSQL backup restores all 22",
+      "real PostgreSQL backup restores all 24",
       "postgres: account writes serialize concurrent field changes and roll back atomically",
       "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
       "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
@@ -150,6 +150,13 @@ try {
       "postgres: additive creator migration preserves populated listener state and marks catalog provenance",
       "PostgreSQL creator import preserves identity, role, suspension and ownership; conflicts roll back",
       "postgres: creator identity and suspension survive password and Google sign-in on the same account",
+      "postgres: draft role and ownership checks deny guests, suspended creators and staff bypasses",
+      "postgres: same-resource draft edits conflict while independent resources retain both accepted edits",
+      "postgres: concurrent membership/order writes and suspension races serialize safely",
+      "postgres: allocation, receipts, ordering and revisions roll back together on real constraint failures",
+      "postgres: draft migrations preserve populated catalog and initialize allocation above existing reserved IDs",
+      "PostgreSQL draft import preserves receipts, tombstones and ID high-water marks without overwriting retained collections",
+      "postgres: drafts stay invisible to every listener catalog, streaming and collection API",
       "postgres: external provenance is read-only to creators and imports cannot overwrite creator ownership",
     ];
     const missing = required.filter(
@@ -181,6 +188,8 @@ try {
       "docs/m1-cross-device-verification.json",
       "docs/M1_HISTORY.md",
       "docs/m1-history-verification.json",
+      "docs/M2_CREATOR_DRAFTS.md",
+      "docs/m2-creator-drafts-verification.json",
       "docs/M2_CREATOR_IDENTITY.md",
       "docs/m2-creator-identity-verification.json",
     ]);
@@ -194,6 +203,7 @@ try {
       ["cross-device", "cross-device-smoke"],
       ["history", "history-smoke"],
       ["creator", "creator-smoke"],
+      ["drafts", "drafts-smoke"],
       ["offline", "offline-smoke"],
       ["restart", "audit-smoke"],
     ])

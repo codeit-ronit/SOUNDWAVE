@@ -23,11 +23,67 @@ export async function request(path, options = {}, session = scope) {
     error.code = data?.error?.code;
     error.progress = data?.progress;
     error.historyRevision = data?.historyRevision;
+    error.current = data?.current;
+    error.chapter = data?.chapter;
     throw error;
   }
   return response.status === 204 ? null : response.json();
 }
 export const api = {
+  drafts: (params, signal, session = scope) =>
+    request(`/creator/stories?${params}`, { signal }, session),
+  draft: (id, signal, session = scope) =>
+    request(`/creator/stories/${id}`, { signal }, session),
+  createDraft: (body, signal, session = scope) =>
+    request(
+      "/creator/stories",
+      { method: "POST", body: JSON.stringify(body), signal },
+      session,
+    ),
+  saveDraft: (id, body, signal, session = scope) =>
+    request(
+      `/creator/stories/${id}`,
+      { method: "PUT", body: JSON.stringify(body), signal },
+      session,
+    ),
+  archiveDraft: (id, revision, signal, session = scope) =>
+    request(
+      `/creator/stories/${id}/archive`,
+      {
+        method: "POST",
+        body: JSON.stringify({ expectedRevision: revision }),
+        signal,
+      },
+      session,
+    ),
+  addDraftChapter: (id, body, signal, session = scope) =>
+    request(
+      `/creator/stories/${id}/chapters`,
+      { method: "POST", body: JSON.stringify(body), signal },
+      session,
+    ),
+  saveDraftChapter: (id, chapter, body, signal, session = scope) =>
+    request(
+      `/creator/stories/${id}/chapters/${chapter}`,
+      { method: "PUT", body: JSON.stringify(body), signal },
+      session,
+    ),
+  removeDraftChapter: (id, chapter, body, signal, session = scope) =>
+    request(
+      `/creator/stories/${id}/chapters/${chapter}`,
+      { method: "DELETE", body: JSON.stringify(body), signal },
+      session,
+    ),
+  reorderDraft: (id, chapterIds, revision, signal, session = scope) =>
+    request(
+      `/creator/stories/${id}/chapters/order`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ chapterIds, expectedRevision: revision }),
+        signal,
+      },
+      session,
+    ),
   creator: (signal, session = scope) =>
     request("/creator", { signal }, session),
   saveCreator: (action, profile, signal, session = scope) =>

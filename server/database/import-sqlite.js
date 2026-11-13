@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
+import { storyMetadata, chapterMetadata } from "../services/draft-contract.js";
 // An explicit administrative operation. Source is read-only, held at one SQLite
 // snapshot; target is one PostgreSQL transaction. No sessions are copied.
 export async function importSqlite(db, path) {
@@ -17,6 +18,7 @@ export async function importSqlite(db, path) {
       "creator_profiles",
       "stories",
       "chapters",
+      "draft_create_receipts",
       "story_sources",
       "chapter_sources",
       "favorites",
@@ -56,14 +58,47 @@ export async function importSqlite(db, path) {
           });
           known.add(row.user_id);
         }
+    const sourceAllocations = has("creator_id_allocations")
+      ? source.prepare("SELECT * FROM creator_id_allocations").all()
+      : [];
+    const sourcePrivate = new Set(
+      rows.stories
+        .filter((s) => s.ownership_kind === "creator")
+        .map((s) => s.id),
+    );
+    for (const story of rows.stories.filter((s) => sourcePrivate.has(s.id))) {
+      storyMetadata({ ...story, language: story.language ?? "und" });
+      const chapters = rows.chapters.filter((c) => c.story_id === story.id);
+      if (
+        chapters.length > 500 ||
+        chapters.filter((c) => !c.draft_removed).length > 100
+      )
+        throw Error("Draft import exceeds chapter limits");
+      for (const chapter of chapters)
+        chapterMetadata({ ...chapter, summary: chapter.summary ?? "" });
+    }
+    const retainedDrafts = new Set(),
+      importedStories = new Set(),
+      importedChapters = new Set();
     const retainedProgress = new Set(),
       importedProgress = new Set();
     await db.transaction(async () => {
       // Match runtime owner -> chapter lock ordering for concurrent imports.
-      for (const user of [...users].sort((a, b) => a.id.localeCompare(b.id)))
-        await db
-          .prepare("SELECT id FROM users WHERE id=? FOR UPDATE")
-          .get(user.id);
+      for (const id of [
+        ...new Set([
+          ...users.map((u) => u.id),
+          ...rows.stories.map((s) => s.owner_id).filter(Boolean),
+        ]),
+      ].sort())
+        await db.prepare("SELECT id FROM users WHERE id=? FOR UPDATE").get(id);
+      // Match API lock order before any new resource insertion. APIs allocate
+      // only one kind per request; imports lock both in a fixed order.
+      await db
+        .prepare(
+          "SELECT kind FROM creator_id_allocations ORDER BY kind" +
+            (db.dialect === "postgres" ? " FOR UPDATE" : ""),
+        )
+        .all();
       await db
         .prepare("UPDATE catalog_revision SET revision=? WHERE id=1")
         .run(randomUUID());
@@ -106,9 +141,7 @@ export async function importSqlite(db, path) {
                 ? "external"
                 : "system";
             const target = await db
-              .prepare(
-                "SELECT owner_id,ownership_kind FROM stories WHERE id=? FOR UPDATE",
-              )
+              .prepare("SELECT owner_id,ownership_kind FROM stories WHERE id=?")
               .get(row.id);
             if (
               target &&
@@ -116,13 +149,38 @@ export async function importSqlite(db, path) {
                 target.owner_id !== (row.owner_id ?? null))
             )
               throw Error("Story ownership conflict during import");
+            if (target?.ownership_kind === "creator")
+              retainedDrafts.add(row.id);
           }
           if (table === "chapters") {
             const target = await db
-              .prepare("SELECT story_id FROM chapters WHERE id=? FOR UPDATE")
+              .prepare("SELECT story_id FROM chapters WHERE id=?")
               .get(row.id);
             if (target && target.story_id !== row.story_id)
               throw Error("Chapter ownership conflict during import");
+            if (retainedDrafts.has(row.story_id)) continue;
+          }
+          if (table === "draft_create_receipts") {
+            const target = await db
+              .prepare(
+                "SELECT * FROM draft_create_receipts WHERE user_id=? AND request_id=?",
+              )
+              .get(row.user_id, row.request_id);
+            if (
+              target &&
+              (target.request_hash !== row.request_hash ||
+                target.kind !== row.kind ||
+                target.story_id !== row.story_id ||
+                target.chapter_id !== row.chapter_id)
+            )
+              throw Error("Draft receipt identity conflict during import");
+            if (
+              target ||
+              !(row.kind === "story"
+                ? importedStories.has(row.story_id)
+                : importedChapters.has(row.chapter_id))
+            )
+              continue;
           }
           // Column names originate only in the known SQLite schema, not requests.
           const columns = Object.keys(row).filter((k) => k !== "event_order");
@@ -143,9 +201,53 @@ export async function importSqlite(db, path) {
                 "UPDATE users SET history_revision=history_revision+1 WHERE id=?",
               )
               .run(row.user_id);
+          if (table === "stories" && result.changes)
+            importedStories.add(row.id);
+          if (table === "chapters" && result.changes)
+            importedChapters.add(row.id);
           counts[table] += result.changes;
         }
       }
+      counts.creator_id_allocations = 0;
+      for (const kind of ["chapter", "story"]) {
+        const src = sourceAllocations.find((row) => row.kind === kind),
+          table = kind === "story" ? "stories" : "chapters";
+        if (
+          src &&
+          (!Number.isInteger(src.next_id) ||
+            src.next_id < 900000000 ||
+            src.next_id > 1000000000)
+        )
+          throw Error("Invalid imported ID high-water mark");
+        const max =
+          (
+            await db
+              .prepare(
+                `SELECT MAX(id) AS n FROM ${table} WHERE id BETWEEN 900000000 AND 999999999`,
+              )
+              .get()
+          ).n ?? 899999999;
+        const current = (
+            await db
+              .prepare(
+                "SELECT next_id FROM creator_id_allocations WHERE kind=?",
+              )
+              .get(kind)
+          ).next_id,
+          next = Math.max(current, src?.next_id ?? 900000000, max + 1);
+        if (next !== current) {
+          await db
+            .prepare("UPDATE creator_id_allocations SET next_id=? WHERE kind=?")
+            .run(next, kind);
+          counts.creator_id_allocations++;
+        }
+      }
+      if (
+        sourceAllocations.some(
+          (row) => !["story", "chapter"].includes(row.kind),
+        )
+      )
+        throw Error("Invalid allocation kind");
       // Existing target keys are retained, but newly imported positions must not
       // collide with the target's next append. Locks above exclude concurrent adds.
       for (const row of rows.playlists) {

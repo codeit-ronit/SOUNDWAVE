@@ -146,7 +146,14 @@ export const storySelect = `SELECT s.*,
   EXISTS(SELECT 1 FROM favorites f WHERE f.story_id=s.id AND f.user_id=@user) AS is_favorite
   FROM (SELECT * FROM stories WHERE ownership_kind IN ('system','external')) s`;
 export function serializeStory(row) {
-  const { owner_id, ownership_kind, ...publicRow } = row;
+  const {
+    owner_id,
+    ownership_kind,
+    draft_state,
+    draft_revision,
+    language,
+    ...publicRow
+  } = row;
   return { ...publicRow, is_favorite: Boolean(row.is_favorite) };
 }
 export function serializeProgress(row) {

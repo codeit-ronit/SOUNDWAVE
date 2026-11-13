@@ -3140,3 +3140,52 @@ input[type="range"]::-moz-range-thumb {
   border: 1px solid #393744;
   border-radius: 10px;
 }
+.studio-fields {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.studio-fields label {
+  display: grid;
+  gap: 6px;
+}
+.studio-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.studio-list > li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.studio-list > li > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.studio-list span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+.studio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.studio-page .settings-card {
+  margin-top: 20px;
+}
+.studio-page h1 {
+  overflow-wrap: anywhere;
+}
+.studio-list .button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

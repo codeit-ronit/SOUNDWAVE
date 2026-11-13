@@ -42,10 +42,14 @@ export function catalogRepository(db, cache = null) {
       FROM chapters c LEFT JOIN listening_progress p ON p.chapter_id=c.id AND p.user_id=? WHERE c.story_id=? AND EXISTS(SELECT 1 FROM stories s WHERE s.id=c.story_id AND s.ownership_kind IN ('system','external')) ORDER BY c.chapter_number`,
           )
           .all(user, story)
-      ).map((row) => ({
-        ...serializeProgress(row),
-        audio_url: `/api/chapters/${row.id}/stream`,
-      })),
+      ).map((row) => {
+        const { draft_revision, draft_removed, summary, ...publicChapter } =
+          row;
+        return {
+          ...serializeProgress(publicChapter),
+          audio_url: `/api/chapters/${row.id}/stream`,
+        };
+      }),
     chapter: (id) =>
       db
         .prepare(

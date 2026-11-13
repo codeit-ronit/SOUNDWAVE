@@ -42,7 +42,8 @@
     "test:sync:browser": "npm run build && node scripts/cross-device-smoke.mjs",
     "test:history:browser": "npm run build && node scripts/history-smoke.mjs",
     "identity:provision": "node server/scripts/creator.js",
-    "test:creator:browser": "npm run build && node scripts/creator-smoke.mjs"
+    "test:creator:browser": "npm run build && node scripts/creator-smoke.mjs",
+    "test:drafts:browser": "npm run build && node scripts/drafts-smoke.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",

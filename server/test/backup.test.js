@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { backupDatabase, verifyBackup } from "../operations/backup.js";
 if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
-  test("real PostgreSQL backup restores all 22 public table fingerprints and never overwrites its archive", async () => {
+  test("real PostgreSQL backup restores all 24 public table fingerprints and never overwrites its archive", async () => {
     const dir = mkdtempSync(join(tmpdir(), "soundwave-backup-")),
       path = join(dir, "database.dump"),
       options = { container: process.env.TEST_BACKUP_CONTAINER };
@@ -33,7 +33,7 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         [owner],
       );
       await client.query(
-        "INSERT INTO stories(id,title,genre,author,tagline,description,color,symbol,popularity,ownership_kind,owner_id) VALUES(990001,'Private backup fixture','Test','Owner','','','#abc','radio',0,'creator',$1)",
+        "INSERT INTO stories(id,title,genre,author,tagline,description,color,symbol,popularity,ownership_kind,owner_id) VALUES(900000000,'Private backup fixture','Test','Owner','','','#abc','radio',0,'creator',$1)",
         [owner],
       );
       await client.query(
@@ -67,14 +67,30 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         "INSERT INTO listening_progress(user_id,chapter_id,position_seconds,completed,revision,history_removed) SELECT $1,102,duration_seconds,1,7,1 FROM chapters WHERE id=102",
         [owner],
       );
+      await client.query(
+        "INSERT INTO chapters(id,story_id,chapter_number,title,audio_url,duration_seconds,draft_removed,draft_revision,summary) VALUES(900000000,900000000,1000,'Removed draft','',1,1,7,'Preserved summary')",
+      );
+      await client.query(
+        "UPDATE stories SET draft_state='archived',draft_revision=5,language='hi' WHERE id=900000000 AND owner_id=$1",
+        [owner],
+      );
+      await client.query(
+        "UPDATE creator_id_allocations SET next_id=GREATEST(next_id,900000001)",
+      );
+      await client.query(
+        "INSERT INTO draft_create_receipts(user_id,request_id,request_hash,kind,story_id,chapter_id) VALUES($1,$2,$3,'chapter',900000000,900000000)",
+        [owner, randomUUID(), "c".repeat(64)],
+      );
       const manifest = await backupDatabase(
         process.env.TEST_DATABASE_URL,
         path,
         options,
       );
-      assert.equal(Object.keys(manifest.tables).length, 22);
+      assert.equal(Object.keys(manifest.tables).length, 24);
       assert.ok(manifest.tables.user_preferences.count > 0);
       assert.ok(manifest.tables.creator_profiles.count > 0);
+      assert.ok(manifest.tables.creator_id_allocations.count >= 2);
+      assert.ok(manifest.tables.draft_create_receipts.count > 0);
       assert.ok(manifest.tables.listening_progress.count > 0);
       assert.ok(manifest.tables.progress_write_versions.count > 0);
       assert.ok(manifest.tables.playlists.count > 0);
@@ -83,7 +99,7 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
       assert.equal(statSync(path + ".json").mode & 0o777, 0o600);
       assert.deepEqual(
         await verifyBackup(process.env.TEST_DATABASE_URL, path, options),
-        { verified: true, tables: 22 },
+        { verified: true, tables: 24 },
       );
       // Older version-1 manifests covered the previous 21-table inventory.
       // Verify that allowlisted legacy inventory is accepted, without weakening
@@ -92,6 +108,8 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         original = readFileSync(manifestPath, "utf8"),
         legacy = JSON.parse(original);
       delete legacy.tables.creator_profiles;
+      delete legacy.tables.creator_id_allocations;
+      delete legacy.tables.draft_create_receipts;
       writeFileSync(manifestPath, JSON.stringify(legacy));
       assert.deepEqual(
         await verifyBackup(process.env.TEST_DATABASE_URL, path, options),
@@ -120,7 +138,12 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
           owner,
         ]);
         await client.query(
-          "DELETE FROM stories WHERE id=990001 AND owner_id=$1",
+          "DELETE FROM draft_create_receipts WHERE user_id=$1",
+          [owner],
+        );
+        await client.query("DELETE FROM chapters WHERE story_id=900000000");
+        await client.query(
+          "DELETE FROM stories WHERE id=900000000 AND owner_id=$1",
           [owner],
         );
         await client.query("DELETE FROM users WHERE id=$1", [owner]);
