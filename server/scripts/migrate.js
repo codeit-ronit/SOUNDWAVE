@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import { connectDatabase } from "../database/index.js";
 import { importSqlite } from "../database/import-sqlite.js";
 dotenv.config({ path: new URL("../../.env", import.meta.url), quiet: true });
-const db = await connectDatabase();
+const db = await connectDatabase({ ...process.env, DATABASE_INIT: "migrate" });
 try {
   if (process.argv[2])
     console.log(

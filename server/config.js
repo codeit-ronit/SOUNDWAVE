@@ -53,8 +53,14 @@ export function loadConfig(env = process.env) {
         "Production email requires an smtps:// transport with verified TLS",
       );
   }
+  const databaseInit =
+    env.DATABASE_INIT ||
+    (production && env.DATABASE_URL ? "verify" : "migrate");
+  if (!["verify", "migrate"].includes(databaseInit))
+    throw Error("DATABASE_INIT must be verify or migrate");
   return {
     production,
+    databaseInit,
     privateMediaRoot:
       env.PRIVATE_MEDIA_ROOT ||
       fileURLToPath(new URL("./data/private-media/", import.meta.url)),

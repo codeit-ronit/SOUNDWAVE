@@ -1,6 +1,6 @@
 import { openDatabase, seedDatabase } from "../db.js";
 import { sqliteAdapter, postgresAdapter } from "./adapter.js";
-import { migrate } from "./migrate.js";
+import { migrate, verifySchema } from "./migrate.js";
 import { seedCatalog } from "./seed.js";
 import { loadConfig } from "../config.js";
 export async function connectDatabase(env = process.env) {
@@ -18,8 +18,11 @@ export async function connectDatabase(env = process.env) {
       ssl: env.PGSSL === "true" ? { rejectUnauthorized: true } : undefined,
     });
     try {
-      await migrate(db);
-      await seedCatalog(db);
+      if (config.databaseInit === "verify") await verifySchema(db);
+      else {
+        await migrate(db);
+        await seedCatalog(db);
+      }
       return db;
     } catch (error) {
       await db.close();
@@ -37,6 +40,10 @@ export async function connectDatabase(env = process.env) {
   )
     throw Error(
       "Set DATABASE_URL for PostgreSQL (primary), or explicitly select DATABASE_DRIVER=sqlite for compatibility",
+    );
+  if (config.databaseInit === "verify")
+    throw Error(
+      "DATABASE_INIT=verify requires PostgreSQL; SQLite compatibility uses migrate mode.",
     );
   const raw = openDatabase(env.DATABASE_PATH);
   seedDatabase(raw);

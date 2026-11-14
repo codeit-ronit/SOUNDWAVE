@@ -49,3 +49,29 @@ export async function migrate(db) {
     }
   });
 }
+
+// Runtime startup: read-only compatibility check; no DDL, seeding or revision writes.
+export async function verifySchema(db) {
+  const dir = new URL(`../migrations/${db.dialect}/`, import.meta.url);
+  const known = new Map(
+    readdirSync(dir)
+      .filter((f) => /^\d+.*\.sql$/.test(f))
+      .map((f) => [
+        f,
+        createHash("sha256")
+          .update(readFileSync(new URL(f, dir), "utf8"))
+          .digest("hex"),
+      ]),
+  );
+  const rows = await db
+    .prepare("SELECT version,checksum FROM schema_migrations")
+    .all();
+  if (
+    rows.length !== known.size ||
+    rows.some((r) => known.get(r.version) !== r.checksum)
+  )
+    throw Error(
+      "Schema does not match this release; use the matching migrator before runtime startup.",
+    );
+  return { verified: true, migrations: rows.length };
+}
