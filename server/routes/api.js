@@ -60,6 +60,16 @@ export function apiRouter(db, { cache } = {}) {
     if (!validId(req.params.id)) return fail(res, "Invalid chapter ID.");
     if (!(await repo.chapter(Number(req.params.id))))
       return fail(res, "Chapter not found.", 404);
+    const derivative = await db
+      .prepare(
+        "SELECT o.duration_seconds,o.sample_rate,o.channels,o.byte_size,o.format FROM publication_chapters pc JOIN private_media_outputs o ON o.id=pc.output_id WHERE pc.chapter_id=? AND o.status='ready'",
+      )
+      .get(Number(req.params.id));
+    if (derivative)
+      return res.json({
+        status: "completed",
+        metadata: { ...derivative, waveform: null },
+      });
     const source = await db
       .prepare(
         "SELECT s.byte_length,s.content_type,c.duration_seconds,b.provider,b.source_url FROM chapter_sources s JOIN chapters c ON c.id=s.chapter_id JOIN story_sources b ON b.story_id=c.story_id WHERE s.chapter_id=?",

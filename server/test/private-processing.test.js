@@ -367,6 +367,17 @@ for (const kind of backends)
       const { migrate } = await import("../database/migrate.js");
       await f.c.write("put", "/library/1").expect(200);
       const before = (await f.c.get(f.path)).body.current;
+      // Remove later dependent publication tables only in this disposable predecessor fixture.
+      for (const table of [
+        "publication_receipts",
+        "publication_audit",
+        "publication_chapters",
+        "story_publications",
+      ])
+        await f.db.prepare(`DROP TABLE ${table}`).run();
+      await f.db
+        .prepare("DELETE FROM schema_migrations WHERE version=?")
+        .run(kind === "postgres" ? "018_publishing.sql" : "019_publishing.sql");
       await f.db.prepare("DROP TABLE private_media_outputs").run();
       await f.db.prepare("DROP TABLE private_processing_intents").run();
       await f.db.prepare("DROP INDEX processing_asset_binding_idx").run();

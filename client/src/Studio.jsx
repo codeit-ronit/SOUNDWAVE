@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { api } from "./api";
+import Publication from "./Publication";
 import DraftAudio from "./DraftAudio";
 const blankStory = { title: "", description: "", genre: "", language: "en" },
   blankChapter = { title: "", summary: "" };
@@ -112,7 +113,8 @@ function AccessLink() {
   return (
     <p>
       <Link to="/creator">Manage creator access</Link>. Only active creators can
-      use Studio. Drafts stay private; uploading and publishing are unavailable.
+      use Studio. Uploads remain private until exact content is reviewed,
+      approved and explicitly published.
     </p>
   );
 }
@@ -644,10 +646,17 @@ function DraftEditor({ id, scope, back }) {
               )}
             </form>
           </section>
+          <Publication
+            key={id}
+            id={id}
+            scope={scope}
+            disabled={locked || dirty || editing || archived}
+          />
           <section className="settings-card" aria-label="Draft chapters">
             <h2>Draft chapters</h2>
             <p>
-              No audio is attached. Uploading and publishing are unavailable.
+              Upload and process audio for each chapter before requesting
+              review.
             </p>
             {!data.chapters.length && <p>No draft chapters yet.</p>}
             <ol className="studio-list">

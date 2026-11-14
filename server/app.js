@@ -18,6 +18,7 @@ import { privateMediaRouter } from "./routes/private-media.js";
 import { draftRouter } from "./routes/drafts.js";
 import { creatorRouter } from "./routes/creators.js";
 import { historyRouter } from "./routes/history.js";
+import { publicationRouter } from "./routes/publications.js";
 import { accountRouter } from "./routes/account.js";
 export function createApp(
   db,
@@ -105,9 +106,10 @@ export function createApp(
     }),
   );
   app.use("/api", injectedCsrf || csrfProtection(config));
-  app.use("/api", streamRouter(db));
+  app.use("/api", streamRouter(db, config, privateStorage));
   app.use("/api/playlists", playlistRouter(db));
   app.use("/api/history", historyRouter(db));
+  app.use("/api", publicationRouter(db, config, privateStorage));
   app.use("/api/creator", privateMediaRouter(db, config, privateStorage));
   app.use("/api/creator/stories", draftRouter(db));
   app.use("/api/creator", creatorRouter(db));

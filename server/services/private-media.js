@@ -1,3 +1,4 @@
+import { assertPublicationEditable } from "./publication-visibility.js";
 import {
   persistProcessingIntent,
   privateUsage,
@@ -47,6 +48,7 @@ export function privateMediaService(
       .prepare("SELECT * FROM chapters WHERE story_id=? AND id=?")
       .get(storyId, chapterId);
     if (!c) fail(404, "MEDIA_NOT_FOUND", "Media not found.");
+    if (editable) await assertPublicationEditable(db, storyId);
     if (editable && (story.draft_state !== "draft" || c.draft_removed))
       fail(409, "DRAFT_UNAVAILABLE", "This chapter no longer accepts media.");
     return { story, c };
@@ -406,6 +408,7 @@ export function privateMediaService(
     remove: async (p, s, c, id, expected) => {
       const result = await db.transaction(async () => {
         const { a } = await owned(p, s, c, id);
+        await assertPublicationEditable(db, s);
         if (a.revision !== expected)
           fail(
             409,

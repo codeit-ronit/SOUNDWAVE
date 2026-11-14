@@ -1,4 +1,5 @@
 // Trusted operator interface only. Never mount this service on a public route.
+import { revokeCreatorPublications } from "./publications.js";
 import { creatorRepository } from "../repositories/creators.js";
 import { permissionError } from "./authorization.js";
 export function validateProvisioning(action, userId, value) {
@@ -42,6 +43,8 @@ export async function provisionIdentity(db, action, userId, value) {
           "Creator profile not found.",
         );
       await repo.status(userId, value);
+      if (value !== "active")
+        await revokeCreatorPublications(db, userId, userId, "suspend");
     }
     return { action, value };
   });

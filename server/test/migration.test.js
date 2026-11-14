@@ -67,7 +67,7 @@ test("SQLite additive auth migration preserves pre-auth listener rows and keeps 
     const again = openDatabase(path);
     assert.equal(
       again.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get().n,
-      18,
+      19,
     );
     again.close();
   } finally {

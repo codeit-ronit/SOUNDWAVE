@@ -195,6 +195,22 @@ export const api = {
     request(`/playlists/${id}/stories/${story}`, { method: "PUT" }, session),
   removePlaylistStory: (id, story, session = scope) =>
     request(`/playlists/${id}/stories/${story}`, { method: "DELETE" }, session),
+  publication: (id, signal, session = scope) =>
+    request(`/creator/stories/${id}/publication`, { signal }, session),
+  publicationAction: (id, action, body, signal, session = scope) =>
+    request(
+      `/creator/stories/${id}/publication/${action}`,
+      { method: "POST", body: JSON.stringify(body), signal },
+      session,
+    ),
+  moderation: (path = "", signal, session = scope) =>
+    request(`/moderation/${path || "submissions"}`, { signal }, session),
+  moderate: (id, action, body, signal, session = scope) =>
+    request(
+      `/moderation/stories/${id}/${action}`,
+      { method: "POST", body: JSON.stringify(body), signal },
+      session,
+    ),
   analytics: (signal) => request("/analytics/overview", { signal }),
   analyticsEvent: (event, keepalive = false, session = scope) =>
     request(

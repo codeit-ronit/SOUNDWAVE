@@ -1,3 +1,6 @@
+import { publicationService, RIGHTS_TERMS } from "../services/publications.js";
+import { provisionIdentity } from "../services/creator-operator.js";
+import { randomUUID } from "node:crypto";
 import { processPrivateMedia } from "../media/private-processor.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,6 +23,15 @@ if (process.env.TEST_DATABASE_URL)
         .prepare("SELECT * FROM private_processing_intents WHERE asset_id=?")
         .get(a.id);
       await processPrivateMedia(source.db, source.config, intent.id);
+      const svc = publicationService(source.db, source.config),
+        actor = { id: source.c.data.user.id };
+      await svc.transition(actor, source.s.id, "submit", {
+        expectedRevision: 0,
+        requestId: randomUUID(),
+        attest: true,
+        termsVersion: RIGHTS_TERMS,
+      });
+      // Imported review history is evidence only, not permission to serve missing files.
       const path = join(source.dir, "source.sqlite");
       await source.db.raw.backup(path);
       // Targets contain unrelated owners; private numeric-ID conflicts are intentionally
@@ -34,6 +46,15 @@ if (process.env.TEST_DATABASE_URL)
         .prepare("DELETE FROM stories WHERE id=?")
         .run(target.s.id);
       const counts = await importSqlite(target.db, path);
+      assert.equal(counts.story_publications, 1);
+      assert.equal(counts.publication_chapters, 1);
+      assert.equal(counts.publication_audit, 1);
+      const importedPublication = await target.db
+        .prepare("SELECT * FROM story_publications WHERE story_id=?")
+        .get(source.s.id);
+      assert.equal(importedPublication.state, "withdrawn");
+      assert.equal(importedPublication.revision, 2);
+      await target.c.get(`/chapters/${source.ch.id}/stream`).expect(404);
       assert.equal(counts.private_media_assets, 1);
       assert.equal(counts.private_media_heads, 1);
       assert.equal(counts.private_processing_intents, 1);

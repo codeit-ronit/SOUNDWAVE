@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { api } from "./api";
@@ -86,7 +87,7 @@ function CreatorAccount({ auth }) {
         action === "deactivate"
           ? "Creator access deactivated. Your listener data and content remain."
           : action === "activate"
-            ? "Creator access active. Uploading and publishing are not available yet."
+            ? "Creator access active. Manage stories and audio in Creator Studio; publication requires review."
             : "Creator profile saved.",
       );
     } catch (e) {
@@ -114,8 +115,9 @@ function CreatorAccount({ auth }) {
       </div>
       <p className="settings-note">
         Registered accounts can activate creator access immediately. This grants
-        no admin privileges. Uploading, story editing and publishing are not
-        available in this milestone.
+        no admin privileges. Use Creator Studio for stories, audio processing
+        and reviewed publication. Rights declarations and moderator approval are
+        required.
       </p>
       <button
         className="button secondary"
@@ -144,6 +146,9 @@ function CreatorAccount({ auth }) {
           <div className="settings-card">
             <p role="status">Status: {status || "not activated"}</p>
             <p>Account role: {data.platformRole}</p>
+            {["moderator", "admin"].includes(data.platformRole) && (
+              <Link to="/moderation">Open moderation dashboard</Link>
+            )}
             {!data.eligible ? (
               <p>
                 Demo guests cannot become creators. Register or sign in to a

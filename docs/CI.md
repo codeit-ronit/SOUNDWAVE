@@ -106,3 +106,7 @@ Mandatory PostgreSQL TAP guards now require private PCM upload/preview, quota co
 ## M2.5 processing gates
 
 Mandatory integration/browser jobs install FFmpeg and require real PostgreSQL conversion/decode/checksum, fencing, outbox/Redis-loss replay, actual Node worker kill/restart checkpoints, populated upload backfill, retirement/permission races and invalid-output cases. The bounded browser gate adds actual private MP3 readiness/preview/repair/PWA isolation. Backup fingerprints cover 28 tables. Optional extended checks add `private-processing-systems.mjs`, which builds isolated API/worker images and verifies volatile Redis/worker/API restarts on a new private volume; no existing volumes/services are reset. [Local results and limits](m2-media-processing-verification.json). Remote Actions remains NOT RUN.
+
+## Publishing regression gates
+
+Mandatory PostgreSQL coverage includes actual upload→FFmpeg→review→publish→stream→revoke, concurrent decisions, rollback and additive publishing migrations. Browser CI includes the creator/moderator/listener journey with public ranges, offline download and online revocation. Local checks also run SQLite. Backups verify 32 table fingerprints including populated publication/audit/receipts; previous inventories remain supported. Requires the existing local FFmpeg and disposable database/Redis fixtures; no new infrastructure or external secrets. Remote GitHub Actions has not been run.

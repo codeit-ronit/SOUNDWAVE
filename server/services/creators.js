@@ -1,3 +1,4 @@
+import { revokeCreatorPublications } from "./publications.js";
 import { creatorRepository } from "../repositories/creators.js";
 import { authorizationService, permissionError } from "./authorization.js";
 const serialize = (row) =>
@@ -60,6 +61,13 @@ export function creatorService(db) {
             "CREATOR_NOT_FOUND",
             "Creator profile not found.",
           );
+        await revokeCreatorPublications(
+          db,
+          principal.id,
+          principal.id,
+          "deactivate",
+          false,
+        );
         if (profile.status !== "inactive")
           await repo.status(principal.id, "inactive");
         return view(principal);

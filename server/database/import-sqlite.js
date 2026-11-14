@@ -23,6 +23,10 @@ export async function importSqlite(db, path) {
       "private_media_heads",
       "private_processing_intents",
       "private_media_outputs",
+      "story_publications",
+      "publication_chapters",
+      "publication_audit",
+      "publication_receipts",
       "story_sources",
       "chapter_sources",
       "favorites",
@@ -112,6 +116,36 @@ export async function importSqlite(db, path) {
       ]) {
         counts[table] = 0;
         for (const row of data) {
+          if (
+            [
+              "story_publications",
+              "publication_chapters",
+              "publication_audit",
+              "publication_receipts",
+            ].includes(table)
+          ) {
+            if (
+              retainedDrafts.has(row.story_id) ||
+              !importedStories.has(row.story_id)
+            )
+              continue;
+            if (table === "story_publications") {
+              if (
+                !Number.isSafeInteger(row.revision) ||
+                row.revision >= Number.MAX_SAFE_INTEGER
+              )
+                throw Error("Invalid publication revision");
+              row.state = "withdrawn";
+              row.revision++;
+              row.decision_code = "restore_requires_review";
+              row.decision_note =
+                "Imported metadata requires restored bytes and fresh review.";
+              row.decided_by = null;
+              row.decided_at = null;
+              row.published_at = null;
+              row.revoked_at = new Date().toISOString();
+            }
+          }
           if (
             table === "listening_progress" ||
             table === "progress_write_versions"

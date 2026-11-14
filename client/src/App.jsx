@@ -22,6 +22,7 @@ import AccountRecovery from "./AccountRecovery";
 import Settings from "./Settings";
 import History from "./History";
 import Creator from "./Creator";
+import { Moderation } from "./Publication";
 import Studio from "./Studio";
 import QueuePanel from "./QueuePanel";
 import { Account } from "./AuthContext";
@@ -190,6 +191,7 @@ export default function App() {
             )}
           </div>
           <Routes>
+            <Route path="/moderation" element={<Moderation />} />
             <Route path="/studio" element={<Studio />} />
             <Route path="/creator" element={<Creator />} />
             <Route path="/history" element={<History />} />

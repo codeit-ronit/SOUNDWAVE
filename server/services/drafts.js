@@ -1,3 +1,4 @@
+import { assertPublicationEditable } from "./publication-visibility.js";
 import { createHash } from "node:crypto";
 import { authorizationService } from "./authorization.js";
 import {
@@ -51,6 +52,7 @@ export function draftService(db) {
       );
   };
   const editable = async (row) => {
+    await assertPublicationEditable(db, row.id);
     if (row.draft_state !== "draft")
       await fail(
         "DRAFT_ARCHIVED",
@@ -219,6 +221,7 @@ export function draftService(db) {
       db.transaction(async () => {
         const row = await owned(principal, id);
         await matches(row, expected, id);
+        await assertPublicationEditable(db, id);
         if (row.draft_state !== "archived") {
           await bump(id);
           await db

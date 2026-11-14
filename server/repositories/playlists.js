@@ -1,3 +1,4 @@
+import { publicStory } from "../services/publication-visibility.js";
 import { storySelect, serializeStory } from "../db.js";
 
 const count =
@@ -65,7 +66,7 @@ export function playlistRepository(db) {
     storyExists: (story) =>
       db
         .prepare(
-          "SELECT id FROM stories WHERE id=? AND ownership_kind IN ('system','external')",
+          `SELECT id FROM stories WHERE id=? AND ${publicStory("stories")}`,
         )
         .get(story),
     add: (id, story, position) =>

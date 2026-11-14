@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { backupDatabase, verifyBackup } from "../operations/backup.js";
 if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
-  test("real PostgreSQL backup restores all 28 public table fingerprints and never overwrites its archive", async () => {
+  test("real PostgreSQL backup restores all 32 public table fingerprints and never overwrites its archive", async () => {
     const dir = mkdtempSync(join(tmpdir(), "soundwave-backup-")),
       path = join(dir, "database.dump"),
       options = { container: process.env.TEST_BACKUP_CONTAINER };
@@ -106,6 +106,22 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         "INSERT INTO private_media_outputs(id,intent_id,object_key,fence_token,status,reserved_bytes,byte_size,checksum,format,duration_seconds,sample_rate,channels,created_at) VALUES($1,$2,$3,$4,'ready',1024,1024,$3,'mp3',1,44100,2,CURRENT_TIMESTAMP)",
         [output, intent, "f".repeat(64), randomUUID()],
       );
+      await client.query(
+        "INSERT INTO story_publications(story_id,state,revision,story_revision,snapshot_hash,updated_at) VALUES(900000000,'withdrawn',1,5,$1,CURRENT_TIMESTAMP)",
+        ["a".repeat(64)],
+      );
+      await client.query(
+        "INSERT INTO publication_chapters(story_id,chapter_id,chapter_revision,chapter_number,asset_id,head_revision,output_id,checksum) VALUES(900000000,900000000,7,1000,$1,1,$2,$3)",
+        [mediaId, output, "f".repeat(64)],
+      );
+      await client.query(
+        "INSERT INTO publication_audit(id,story_id,actor_id,action,revision,snapshot_hash,created_at) VALUES($1,900000000,$2,'withdraw',1,$3,CURRENT_TIMESTAMP)",
+        [randomUUID(), owner, "a".repeat(64)],
+      );
+      await client.query(
+        "INSERT INTO publication_receipts(actor_id,request_id,story_id,request_hash) VALUES($1,$2,900000000,$3)",
+        [owner, randomUUID(), "b".repeat(64)],
+      );
       const dispatch = randomUUID();
       await client.query(
         "INSERT INTO background_jobs(id,kind,dedupe_key,owner_id,payload,status,dispatch_topic,completed_at) VALUES($1,'maintenance',$2,$3,$4,'completed','private_audio',CURRENT_TIMESTAMP)",
@@ -125,13 +141,20 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
         path,
         options,
       );
-      assert.equal(Object.keys(manifest.tables).length, 28);
+      assert.equal(Object.keys(manifest.tables).length, 32);
       assert.ok(manifest.tables.user_preferences.count > 0);
       assert.ok(manifest.tables.creator_profiles.count > 0);
       assert.ok(manifest.tables.private_media_assets.count > 0);
       assert.ok(manifest.tables.private_media_heads.count > 0);
       assert.ok(manifest.tables.private_processing_intents.count > 0);
       assert.ok(manifest.tables.private_media_outputs.count > 0);
+      for (const table of [
+        "story_publications",
+        "publication_chapters",
+        "publication_audit",
+        "publication_receipts",
+      ])
+        assert.ok(manifest.tables[table].count > 0);
       assert.ok(manifest.tables.creator_id_allocations.count >= 2);
       assert.ok(manifest.tables.draft_create_receipts.count > 0);
       assert.ok(manifest.tables.listening_progress.count > 0);
@@ -142,7 +165,7 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
       assert.equal(statSync(path + ".json").mode & 0o777, 0o600);
       assert.deepEqual(
         await verifyBackup(process.env.TEST_DATABASE_URL, path, options),
-        { verified: true, tables: 28 },
+        { verified: true, tables: 32 },
       );
       // Older version-1 manifests covered the previous 21-table inventory.
       // Verify that allowlisted legacy inventory is accepted, without weakening
@@ -150,6 +173,13 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
       const manifestPath = path + ".json",
         original = readFileSync(manifestPath, "utf8"),
         legacy = JSON.parse(original);
+      for (const table of [
+        "story_publications",
+        "publication_chapters",
+        "publication_audit",
+        "publication_receipts",
+      ])
+        delete legacy.tables[table];
       delete legacy.tables.private_media_outputs;
       delete legacy.tables.private_processing_intents;
       delete legacy.tables.private_media_heads;
@@ -188,6 +218,13 @@ if (process.env.TEST_DATABASE_URL && process.env.TEST_BACKUP_CONTAINER) {
           "DELETE FROM draft_create_receipts WHERE user_id=$1",
           [owner],
         );
+        for (const table of [
+          "publication_receipts",
+          "publication_audit",
+          "publication_chapters",
+          "story_publications",
+        ])
+          await client.query(`DELETE FROM ${table} WHERE story_id=900000000`);
         await client.query(
           "DELETE FROM private_media_outputs WHERE intent_id IN (SELECT id FROM private_processing_intents WHERE user_id=$1)",
           [owner],

@@ -38,6 +38,10 @@ const tables = [
   "private_media_heads",
   "private_processing_intents",
   "private_media_outputs",
+  "story_publications",
+  "publication_chapters",
+  "publication_audit",
+  "publication_receipts",
 ];
 const pool = (url) => {
   const value = new pg.Pool({
@@ -197,7 +201,16 @@ export async function verifyBackup(url, path, { container } = {}) {
   if (manifest.version !== 1 || manifest.sha256 !== (await sha(path)))
     throw Error("Archive integrity check failed");
   const names = Object.keys(manifest.tables || {});
-  const uploads = tables.filter(
+  const processing = tables.filter(
+    (t) =>
+      ![
+        "story_publications",
+        "publication_chapters",
+        "publication_audit",
+        "publication_receipts",
+      ].includes(t),
+  );
+  const uploads = processing.filter(
     (t) => !["private_processing_intents", "private_media_outputs"].includes(t),
   );
   const drafts = uploads.filter(
@@ -208,7 +221,7 @@ export async function verifyBackup(url, path, { container } = {}) {
   );
   const expected = previous.filter((t) => t !== "creator_profiles");
   if (
-    ![expected, previous, drafts, uploads, tables].some(
+    ![expected, previous, drafts, uploads, processing, tables].some(
       (set) =>
         set.length === names.length && set.every((t) => names.includes(t)),
     )

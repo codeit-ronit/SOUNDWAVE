@@ -47,6 +47,7 @@
     "test:uploads:browser": "npm run build && node scripts/uploads-smoke.mjs",
     "media:private": "node server/scripts/private-media.js",
     "test:processing:browser": "npm run build && node scripts/processing-smoke.mjs",
+    "test:publishing:browser": "npm run build && node scripts/publishing-smoke.mjs",
     "test:processing:systems": "node scripts/private-processing-systems.mjs"
   },
   "devDependencies": {

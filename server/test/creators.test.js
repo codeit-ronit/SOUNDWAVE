@@ -470,6 +470,14 @@ for (const kind of backends) {
         .write("delete", "/history/101", { expectedRevision: 1 })
         .expect(200);
       const before = (await a.get("/progress/101")).body.progress;
+      // Remove later dependent publication tables only in this disposable predecessor fixture.
+      for (const table of [
+        "publication_receipts",
+        "publication_audit",
+        "publication_chapters",
+        "story_publications",
+      ])
+        await f.db.prepare(`DROP TABLE ${table}`).run();
       await f.db.prepare("DROP TABLE private_media_outputs").run();
       await f.db.prepare("DROP TABLE private_processing_intents").run();
       await f.db.prepare("DROP INDEX processing_asset_binding_idx").run();
@@ -499,6 +507,48 @@ for (const kind of backends) {
         )
         .run("a".repeat(64), new Date().toISOString());
       await migrate(f.db);
+      // Restore later runtime dependencies without replaying their already-present columns.
+      const { readFileSync } = await import("node:fs");
+      const draftFile =
+        kind === "postgres"
+          ? "015_creator_drafts.sql"
+          : "016_creator_drafts.sql";
+      const sql = readFileSync(
+        new URL("../migrations/" + kind + "/" + draftFile, import.meta.url),
+        "utf8",
+      );
+      for (const statement of sql
+        .split(";")
+        .map((s) => s.trim())
+        .filter((s) => s.startsWith("CREATE ")))
+        await f.db
+          .prepare(
+            statement
+              .replace("CREATE TABLE ", "CREATE TABLE IF NOT EXISTS ")
+              .replace("CREATE INDEX ", "CREATE INDEX IF NOT EXISTS ")
+              .replace(
+                "CREATE UNIQUE INDEX ",
+                "CREATE UNIQUE INDEX IF NOT EXISTS ",
+              ),
+          )
+          .run();
+      for (const version of kind === "postgres"
+        ? [
+            "016_private_media.sql",
+            "017_private_processing.sql",
+            "018_publishing.sql",
+          ]
+        : [
+            "017_private_media.sql",
+            "018_private_processing.sql",
+            "019_publishing.sql",
+          ])
+        await f.db
+          .prepare("DELETE FROM schema_migrations WHERE version=?")
+          .run(version);
+      await f.db
+        .prepare("ALTER TABLE background_jobs DROP COLUMN dispatch_topic")
+        .run();
       await migrate(f.db);
       assert.deepEqual((await a.get("/progress/101")).body.progress, before);
       assert.equal((await a.get("/library")).body.stories.length, 1);

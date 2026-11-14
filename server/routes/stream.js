@@ -1,3 +1,4 @@
+import { publishedAudio } from "./published-audio.js";
 import { Router } from "express";
 import { open, realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -23,7 +24,7 @@ export function parseRange(header, size) {
   return { start: first, end: Math.min(last ?? size - 1, size - 1) };
 }
 
-export function createAudioHandler(db) {
+export function createAudioHandler(db, config, storage) {
   const root = fileURLToPath(new URL("../public/audio/", import.meta.url));
   async function serve(req, res, next) {
     let handle;
@@ -32,6 +33,13 @@ export function createAudioHandler(db) {
         return res
           .status(400)
           .json({ error: { message: "Invalid chapter ID." } });
+      const creator = await db
+        .prepare(
+          "SELECT s.ownership_kind FROM chapters c JOIN stories s ON s.id=c.story_id WHERE c.id=?",
+        )
+        .get(Number(req.params.id));
+      if (creator?.ownership_kind === "creator")
+        return publishedAudio(db, config, storage, req, res, next);
       const chapter = await db
         .prepare(
           "SELECT c.audio_url FROM chapters c JOIN stories s ON s.id=c.story_id WHERE c.id=? AND s.ownership_kind IN ('system','external')",
@@ -170,9 +178,9 @@ export function createAudioHandler(db) {
   return serve;
 }
 
-export function streamRouter(db) {
+export function streamRouter(db, config, storage) {
   const router = Router();
-  const serve = createAudioHandler(db);
+  const serve = createAudioHandler(db, config, storage);
   router.route("/chapters/:id/stream").get(serve).head(serve);
   return router;
 }
