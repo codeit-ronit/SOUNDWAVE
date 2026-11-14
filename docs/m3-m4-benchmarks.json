@@ -1,0 +1,712 @@
+{
+  "status": "Measured locally; not production capacity",
+  "recordedAt": "2026-11-14T06:06:11.915643+00:00",
+  "baselineCommit": "72fd5eb",
+  "driver": "scripts/hardening-benchmark.mjs",
+  "method": "Same driver and generated real 480-second WAV\u2192MP3 fixture, separate disposable schemas/namespaces, runs sequentially without concurrent test/Docker workloads; warm local host filesystem and 2 CPU/2 GiB Docker VM. p99 with 8 or 30 samples is effectively a maximum, not a statistically reliable production tail.",
+  "baseline": {
+    "stage": "baseline",
+    "at": "2026-11-14T06:03:28.676Z",
+    "node": "v22.21.1",
+    "platform": "darwin",
+    "arch": "arm64",
+    "workload": {
+      "fixtureAudioSeconds": 480,
+      "requestsPerEndpoint": 30,
+      "concurrency": 4,
+      "publishCycles": 8,
+      "delayedStorageMs": 40,
+      "contentionSynchronization": "Contender starts at the actual storage verification hook; lock-wait duration ends at contender COMMIT, not publication completion.",
+      "limitations": "Small loopback fixture catalog, shared 2 CPU/2 GiB Docker VM, warm host filesystem; injected storage delay disclosed separately. Not production capacity."
+    },
+    "http": [
+      {
+        "name": "catalog-uncached",
+        "count": 30,
+        "p50Ms": 6.234,
+        "p95Ms": 26.444,
+        "p99Ms": 29.401,
+        "throughputPerSecond": 445.12,
+        "errors": 0,
+        "errorRate": 0,
+        "cache": {
+          "hits": 0,
+          "misses": 0,
+          "errors": 0,
+          "writes": 0,
+          "hitRatio": 0
+        }
+      },
+      {
+        "name": "catalog-cached",
+        "count": 30,
+        "p50Ms": 5.979,
+        "p95Ms": 13.417,
+        "p99Ms": 13.601,
+        "throughputPerSecond": 538.49,
+        "errors": 0,
+        "errorRate": 0,
+        "cache": {
+          "hits": 26,
+          "misses": 4,
+          "errors": 0,
+          "writes": 4,
+          "hitRatio": 0.8666666666666667
+        }
+      },
+      {
+        "name": "story",
+        "count": 30,
+        "p50Ms": 5.301,
+        "p95Ms": 9.213,
+        "p99Ms": 9.634,
+        "throughputPerSecond": 678.68,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "chapters",
+        "count": 30,
+        "p50Ms": 7.835,
+        "p95Ms": 9.613,
+        "p99Ms": 10.7,
+        "throughputPerSecond": 492.39,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "progress",
+        "count": 30,
+        "p50Ms": 4.63,
+        "p95Ms": 6.18,
+        "p99Ms": 6.388,
+        "throughputPerSecond": 783.19,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "playlists",
+        "count": 30,
+        "p50Ms": 2.709,
+        "p95Ms": 3.625,
+        "p99Ms": 4.108,
+        "throughputPerSecond": 1417.48,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "history",
+        "count": 30,
+        "p50Ms": 7.49,
+        "p95Ms": 10.108,
+        "p99Ms": 11.04,
+        "throughputPerSecond": 502.29,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "stream-200",
+        "count": 30,
+        "p50Ms": 30.419,
+        "p95Ms": 49.077,
+        "p99Ms": 51.106,
+        "throughputPerSecond": 117.58,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "stream-206",
+        "count": 30,
+        "p50Ms": 6.083,
+        "p95Ms": 8.309,
+        "p99Ms": 8.928,
+        "throughputPerSecond": 613.94,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "playlist-create",
+        "count": 30,
+        "p50Ms": 4.988,
+        "p95Ms": 10.563,
+        "p99Ms": 10.729,
+        "throughputPerSecond": 694.24,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "progress-write",
+        "count": 20,
+        "p50Ms": 5.951,
+        "p95Ms": 6.448,
+        "p99Ms": 8.193,
+        "throughputPerSecond": 164.76,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "history-populated",
+        "count": 30,
+        "p50Ms": 7.669,
+        "p95Ms": 9.397,
+        "p99Ms": 11.292,
+        "throughputPerSecond": 496.1,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "history-remove-reset-pair",
+        "count": 8,
+        "p50Ms": 11.196,
+        "p95Ms": 16.49,
+        "p99Ms": 16.49,
+        "throughputPerSecond": 84.01,
+        "errors": 0,
+        "errorRate": 0
+      }
+    ],
+    "publication": [
+      {
+        "operations": {
+          "unpublish": {
+            "count": 1,
+            "p50Ms": 6.623,
+            "p95Ms": 6.623,
+            "p99Ms": 6.623,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 150.99
+          },
+          "submit": {
+            "count": 8,
+            "p50Ms": 11.935,
+            "p95Ms": 14.129,
+            "p99Ms": 14.129,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 82.11
+          },
+          "approve": {
+            "count": 8,
+            "p50Ms": 10.636,
+            "p95Ms": 17.63,
+            "p99Ms": 17.63,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 87.28
+          },
+          "publish": {
+            "count": 8,
+            "p50Ms": 11.904,
+            "p95Ms": 14.653,
+            "p99Ms": 14.653,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 81.21
+          },
+          "revoke": {
+            "count": 16,
+            "p50Ms": 8.423,
+            "p95Ms": 16.477,
+            "p99Ms": 16.477,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 8,
+            "inverseMeanLatencyPerSecond": 97.06
+          }
+        },
+        "scenario": "local-storage",
+        "submit": {
+          "count": 8,
+          "p50Ms": 12.361,
+          "p95Ms": 14.641,
+          "p99Ms": 14.641,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 78.71
+        },
+        "transaction": {
+          "count": 81,
+          "p50Ms": 5.396,
+          "p95Ms": 13.318,
+          "p99Ms": 16.74,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 142.38
+        },
+        "competingOwnerLockWait": {
+          "count": 8,
+          "p50Ms": 7.991,
+          "p95Ms": 10.976,
+          "p99Ms": 10.976,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 116.24
+        },
+        "cpu": {
+          "user": 288495,
+          "system": 56370
+        },
+        "rssBefore": 435568640,
+        "rssAfter": 426065920,
+        "pool": {
+          "total": 4,
+          "idle": 4,
+          "waiting": 0
+        }
+      },
+      {
+        "operations": {
+          "submit": {
+            "count": 8,
+            "p50Ms": 55.909,
+            "p95Ms": 59.507,
+            "p99Ms": 59.507,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 17.72
+          },
+          "approve": {
+            "count": 8,
+            "p50Ms": 55.198,
+            "p95Ms": 56.276,
+            "p99Ms": 56.276,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 18.19
+          },
+          "publish": {
+            "count": 8,
+            "p50Ms": 56.388,
+            "p95Ms": 62.371,
+            "p99Ms": 62.371,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 17.37
+          },
+          "revoke": {
+            "count": 16,
+            "p50Ms": 8.97,
+            "p95Ms": 66.255,
+            "p99Ms": 66.255,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 8,
+            "inverseMeanLatencyPerSecond": 29.71
+          }
+        },
+        "scenario": "injected-40ms-storage",
+        "submit": {
+          "count": 8,
+          "p50Ms": 56.837,
+          "p95Ms": 60.094,
+          "p99Ms": 60.094,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 17.48
+        },
+        "transaction": {
+          "count": 80,
+          "p50Ms": 6.071,
+          "p95Ms": 59.536,
+          "p99Ms": 65.513,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 39.76
+        },
+        "competingOwnerLockWait": {
+          "count": 8,
+          "p50Ms": 52.203,
+          "p95Ms": 55.636,
+          "p99Ms": 55.636,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 19.02
+        },
+        "cpu": {
+          "user": 411061,
+          "system": 70004
+        },
+        "rssBefore": 426065920,
+        "rssAfter": 276971520,
+        "pool": {
+          "total": 4,
+          "idle": 4,
+          "waiting": 0
+        }
+      }
+    ],
+    "worker": {
+      "processingMs": 3456.883458,
+      "throughputSourceAudioSecondsPerWallSecond": 138.8533937669125,
+      "concurrency": 1,
+      "workflow": "Actual 480-second PCM WAV fixture processed to checked MP3 during fixture setup; full recovery suite separately measures retries/crashes."
+    },
+    "rows": 6
+  },
+  "hardened": {
+    "stage": "after",
+    "at": "2026-11-14T06:03:36.680Z",
+    "node": "v22.21.1",
+    "platform": "darwin",
+    "arch": "arm64",
+    "workload": {
+      "fixtureAudioSeconds": 480,
+      "requestsPerEndpoint": 30,
+      "concurrency": 4,
+      "publishCycles": 8,
+      "delayedStorageMs": 40,
+      "contentionSynchronization": "Contender starts at the actual storage verification hook; lock-wait duration ends at contender COMMIT, not publication completion.",
+      "limitations": "Small loopback fixture catalog, shared 2 CPU/2 GiB Docker VM, warm host filesystem; injected storage delay disclosed separately. Not production capacity."
+    },
+    "http": [
+      {
+        "name": "catalog-uncached",
+        "count": 30,
+        "p50Ms": 6.183,
+        "p95Ms": 24.553,
+        "p99Ms": 27.146,
+        "throughputPerSecond": 459.49,
+        "errors": 0,
+        "errorRate": 0,
+        "cache": {
+          "hits": 0,
+          "misses": 0,
+          "errors": 0,
+          "writes": 0,
+          "hitRatio": 0
+        }
+      },
+      {
+        "name": "catalog-cached",
+        "count": 30,
+        "p50Ms": 5.863,
+        "p95Ms": 10.35,
+        "p99Ms": 11.367,
+        "throughputPerSecond": 586.75,
+        "errors": 0,
+        "errorRate": 0,
+        "cache": {
+          "hits": 26,
+          "misses": 4,
+          "errors": 0,
+          "writes": 4,
+          "hitRatio": 0.8666666666666667
+        }
+      },
+      {
+        "name": "story",
+        "count": 30,
+        "p50Ms": 5.789,
+        "p95Ms": 9.348,
+        "p99Ms": 10.023,
+        "throughputPerSecond": 636.29,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "chapters",
+        "count": 30,
+        "p50Ms": 7.635,
+        "p95Ms": 10.463,
+        "p99Ms": 11.01,
+        "throughputPerSecond": 475.56,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "progress",
+        "count": 30,
+        "p50Ms": 4.623,
+        "p95Ms": 6.291,
+        "p99Ms": 7.105,
+        "throughputPerSecond": 800.26,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "playlists",
+        "count": 30,
+        "p50Ms": 2.486,
+        "p95Ms": 4.201,
+        "p99Ms": 4.253,
+        "throughputPerSecond": 1364.41,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "history",
+        "count": 30,
+        "p50Ms": 7.35,
+        "p95Ms": 10.672,
+        "p99Ms": 12.643,
+        "throughputPerSecond": 513.99,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "stream-200",
+        "count": 30,
+        "p50Ms": 36.073,
+        "p95Ms": 52.058,
+        "p99Ms": 52.736,
+        "throughputPerSecond": 107.58,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "stream-206",
+        "count": 30,
+        "p50Ms": 6.352,
+        "p95Ms": 8.823,
+        "p99Ms": 10.406,
+        "throughputPerSecond": 564.27,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "playlist-create",
+        "count": 30,
+        "p50Ms": 4.773,
+        "p95Ms": 8.717,
+        "p99Ms": 8.798,
+        "throughputPerSecond": 743.76,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "progress-write",
+        "count": 20,
+        "p50Ms": 5.824,
+        "p95Ms": 7.201,
+        "p99Ms": 7.608,
+        "throughputPerSecond": 166.68,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "history-populated",
+        "count": 30,
+        "p50Ms": 8.258,
+        "p95Ms": 11.649,
+        "p99Ms": 14.156,
+        "throughputPerSecond": 461.99,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "history-remove-reset-pair",
+        "count": 8,
+        "p50Ms": 13.48,
+        "p95Ms": 16.73,
+        "p99Ms": 16.73,
+        "throughputPerSecond": 73.58,
+        "errors": 0,
+        "errorRate": 0
+      }
+    ],
+    "publication": [
+      {
+        "operations": {
+          "unpublish": {
+            "count": 1,
+            "p50Ms": 7.208,
+            "p95Ms": 7.208,
+            "p99Ms": 7.208,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 138.73
+          },
+          "submit": {
+            "count": 8,
+            "p50Ms": 17.873,
+            "p95Ms": 23.674,
+            "p99Ms": 23.674,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 52.43
+          },
+          "approve": {
+            "count": 8,
+            "p50Ms": 14.236,
+            "p95Ms": 25.272,
+            "p99Ms": 25.272,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 59.55
+          },
+          "revoke": {
+            "count": 8,
+            "p50Ms": 10.854,
+            "p95Ms": 15.395,
+            "p99Ms": 15.395,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 82.65
+          },
+          "publish": {
+            "count": 8,
+            "p50Ms": 14.118,
+            "p95Ms": 18.643,
+            "p99Ms": 18.643,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 8,
+            "inverseMeanLatencyPerSecond": 65.54
+          }
+        },
+        "scenario": "local-storage",
+        "submit": {
+          "count": 8,
+          "p50Ms": 17.885,
+          "p95Ms": 23.688,
+          "p99Ms": 23.688,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 52.4
+        },
+        "transaction": {
+          "count": 97,
+          "p50Ms": 4.047,
+          "p95Ms": 11.87,
+          "p99Ms": 13.52,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 190.91
+        },
+        "competingOwnerLockWait": {
+          "count": 8,
+          "p50Ms": 1.246,
+          "p95Ms": 1.38,
+          "p99Ms": 1.38,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 799.46
+        },
+        "cpu": {
+          "user": 184770,
+          "system": 58152
+        },
+        "rssBefore": 413237248,
+        "rssAfter": 399065088,
+        "pool": {
+          "total": 4,
+          "idle": 4,
+          "waiting": 0
+        }
+      },
+      {
+        "operations": {
+          "submit": {
+            "count": 8,
+            "p50Ms": 104.505,
+            "p95Ms": 108.034,
+            "p99Ms": 108.034,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 9.5
+          },
+          "approve": {
+            "count": 8,
+            "p50Ms": 106.231,
+            "p95Ms": 109.591,
+            "p99Ms": 109.591,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 9.4
+          },
+          "revoke": {
+            "count": 8,
+            "p50Ms": 13.564,
+            "p95Ms": 16.173,
+            "p99Ms": 16.173,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 0,
+            "inverseMeanLatencyPerSecond": 70.95
+          },
+          "publish": {
+            "count": 8,
+            "p50Ms": 59.442,
+            "p95Ms": 61.34,
+            "p99Ms": 61.34,
+            "errors": 0,
+            "errorRate": 0,
+            "expectedConflicts": 8,
+            "inverseMeanLatencyPerSecond": 16.91
+          }
+        },
+        "scenario": "injected-40ms-storage",
+        "submit": {
+          "count": 8,
+          "p50Ms": 104.524,
+          "p95Ms": 108.051,
+          "p99Ms": 108.051,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 9.5
+        },
+        "transaction": {
+          "count": 96,
+          "p50Ms": 4.893,
+          "p95Ms": 52.737,
+          "p99Ms": 56.018,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 74.94
+        },
+        "competingOwnerLockWait": {
+          "count": 8,
+          "p50Ms": 1.083,
+          "p95Ms": 1.215,
+          "p99Ms": 1.215,
+          "errors": 0,
+          "errorRate": 0,
+          "inverseMeanLatencyPerSecond": 923.63
+        },
+        "cpu": {
+          "user": 246533,
+          "system": 72050
+        },
+        "rssBefore": 399065088,
+        "rssAfter": 235503616,
+        "pool": {
+          "total": 4,
+          "idle": 4,
+          "waiting": 0
+        }
+      }
+    ],
+    "worker": {
+      "processingMs": 3400.931291,
+      "throughputSourceAudioSecondsPerWallSecond": 141.1378116547783,
+      "concurrency": 1,
+      "workflow": "Actual 480-second PCM WAV fixture processed to checked MP3 during fixture setup; full recovery suite separately measures retries/crashes."
+    },
+    "rows": 6
+  },
+  "interpretation": [
+    "Streaming hashes moved outside SQL owner locks. Final identity/path stat/open checks still occur under commit locks.",
+    "Same-owner wait is measured at storage verification entry through contender COMMIT. Earlier incorrectly timed/overlapping exploratory runs are excluded.",
+    "Total publication latency can increase from extra validation/transactions; this is a contention/correctness tradeoff, not a blanket throughput improvement.",
+    "Expected publication/revocation 409 conflicts are reported separately from errors. HTTP operations had zero observed errors; no capacity/real-user inference.",
+    "Worker number measures one actual complete processing job at concurrency 1, not a sustained distributed-worker throughput result.",
+    "Catalog has only seven fixture stories; playlist create/history remove-reset are genuine writes, with preserved CSRF and progress revision semantics. Large populated catalog and long-duration soak remain unverified.",
+    "Concurrent winner differs by implementation: hardened publish may legitimately lose to revocation while hashing. Per-action distributions include separately counted expected conflicts; they are not success-only publish latency comparisons.",
+    "Publication latency is measured at the service/DB layer; full HTTP authorization/session round trips are not included. The later final-session validation is tested separately."
+  ],
+  "rateSemantics": "HTTP throughput uses completed requests over actual batch wall time. Publication inverse-mean-latency rates below are NOT observed mixed/concurrent system throughput; use latency/conflict counts for comparisons."
+}

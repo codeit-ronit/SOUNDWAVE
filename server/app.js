@@ -1,3 +1,4 @@
+import { diagnosticsRouter } from "./routes/diagnostics.js";
 import { accountRecovery } from "./services/accountRecovery.js";
 import { googleIdentityService } from "./services/google.js";
 import { sqliteAdapter } from "./database/adapter.js";
@@ -46,7 +47,7 @@ export function createApp(
   });
   if (config.trustedProxies?.length)
     app.set("trust proxy", config.trustedProxies);
-  app.use(requestContext(logger));
+  app.use(requestContext(logger, db));
   const origins = new Set([
     config.origin,
     ...(!config.production
@@ -66,14 +67,28 @@ export function createApp(
       methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
     }),
   );
+  app.use((req, res, next) =>
+    config.releaseQuarantined && req.path !== "/api/ready"
+      ? res
+          .status(503)
+          .set("Cache-Control", "no-store")
+          .json({
+            error: {
+              code: "RELEASE_QUARANTINED",
+              message: "Service is quarantined for recovery.",
+            },
+          })
+      : next(),
+  );
   app.get("/api/ready", async (_req, res) => {
     await db.prepare("SELECT 1").get();
-    const ready = !redis || redis.ready();
+    const ready = !config.releaseQuarantined && (!redis || redis.ready());
     res
       .status(ready ? 200 : 503)
       .set("Cache-Control", "no-store")
       .json({
         database: "ok",
+        quarantined: !!config.releaseQuarantined,
         redis: redis ? (ready ? "ready" : "unavailable") : "not-configured",
       });
   });
@@ -106,6 +121,7 @@ export function createApp(
     }),
   );
   app.use("/api", injectedCsrf || csrfProtection(config));
+  app.use("/api", diagnosticsRouter(db, redis, config));
   app.use("/api", streamRouter(db, config, privateStorage));
   app.use("/api/playlists", playlistRouter(db));
   app.use("/api/history", historyRouter(db));

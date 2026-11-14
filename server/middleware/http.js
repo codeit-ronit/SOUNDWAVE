@@ -1,19 +1,31 @@
+import { telemetry, routeCategory } from "../telemetry.js";
 import { randomUUID } from "node:crypto";
-export function requestContext(logger) {
+export function requestContext(logger, db) {
   return (req, res, next) => {
     const started = performance.now();
     req.requestId = randomUUID();
     res.set("X-Request-ID", req.requestId);
-    if (logger)
-      res.on("finish", () =>
-        logger({
-          requestId: req.requestId,
-          method: req.method,
-          path: req.path,
-          status: res.statusCode,
-          durationMs: Math.round((performance.now() - started) * 100) / 100,
-        }),
-      );
+    const category = routeCategory(req.path);
+    let done = false;
+    const record = () => {
+      if (done) return;
+      done = true;
+      const ms = performance.now() - started;
+      const m = telemetry(db);
+      m.observe("http_ms", category, ms);
+      if (!res.writableFinished) m.observe("http_errors", "aborted");
+      else if (res.statusCode >= 500) m.observe("http_errors", "5xx");
+      else if (res.statusCode >= 400) m.observe("http_errors", "4xx");
+      logger?.({
+        requestId: req.requestId,
+        method: req.method,
+        path: category,
+        status: res.statusCode,
+        durationMs: Math.round((performance.now() - started) * 100) / 100,
+      });
+    };
+    res.once("finish", record);
+    res.once("close", record);
     next();
   };
 }

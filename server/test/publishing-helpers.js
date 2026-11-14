@@ -6,12 +6,16 @@ import { wav } from "./private-wav-fixture.js";
 import { processPrivateMedia } from "../media/private-processor.js";
 import { provisionIdentity } from "../services/creator-operator.js";
 import { RIGHTS_TERMS } from "../services/publications.js";
-export async function publicationFixture(kind) {
+export async function publicationFixture(
+  kind,
+  { frames = 16000, config = {} } = {},
+) {
   const f = await setup(kind, {
       processingSeconds: 5,
       derivativeMaxBytes: 262144,
+      ...config,
     }),
-    bytes = wav(16000),
+    bytes = wav(frames),
     a = (await reserve(f, bytes)).body.asset;
   await f.c
     .write("put", `${f.path}/${a.id}/bytes`, bytes)
@@ -20,7 +24,9 @@ export async function publicationFixture(kind) {
   const p = await f.db
     .prepare("SELECT id FROM private_processing_intents WHERE asset_id=?")
     .get(a.id);
+  const processingStarted = performance.now();
   assert.equal((await processPrivateMedia(f.db, f.config, p.id)).ready, true);
+  const processingMs = performance.now() - processingStarted;
   const moderator = await f.client();
   await moderator.auth("register", {
     email: `${randomUUID()}@example.com`,
@@ -53,6 +59,7 @@ export async function publicationFixture(kind) {
   const publish = () => action(f.c, base, "publish");
   return {
     ...f,
+    processingMs,
     a,
     moderator,
     base,

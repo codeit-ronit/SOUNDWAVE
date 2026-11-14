@@ -1,5 +1,6 @@
 x-app-environment: &app-environment
   NODE_ENV: ${APP_NODE_ENV:-development}
+  RELEASE_QUARANTINED: ${RELEASE_QUARANTINED:-false}
   PORT: 3001
   APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3001}
   DATABASE_URL: postgres://soundwave:${POSTGRES_PASSWORD}@postgres:5432/soundwave
@@ -71,6 +72,8 @@ services:
       context: .
       target: api
     image: soundwave:api
+    mem_limit: 384m
+    cpus: 1.0
     init: true
     restart: on-failure:5
     environment: *app-environment

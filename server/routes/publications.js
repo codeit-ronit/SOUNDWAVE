@@ -1,3 +1,4 @@
+import { checkOpenOutput } from "../media/output-integrity.js";
 import { Router } from "express";
 import { requireUser } from "../middleware/auth.js";
 import { publicationService } from "../services/publications.js";
@@ -82,6 +83,7 @@ export function publicationRouter(
           "MEDIA_UNAVAILABLE",
           "Review media needs recovery.",
         );
+      await checkOpenOutput(db, h, o);
       const range =
         req.method === "GET" && req.get("Range")
           ? parseRange(req.get("Range"), stat.size)
@@ -116,7 +118,7 @@ export function publicationRouter(
         h = null;
         return res.end();
       }
-      const stream = h.createReadStream(range || {});
+      const stream = h.createReadStream(range || { start: 0 });
       h = null;
       res.once("close", () => stream.destroy());
       stream.on("error", () => res.destroy());
@@ -171,6 +173,7 @@ export function publicationRouter(
         Number(req.params.id),
         req.params.action,
         b,
+        { sessionHash: req.sessionHash },
       ),
     );
   };

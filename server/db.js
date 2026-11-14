@@ -65,6 +65,12 @@ export function openDatabase(
       "CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)",
     );
     const dir = new URL("./migrations/sqlite/", import.meta.url);
+    const known = new Set(readdirSync(dir).filter((f) => f.endsWith(".sql")));
+    for (const row of db.prepare("SELECT version FROM schema_migrations").all())
+      if (!known.has(row.version))
+        throw Error(
+          "Database has a newer/unknown schema; matching writer required.",
+        );
     for (const version of readdirSync(dir)
       .filter((f) => f.endsWith(".sql"))
       .sort()) {

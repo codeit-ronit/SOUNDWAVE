@@ -1,3 +1,5 @@
+import { checkOpenOutput } from "../media/output-integrity.js";
+import { telemetry } from "../telemetry.js";
 import { localPrivateStorage } from "../storage/local-private.js";
 import { publicStory } from "../services/publication-visibility.js";
 import { parseRange } from "./stream.js";
@@ -17,6 +19,7 @@ export async function publishedAudio(db, config, storage, req, res, next) {
     );
     const stat = await h.stat();
     if (stat.size !== o.byte_size) throw Error("Missing output");
+    await checkOpenOutput(db, h, o);
     // Authorize again after the asynchronous storage open. Already delivered bytes
     // cannot be recalled, but every new HEAD/range/full request rechecks SQL.
     const authorized = await db
@@ -65,12 +68,16 @@ export async function publishedAudio(db, config, storage, req, res, next) {
       h = null;
       return res.end();
     }
-    const stream = h.createReadStream(range || {});
+    const stream = h.createReadStream(range || { start: 0 });
     h = null;
     res.once("close", () => stream.destroy());
-    stream.on("error", () => res.destroy());
+    stream.on("error", () => {
+      telemetry(db).observe("storage_failures", "stream");
+      res.destroy();
+    });
     stream.pipe(res);
   } catch (e) {
+    telemetry(db).observe("storage_failures", "stream");
     await h?.close().catch(() => {});
     if (res.headersSent) return res.destroy();
     res

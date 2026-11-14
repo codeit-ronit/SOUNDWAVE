@@ -1,3 +1,4 @@
+import { telemetry } from "../telemetry.js";
 import {
   privateProcessingQueue,
   startPrivateProcessingWorker,
@@ -18,8 +19,12 @@ import { retryConnection } from "../database/retry.js";
 import { runWorker } from "../jobs/worker.js";
 import { emailTransport } from "../services/mail.js";
 dotenv.config({ path: new URL("../../.env", import.meta.url), quiet: true });
-const config = loadConfig(),
-  db = await retryConnection(() => connectDatabase()),
+const config = loadConfig();
+if (config.releaseQuarantined)
+  throw Error(
+    "Worker is quarantined; reconcile recovery state before starting jobs.",
+  );
+const db = await retryConnection(() => connectDatabase()),
   mail = emailTransport(config),
   controller = new AbortController();
 for (const signal of ["SIGINT", "SIGTERM"])
@@ -46,6 +51,8 @@ const tick = () =>
     healthFile,
     JSON.stringify({
       pid: process.pid,
+      metrics: telemetry(db).snapshot(),
+      resources: { rss: process.memoryUsage().rss, cpu: process.cpuUsage() },
       at: Date.now(),
       mediaEnabled: !!media,
       mediaReady:

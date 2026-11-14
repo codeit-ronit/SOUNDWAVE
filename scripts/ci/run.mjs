@@ -150,6 +150,11 @@ try {
       "postgres: additive creator migration preserves populated listener state and marks catalog provenance",
       "PostgreSQL creator import preserves identity, role, suspension and ownership; conflicts roll back",
       "postgres: creator identity and suspension survive password and Google sign-in on the same account",
+      "postgres: logout or session expiry during media verification prevents publication commit",
+      "postgres: publication hashes outside owner locks and revocation wins during verification",
+      "postgres: published streaming rejects same-size corruption even after a warm integrity cache",
+      "postgres: internal diagnostics are admin-only, bounded and free of private identities",
+      "postgres: takedown reconciliation is monotonic, atomic, repeat-safe and quarantined",
       "postgres: publishing real MP3 requires exact review and revocation gates every public read",
       "postgres: publication role checks, rights validation, receipts and concurrent decisions serialize",
       "postgres: publication transaction rollback and publish versus revoke races are safe",
@@ -209,6 +214,9 @@ try {
       "docs/M1_HISTORY.md",
       "docs/m1-history-verification.json",
       "docs/M2_MEDIA_PROCESSING.md",
+      "docs/M3_M4_HARDENING.md",
+      "docs/m3-m4-verification.json",
+      "docs/m3-m4-benchmarks.json",
       "docs/M2_PUBLISHING_MODERATION.md",
       "docs/m2-publishing-verification.json",
       "docs/m2-media-processing-verification.json",
@@ -251,6 +259,18 @@ try {
       "scripts/private-processing-systems.mjs",
       [join(dir, "private-processing-docker.json")],
       600000,
+    );
+    await node(
+      "matching-restore",
+      "scripts/hardening-recovery.mjs",
+      [join(dir, "matching-restore.json")],
+      120000,
+    );
+    await node(
+      "hardening-benchmark",
+      "scripts/hardening-benchmark.mjs",
+      [join(dir, "hardening-benchmark.json")],
+      120000,
     );
     await node("http-load", "scripts/http-load.mjs", [
       join(dir, "http-load.json"),

@@ -179,7 +179,11 @@ jobs:
       - run: node scripts/ci/run.mjs install
       - run: node scripts/ci/run.mjs browsers
       - run: node scripts/ci/run.mjs build
+      - name: Install FFmpeg for optional hardening drills
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Opt-in systems, crash recovery and synthetic local HTTP load
+        env:
+          TEST_BACKUP_CONTAINER: ${{ job.services.postgres.id }}
         run: node scripts/ci/run.mjs extended
       - name: Upload sanitized results
         if: always()

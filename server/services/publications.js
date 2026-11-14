@@ -1,3 +1,5 @@
+import { verifyPublicationFiles } from "./publication-integrity.js";
+import { telemetry } from "../telemetry.js";
 import { localPrivateStorage } from "../storage/local-private.js";
 import { loadConfig } from "../config.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -134,29 +136,15 @@ export function publicationService(
         "NOT_READY",
         "Every chapter needs a current ready MP3 before submission or publication.",
       );
-    for (const c of chapters) {
-      let h;
-      try {
-        h = await storage.read(c.object_key);
-        if ((await h.stat()).size !== c.byte_size)
-          fail(409, "NOT_READY", "Processed media needs recovery.");
-        const digest = createHash("sha256");
-        for await (const chunk of h.createReadStream({ autoClose: false }))
-          digest.update(chunk);
-        if (digest.digest("hex") !== c.checksum)
-          fail(409, "NOT_READY", "Processed media checksum changed.");
-      } catch (e) {
-        if (e.permissionCode) throw e;
-        fail(409, "NOT_READY", "Processed media is unavailable.");
-      } finally {
-        await h?.close().catch(() => {});
-      }
-    }
-    // Hash stable public/review identity, never a path or environment-specific key.
-    for (const c of chapters) {
-      delete c.object_key;
-    }
+    const files = chapters.map((c) => ({
+      object_key: c.object_key,
+      byte_size: c.byte_size,
+      checksum: c.checksum,
+      output_id: c.output_id,
+    }));
+    for (const c of chapters) delete c.object_key;
     return {
+      files,
       chapters,
       hash: hash({
         story: [
@@ -229,270 +217,392 @@ export function publicationService(
             .all(),
         };
       }),
-    transition: (principal, id, action, b) =>
-      db.transaction(async () => {
-        const staff = ["approve", "reject", "revoke", "suspend"].includes(
-            action,
-          ),
-          s = await scope(principal, id, staff);
-        if (staff && s.owner_id === principal.id)
-          fail(403, "SELF_REVIEW", "Staff cannot moderate their own content.");
-        const fingerprint = hash({ id, action, ...b }),
-          receipt = await db
-            .prepare(
-              "SELECT * FROM publication_receipts WHERE actor_id=? AND request_id=?",
+    transition: async (principal, id, action, b, context = null) => {
+      let prepared, proof;
+      const m = telemetry(db),
+        started = performance.now();
+      try {
+        if (["submit", "approve", "reject", "publish"].includes(action)) {
+          const t = performance.now();
+          prepared = await db.transaction(async () => {
+            const s = await scope(
+              principal,
+              id,
+              ["approve", "reject"].includes(action),
+            );
+            const receipt = await db
+              .prepare(
+                "SELECT request_hash FROM publication_receipts WHERE actor_id=? AND request_id=?",
+              )
+              .get(principal.id, b.requestId);
+            if (receipt) return null;
+            const p = await get(id);
+            if ((p?.revision ?? 0) !== b.expectedRevision)
+              fail(
+                409,
+                "PUBLICATION_CONFLICT",
+                "Publication changed. Refresh before deciding.",
+              );
+            if (
+              action === "submit" &&
+              (b.attest !== true || b.termsVersion !== RIGHTS_TERMS)
             )
-            .get(principal.id, b.requestId);
-        if (receipt) {
-          if (receipt.story_id !== id || receipt.request_hash !== fingerprint)
-            fail(409, "REQUEST_REUSED", "Request ID already used.");
-          return { ...(await detail(id, staff)), replayed: true };
+              fail(
+                400,
+                "RIGHTS_REQUIRED",
+                "Accept the current rights declaration.",
+              );
+            return snapshot(s);
+          });
+          m.observe("publication_ms", "prepare", performance.now() - t);
+          if (prepared) {
+            const t = performance.now();
+            proof = await verifyPublicationFiles(db, storage, prepared.files);
+            m.observe("publication_ms", "verify", performance.now() - t);
+          }
         }
-        let p = await get(id);
-        if ((p?.revision ?? 0) !== b.expectedRevision)
-          fail(
-            409,
-            "PUBLICATION_CONFLICT",
-            "Publication changed. Refresh before deciding.",
-          );
-        if ((p?.revision ?? 0) >= Number.MAX_SAFE_INTEGER)
-          fail(409, "REVISION_EXHAUSTED", "Publication revision exhausted.");
-        if (action === "suspend") {
-          await auth.staff(principal, ["admin"]);
-          if (
-            !p ||
-            !["submitted", "approved", "published", "unpublished"].includes(
-              p.state,
-            )
-          )
-            fail(
-              409,
-              "INVALID_TRANSITION",
-              "Active review/publication required.",
-            );
-          if (!decisionCodes.slice(1).includes(b.code))
-            fail(
-              400,
-              "INVALID_DECISION",
-              "Choose a controlled suspension reason.",
-            );
-          await db
-            .prepare(
-              "UPDATE creator_profiles SET status='suspended' WHERE user_id=?",
-            )
-            .run(s.owner_id);
-          await revokeCreatorPublications(
-            db,
-            s.owner_id,
-            principal.id,
-            "suspend",
-            false,
-            b.note,
-          );
-          await db
-            .prepare(
-              "INSERT INTO publication_receipts(actor_id,request_id,story_id,request_hash) VALUES(?,?,?,?)",
-            )
-            .run(principal.id, b.requestId, id, fingerprint);
-          return { ...(await detail(id, true)), replayed: false };
-        }
-        const state = p?.state ?? "draft",
-          t = now();
-        let target,
-          code = b.code ?? null,
-          note = b.note ?? "",
-          snap;
-        if (action === "submit") {
-          if (
-            ![
-              "draft",
-              "rejected",
-              "withdrawn",
-              "unpublished",
-              "revoked",
-            ].includes(state)
-          )
-            fail(
-              409,
-              "INVALID_TRANSITION",
-              "Withdraw review or unpublish first.",
-            );
-          if (b.attest !== true || b.termsVersion !== RIGHTS_TERMS)
-            fail(
-              400,
-              "RIGHTS_REQUIRED",
-              "Accept the current rights declaration.",
-            );
-          snap = await snapshot(s);
-          target = "submitted";
-        } else if (action === "withdraw") {
-          if (!["submitted", "approved"].includes(state))
-            fail(
-              409,
-              "INVALID_TRANSITION",
-              "Only pending/approved review may be withdrawn.",
-            );
-          target = "withdrawn";
-        } else if (action === "approve" || action === "reject") {
-          if (state !== "submitted")
-            fail(
-              409,
-              "INVALID_TRANSITION",
-              "Only submitted content may be reviewed.",
-            );
-          snap = await snapshot(s);
-          if (snap.hash !== p.snapshot_hash)
-            fail(
-              409,
-              "STALE_REVIEW",
-              "Content changed. Creator must withdraw and resubmit.",
-            );
-          if (
-            (action === "approve" && code !== "approved") ||
-            (action === "reject" && !decisionCodes.slice(1).includes(code))
-          )
-            fail(400, "INVALID_DECISION", "Choose a controlled decision code.");
-          target = action === "approve" ? "approved" : "rejected";
-        } else if (action === "publish") {
-          if (
-            !["approved", "unpublished"].includes(state) ||
-            p.decision_code !== "approved"
-          )
-            fail(409, "INVALID_TRANSITION", "Current approval required.");
-          snap = await snapshot(s);
-          if (snap.hash !== p.snapshot_hash || p.terms_version !== RIGHTS_TERMS)
-            fail(
-              409,
-              "STALE_APPROVAL",
-              "Content changed. Resubmit for review.",
-            );
-          target = "published";
-        } else if (action === "unpublish") {
-          if (state !== "published")
-            fail(
-              409,
-              "INVALID_TRANSITION",
-              "Only published content may be unpublished.",
-            );
-          target = "unpublished";
-        } else if (action === "revoke") {
-          if (
-            !["submitted", "approved", "published", "unpublished"].includes(
-              state,
-            )
-          )
-            fail(
-              409,
-              "INVALID_TRANSITION",
-              "Content has no active review/publication to revoke.",
-            );
-          if (!decisionCodes.slice(1).includes(code))
-            fail(400, "INVALID_DECISION", "Choose a revocation code.");
-          target = "revoked";
-        } else fail(400, "INVALID_ACTION", "Unsupported action.");
-        if (!p) {
-          await db
-            .prepare(
-              "INSERT INTO story_publications(story_id,story_revision,updated_at) VALUES(?,?,?)",
-            )
-            .run(id, s.draft_revision, t);
-          p = await get(id);
-        }
-        if (action === "submit") {
-          await db
-            .prepare("DELETE FROM publication_chapters WHERE story_id=?")
-            .run(id);
-          for (const c of snap.chapters)
+        const commitStart = performance.now();
+        try {
+          return await db.transaction(async () => {
+            const staff = ["approve", "reject", "revoke", "suspend"].includes(
+                action,
+              ),
+              s = await scope(principal, id, staff);
+            if (context) {
+              const session = await db
+                .prepare(
+                  `SELECT user_id FROM sessions WHERE token_hash=? AND expires_at>${db.now}`,
+                )
+                .get(context.sessionHash);
+              if (session?.user_id !== principal.id)
+                fail(
+                  401,
+                  "PUBLICATION_SESSION_EXPIRED",
+                  "Session expired during verification. Sign in again.",
+                );
+            }
+            if (staff && s.owner_id === principal.id)
+              fail(
+                403,
+                "SELF_REVIEW",
+                "Staff cannot moderate their own content.",
+              );
+            const fingerprint = hash({ id, action, ...b }),
+              receipt = await db
+                .prepare(
+                  "SELECT * FROM publication_receipts WHERE actor_id=? AND request_id=?",
+                )
+                .get(principal.id, b.requestId);
+            if (receipt) {
+              if (
+                receipt.story_id !== id ||
+                receipt.request_hash !== fingerprint
+              )
+                fail(409, "REQUEST_REUSED", "Request ID already used.");
+              return { ...(await detail(id, staff)), replayed: true };
+            }
+            let p = await get(id);
+            if ((p?.revision ?? 0) !== b.expectedRevision)
+              fail(
+                409,
+                "PUBLICATION_CONFLICT",
+                "Publication changed. Refresh before deciding.",
+              );
+            if ((p?.revision ?? 0) >= Number.MAX_SAFE_INTEGER)
+              fail(
+                409,
+                "REVISION_EXHAUSTED",
+                "Publication revision exhausted.",
+              );
+            if (action === "suspend") {
+              await auth.staff(principal, ["admin"]);
+              if (
+                !p ||
+                !["submitted", "approved", "published", "unpublished"].includes(
+                  p.state,
+                )
+              )
+                fail(
+                  409,
+                  "INVALID_TRANSITION",
+                  "Active review/publication required.",
+                );
+              if (!decisionCodes.slice(1).includes(b.code))
+                fail(
+                  400,
+                  "INVALID_DECISION",
+                  "Choose a controlled suspension reason.",
+                );
+              await db
+                .prepare(
+                  "UPDATE creator_profiles SET status='suspended' WHERE user_id=?",
+                )
+                .run(s.owner_id);
+              await revokeCreatorPublications(
+                db,
+                s.owner_id,
+                principal.id,
+                "suspend",
+                false,
+                b.note,
+              );
+              await db
+                .prepare(
+                  "INSERT INTO publication_receipts(actor_id,request_id,story_id,request_hash) VALUES(?,?,?,?)",
+                )
+                .run(principal.id, b.requestId, id, fingerprint);
+              return { ...(await detail(id, true)), replayed: false };
+            }
+            const state = p?.state ?? "draft",
+              t = now();
+            let target,
+              code = b.code ?? null,
+              note = b.note ?? "",
+              snap;
+            if (action === "submit") {
+              if (
+                ![
+                  "draft",
+                  "rejected",
+                  "withdrawn",
+                  "unpublished",
+                  "revoked",
+                ].includes(state)
+              )
+                fail(
+                  409,
+                  "INVALID_TRANSITION",
+                  "Withdraw review or unpublish first.",
+                );
+              if (b.attest !== true || b.termsVersion !== RIGHTS_TERMS)
+                fail(
+                  400,
+                  "RIGHTS_REQUIRED",
+                  "Accept the current rights declaration.",
+                );
+              snap = await snapshot(s);
+              if (
+                !prepared ||
+                prepared.hash !== snap.hash ||
+                hash(prepared.files) !== hash(snap.files)
+              )
+                fail(
+                  409,
+                  "PUBLICATION_CONFLICT",
+                  "Media or content changed during verification. Refresh before retrying.",
+                );
+              await proof.recheck();
+              target = "submitted";
+            } else if (action === "withdraw") {
+              if (!["submitted", "approved"].includes(state))
+                fail(
+                  409,
+                  "INVALID_TRANSITION",
+                  "Only pending/approved review may be withdrawn.",
+                );
+              target = "withdrawn";
+            } else if (action === "approve" || action === "reject") {
+              if (state !== "submitted")
+                fail(
+                  409,
+                  "INVALID_TRANSITION",
+                  "Only submitted content may be reviewed.",
+                );
+              snap = await snapshot(s);
+              if (
+                !prepared ||
+                prepared.hash !== snap.hash ||
+                hash(prepared.files) !== hash(snap.files)
+              )
+                fail(
+                  409,
+                  "PUBLICATION_CONFLICT",
+                  "Media or content changed during verification. Refresh before retrying.",
+                );
+              await proof.recheck();
+              if (snap.hash !== p.snapshot_hash)
+                fail(
+                  409,
+                  "STALE_REVIEW",
+                  "Content changed. Creator must withdraw and resubmit.",
+                );
+              if (
+                (action === "approve" && code !== "approved") ||
+                (action === "reject" && !decisionCodes.slice(1).includes(code))
+              )
+                fail(
+                  400,
+                  "INVALID_DECISION",
+                  "Choose a controlled decision code.",
+                );
+              target = action === "approve" ? "approved" : "rejected";
+            } else if (action === "publish") {
+              if (
+                !["approved", "unpublished"].includes(state) ||
+                p.decision_code !== "approved"
+              )
+                fail(409, "INVALID_TRANSITION", "Current approval required.");
+              snap = await snapshot(s);
+              if (
+                !prepared ||
+                prepared.hash !== snap.hash ||
+                hash(prepared.files) !== hash(snap.files)
+              )
+                fail(
+                  409,
+                  "PUBLICATION_CONFLICT",
+                  "Media or content changed during verification. Refresh before retrying.",
+                );
+              await proof.recheck();
+              if (
+                snap.hash !== p.snapshot_hash ||
+                p.terms_version !== RIGHTS_TERMS
+              )
+                fail(
+                  409,
+                  "STALE_APPROVAL",
+                  "Content changed. Resubmit for review.",
+                );
+              target = "published";
+            } else if (action === "unpublish") {
+              if (state !== "published")
+                fail(
+                  409,
+                  "INVALID_TRANSITION",
+                  "Only published content may be unpublished.",
+                );
+              target = "unpublished";
+            } else if (action === "revoke") {
+              if (
+                !["submitted", "approved", "published", "unpublished"].includes(
+                  state,
+                )
+              )
+                fail(
+                  409,
+                  "INVALID_TRANSITION",
+                  "Content has no active review/publication to revoke.",
+                );
+              if (!decisionCodes.slice(1).includes(code))
+                fail(400, "INVALID_DECISION", "Choose a revocation code.");
+              target = "revoked";
+            } else fail(400, "INVALID_ACTION", "Unsupported action.");
+            if (!p) {
+              await db
+                .prepare(
+                  "INSERT INTO story_publications(story_id,story_revision,updated_at) VALUES(?,?,?)",
+                )
+                .run(id, s.draft_revision, t);
+              p = await get(id);
+            }
+            if (action === "submit") {
+              await db
+                .prepare("DELETE FROM publication_chapters WHERE story_id=?")
+                .run(id);
+              for (const c of snap.chapters)
+                await db
+                  .prepare(
+                    "INSERT INTO publication_chapters(story_id,chapter_id,chapter_revision,chapter_number,asset_id,head_revision,output_id,checksum) VALUES(?,?,?,?,?,?,?,?)",
+                  )
+                  .run(
+                    id,
+                    c.id,
+                    c.draft_revision,
+                    c.chapter_number,
+                    c.asset_id,
+                    c.head_revision,
+                    c.output_id,
+                    c.checksum,
+                  );
+              await db
+                .prepare(
+                  "UPDATE story_publications SET story_revision=?,snapshot_hash=?,terms_version=?,attested_by=?,attested_at=?,submitted_at=?,decided_by=NULL,decided_at=NULL,decision_code=NULL,decision_note='',published_at=NULL,revoked_at=NULL WHERE story_id=?",
+                )
+                .run(
+                  s.draft_revision,
+                  snap.hash,
+                  RIGHTS_TERMS,
+                  principal.id,
+                  t,
+                  t,
+                  id,
+                );
+            }
+            if (action === "approve" || action === "reject")
+              await db
+                .prepare(
+                  "UPDATE story_publications SET decided_by=?,decided_at=?,decision_code=?,decision_note=? WHERE story_id=?",
+                )
+                .run(principal.id, t, code, note, id);
+            if (action === "publish") {
+              for (const c of snap.chapters)
+                await db
+                  .prepare("UPDATE chapters SET duration_seconds=? WHERE id=?")
+                  .run(c.duration_seconds, c.id);
+              await db
+                .prepare(
+                  "UPDATE story_publications SET published_at=? WHERE story_id=?",
+                )
+                .run(t, id);
+            }
+            if (action === "revoke" || action === "unpublish")
+              await db
+                .prepare(
+                  "UPDATE story_publications SET revoked_at=? WHERE story_id=?",
+                )
+                .run(t, id);
+            if (action === "revoke")
+              await db
+                .prepare(
+                  "UPDATE story_publications SET decision_code=?,decision_note=? WHERE story_id=?",
+                )
+                .run(code, note, id);
+            // Initial row starts at revision 1, initial transition is also revision 1.
+            const next = b.expectedRevision + 1;
             await db
               .prepare(
-                "INSERT INTO publication_chapters(story_id,chapter_id,chapter_revision,chapter_number,asset_id,head_revision,output_id,checksum) VALUES(?,?,?,?,?,?,?,?)",
+                "UPDATE story_publications SET state=?,revision=?,updated_at=? WHERE story_id=?",
+              )
+              .run(target, next, t, id);
+            await db
+              .prepare(
+                "INSERT INTO publication_audit(id,story_id,actor_id,action,revision,snapshot_hash,decision_code,note,created_at,terms_version,attested_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
               )
               .run(
+                randomUUID(),
                 id,
-                c.id,
-                c.draft_revision,
-                c.chapter_number,
-                c.asset_id,
-                c.head_revision,
-                c.output_id,
-                c.checksum,
+                principal.id,
+                action,
+                next,
+                (await get(id)).snapshot_hash,
+                code,
+                note,
+                t,
+                action === "submit" ? RIGHTS_TERMS : null,
+                action === "submit" ? t : null,
               );
-          await db
-            .prepare(
-              "UPDATE story_publications SET story_revision=?,snapshot_hash=?,terms_version=?,attested_by=?,attested_at=?,submitted_at=?,decided_by=NULL,decided_at=NULL,decision_code=NULL,decision_note='',published_at=NULL,revoked_at=NULL WHERE story_id=?",
-            )
-            .run(
-              s.draft_revision,
-              snap.hash,
-              RIGHTS_TERMS,
-              principal.id,
-              t,
-              t,
-              id,
-            );
-        }
-        if (action === "approve" || action === "reject")
-          await db
-            .prepare(
-              "UPDATE story_publications SET decided_by=?,decided_at=?,decision_code=?,decision_note=? WHERE story_id=?",
-            )
-            .run(principal.id, t, code, note, id);
-        if (action === "publish") {
-          for (const c of snap.chapters)
             await db
-              .prepare("UPDATE chapters SET duration_seconds=? WHERE id=?")
-              .run(c.duration_seconds, c.id);
-          await db
-            .prepare(
-              "UPDATE story_publications SET published_at=? WHERE story_id=?",
-            )
-            .run(t, id);
-        }
-        if (action === "revoke" || action === "unpublish")
-          await db
-            .prepare(
-              "UPDATE story_publications SET revoked_at=? WHERE story_id=?",
-            )
-            .run(t, id);
-        if (action === "revoke")
-          await db
-            .prepare(
-              "UPDATE story_publications SET decision_code=?,decision_note=? WHERE story_id=?",
-            )
-            .run(code, note, id);
-        // Initial row starts at revision 1, initial transition is also revision 1.
-        const next = b.expectedRevision + 1;
-        await db
-          .prepare(
-            "UPDATE story_publications SET state=?,revision=?,updated_at=? WHERE story_id=?",
-          )
-          .run(target, next, t, id);
-        await db
-          .prepare(
-            "INSERT INTO publication_audit(id,story_id,actor_id,action,revision,snapshot_hash,decision_code,note,created_at,terms_version,attested_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-          )
-          .run(
-            randomUUID(),
-            id,
-            principal.id,
-            action,
-            next,
-            (await get(id)).snapshot_hash,
-            code,
-            note,
-            t,
-            action === "submit" ? RIGHTS_TERMS : null,
-            action === "submit" ? t : null,
+              .prepare(
+                "INSERT INTO publication_receipts(actor_id,request_id,story_id,request_hash) VALUES(?,?,?,?)",
+              )
+              .run(principal.id, b.requestId, id, fingerprint);
+            await db
+              .prepare("UPDATE catalog_revision SET revision=? WHERE id=1")
+              .run(randomUUID());
+            return { ...(await detail(id, staff)), replayed: false };
+          });
+        } finally {
+          m.observe(
+            "publication_ms",
+            ["revoke", "unpublish", "suspend"].includes(action)
+              ? "revoke"
+              : "commit",
+            performance.now() - commitStart,
           );
-        await db
-          .prepare(
-            "INSERT INTO publication_receipts(actor_id,request_id,story_id,request_hash) VALUES(?,?,?,?)",
-          )
-          .run(principal.id, b.requestId, id, fingerprint);
-        await db
-          .prepare("UPDATE catalog_revision SET revision=? WHERE id=1")
-          .run(randomUUID());
-        return { ...(await detail(id, staff)), replayed: false };
-      }),
+        }
+      } finally {
+        await proof?.close();
+      }
+    },
   };
 }

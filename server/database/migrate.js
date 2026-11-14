@@ -10,6 +10,16 @@ export async function migrate(db) {
       )
       .run();
     const dir = new URL(`../migrations/${db.dialect}/`, import.meta.url);
+    const known = new Set(
+      readdirSync(dir).filter((f) => /^\d+.*\.sql$/.test(f)),
+    );
+    for (const row of await db
+      .prepare("SELECT version FROM schema_migrations")
+      .all())
+      if (!known.has(row.version))
+        throw Error(
+          "Database has a newer/unknown schema; drain this writer and use matching code.",
+        );
     for (const version of readdirSync(dir)
       .filter((f) => /^\d+.*\.sql$/.test(f))
       .sort()) {

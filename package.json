@@ -47,6 +47,10 @@
     "test:uploads:browser": "npm run build && node scripts/uploads-smoke.mjs",
     "media:private": "node server/scripts/private-media.js",
     "test:processing:browser": "npm run build && node scripts/processing-smoke.mjs",
+    "bench:hardening": "node scripts/hardening-benchmark.mjs",
+    "test:hardening:recovery": "node scripts/hardening-recovery.mjs",
+    "ops:takedowns": "node server/scripts/takedowns.js",
+    "ops:diagnostics": "node server/scripts/diagnostics.js",
     "test:publishing:browser": "npm run build && node scripts/publishing-smoke.mjs",
     "test:processing:systems": "node scripts/private-processing-systems.mjs"
   },

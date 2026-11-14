@@ -1,0 +1,11 @@
+{
+  "at": "2026-11-14T05:50:25.095Z",
+  "checks": [
+    "drained fixture snapshot contains a genuine PostgreSQL archive and matching private source/MP3 directory",
+    "restored service is quarantined: public APIs, legacy streams and readiness are blocked before operator verification",
+    "matching restored WAV and MP3 bytes pass full size/SHA-256 checks against restored metadata",
+    "later takedown ledger advances restored revision once; repeat-safe reconciliation blocks public catalog/ranges after controlled reopening",
+    "higher external revocation high-water marks cannot be bypassed by an older restored revision"
+  ],
+  "archiveSha256": "e6576909e1c6c1b91fbb7a67f1c863f063a3deda7a8abc71d32a83759e59b736"
+}

@@ -181,11 +181,24 @@ try {
   let state = await request(path);
   assert.equal(state.processingIntent.attempts, 1);
   assert.equal(state.derivative.format, "mp3");
+  await until(async () => {
+    const h = JSON.parse(
+      docker(["exec", worker, "cat", "/tmp/soundwave-worker-health.json"]),
+    );
+    return h.metrics?.some(
+      (m) => m.name === "processing_ms" && m.label === "ready" && m.count > 0,
+    );
+  });
+  const heartbeat = JSON.parse(
+    docker(["exec", worker, "cat", "/tmp/soundwave-worker-health.json"]),
+  );
+  assert.ok(heartbeat.resources.rss > 0);
+  assert.ok(heartbeat.metrics.length < 100);
   const host = JSON.parse(docker(["inspect", worker]))[0].HostConfig;
   assert.equal(host.Memory, 536870912);
   assert.equal(host.NanoCpus, 1000000000);
   pass(
-    "actual resource-limited Docker worker dispatches the outbox through BullMQ and commits a private MP3",
+    "actual resource-limited Docker worker dispatches BullMQ, commits a private MP3 and exposes bounded heartbeat metrics",
   );
   docker(["kill", "--signal", "KILL", worker]);
   a = await upload(4000);

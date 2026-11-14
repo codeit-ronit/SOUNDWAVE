@@ -403,3 +403,7 @@ A validated WAV now commits a durable processing intent/outbox event. A separate
 ## M2.6 + M2.7: reviewed creator publishing
 
 Creator Studio now supports versioned rights declarations, exact-media review, explicit publication/unpublication and staff revocation. Operator-provisioned moderators get a bounded dashboard with private review audio, decisions and audit history; admins can suspend creators. Public catalog/audio checks current SQL eligibility even with stale cached metadata. Previously downloaded copies cannot reliably be recalled. See [the publication contract](docs/M2_PUBLISHING_MODERATION.md) and [local verification](docs/m2-publishing-verification.json). No push, deployment or remote Actions run.
+
+## M3/M4 targeted hardening
+
+Publication verifies real media outside SQL hashing locks and rechecks revisions/storage identity at commit. Public/review streams detect same-size corruption, admin-only diagnostics expose bounded telemetry, and recovery supports quarantine plus monotonic takedown reconciliation. See [hardening and limits](docs/M3_M4_HARDENING.md), [actual benchmarks](docs/m3-m4-benchmarks.json) and [verification](docs/m3-m4-verification.json). No deployment or remote CI success is claimed.

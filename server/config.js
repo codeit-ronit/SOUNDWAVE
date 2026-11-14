@@ -83,6 +83,7 @@ export function loadConfig(env = process.env) {
     mailFrom: env.MAIL_FROM || "SoundWave <noreply@soundwave.local>",
     mailKey: env.EMAIL_ENCRYPTION_KEY || null,
     origin,
+    releaseQuarantined: env.RELEASE_QUARANTINED === "true",
     demoEnabled: env.DEMO_MODE !== "false",
     sessionSeconds: positive("SESSION_TTL_SECONDS", 604800, 2592000),
     guestSeconds: positive("GUEST_TTL_SECONDS", 86400, 604800),

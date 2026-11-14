@@ -118,3 +118,7 @@ Do not add Kafka, Kubernetes, Elasticsearch, a service mesh, event-sourced rewri
 No claims of production scalability, real user counts, creator adoption, engagement uplift, always-on free workers, global CDN ownership, exactly-once email or cross-browser compatibility are supported by this roadmap. Those require implementation and evidence appropriate to the claim.
 
 M2.2 private draft story/chapter CRUD is implemented and locally verified; see [contract and limits](M2_CREATOR_DRAFTS.md) and [exact verification](m2-creator-drafts-verification.json). M2.3 private media storage is the next creator milestone; uploads/publishing remain absent. Nothing was pushed/deployed; remote Actions remains NOT RUN.
+
+### M3/M4 targeted hardening checkpoint
+
+See [M3/M4 hardening](M3_M4_HARDENING.md) and its verification/benchmark artifacts for publication integrity outside SQL hashing locks, protected bounded telemetry, corruption detection, future-schema refusal and coordinated restore/takedown recovery. Broader unfinished M3/M4 roadmap capabilities retain their Partial/External status; this checkpoint does not claim account-erasure APIs, universal pagination, offsite backup automation or production-scale readiness. Final local gate status is recorded in the verification artifact; remote CI has not run.
