@@ -1,409 +1,78 @@
 # SoundWave
 
-**Stories worth getting lost in.** An audio fiction platform built with React/Vite, Express, PostgreSQL and a SQLite compatibility adapter. It combines real byte-range audio delivery, resumable playback, libraries, rule-based discovery and selected offline downloads.
+A full-stack audio listening and creator platform built with React, Express, PostgreSQL, Redis and a background FFmpeg worker. The modular monolith includes authenticated listening, private creator workflows and explicit moderation before publication.
 
-**[Live portfolio demo](https://soundwave-codeit-ronit.vercel.app/)** · **[Source](https://github.com/codeit-ronit/SOUNDWAVE)** · **[Architecture](docs/ARCHITECTURE.md)** · **[Operations](docs/OPERATIONS.md)** · **[Resume claim verification](docs/RESUME_CLAIM_VERIFICATION.md)**
+**Status:** V3 is locally verified on `feature/m1-private-playlists`. It has not been pushed or deployed. Remote GitHub Actions has **not run**. The historical [portfolio demo](https://soundwave-codeit-ronit.vercel.app/) runs an older release; its current availability and V3 compatibility were not checked in M6-A.
 
-**Google sign-in:** The live sign-in and sign-up forms offer Google Identity Services. Existing password users can explicitly link Google after signing in. See [setup, security decisions and verification](docs/GOOGLE_SIGN_IN.md).
+## What works
 
-**Deployment status (last verified release):** The public demo was verified with a React frontend and PostgreSQL/authentication backend, with Redis caching/shared limits, BullMQ audio analysis and background analytics. Vercel hosts the frontend and same-origin API proxy; Render Free runs the API/worker and Redis-compatible store; Neon Free stores PostgreSQL data. [Public deployment verification](docs/PUBLIC_DEPLOYMENT.md) records actual browser and restart checks. **Free hosting sleeps when idle, so the first API request can take about a minute.** Redis queue state is volatile on this free plan, and external email delivery is disabled.
+- Isolated guest sessions, password authentication and Google Identity Services integration; account profiles and persistent playback preferences.
+- Favorites, private named playlists, editable device-local cross-story queue, paginated history and revision-safe progress synchronization across devices.
+- Shared persistent audio player, resume, chapter transitions, HTTP byte ranges and bounded PWA chapter downloads with offline seeking.
+- Backend discovery and explainable **rule-based** recommendations; listening-event deduplication and analytics rollups.
+- Creator activation, ownership-scoped story/chapter drafts, bounded validated PCM WAV uploads and private persistent file storage.
+- Durable processing intents/outbox, FFmpeg MP3 conversion, retries, worker-crash recovery and stale-result fencing.
+- Exact-revision moderation, rights declarations, publication/unpublication, revocation and operator-provisioned staff roles.
+- PostgreSQL transactions, versioned migrations and SQLite compatibility; Redis cache-aside catalog reads/invalidation and distributed route-specific throttling.
+- Bounded diagnostics, quarantine/takedown reconciliation and disposable PostgreSQL backup/restore verification.
 
-Local V3 milestones M1.1–M1.3 and M1.5 have not been pushed or deployed; the public URL is not evidence of these new features.
+## Architecture
 
-The submitted resume URL, [zippy-nitrogen-wd3scr3.tmp.now](https://zippy-nitrogen-wd3scr3.tmp.now/), redirects to the existing live demo. Retain its original claimed deployment and hostname-specific redirect. Use the main demo URL for future submissions.
+```mermaid
+flowchart LR
+    Browser[React + PWA + audio player] --> TLS[Caddy HTTPS]
+    TLS --> API[Express: SPA + REST + authorized ranges]
+    API --> PG[(PostgreSQL: accounts, catalog, progress, jobs)]
+    API --> Redis[(Redis: cache, limits, BullMQ)]
+    PG --> Worker[Worker + durable outbox + FFmpeg]
+    Redis --> Worker
+    API --> Files[(Private persistent media volume)]
+    Worker --> Files
+```
 
-![SoundWave desktop interface](docs/soundwave-desktop.png)
-
-The screenshot shows the earlier interface; the current app replaces the fixed demo profile with account controls. No real-user, production-readiness or scalability claim is made.
-
-## V3 baseline audit and next steps
-
-The [M0 audit](docs/SOUNDWAVE_V3_AUDIT.md) inventories actual capabilities and gaps. The [V3 roadmap](docs/SOUNDWAVE_V3_ROADMAP.md) defines M1–M6 acceptance criteria; it does not claim creator features are implemented. M0 reran 153 automated tests, clean installation/build, browser/fault/Compose checks and local benchmarks. It fixed two ambiguous recovery test selectors; no application feature or public deployment changed. M1.2 is now implemented on `feature/m1-private-playlists`: private named playlists in My Library, with owner-scoped APIs and both database adapters. It has not been pushed or deployed. See [M1.2 implementation/API/verification](docs/M1_PLAYLISTS.md). [Exact evidence](docs/m0-verification.json).
-
-## Continuous integration
-
-GitHub Actions configuration is implemented locally: mandatory Node 22/PostgreSQL/Redis tests, migrations, build/format checks and a bounded browser gate; heavier systems/load checks are opt-in. **No remote Actions run has executed, and CI is not claimed green.** The clean local equivalent passed 178 application tests plus six CI safety tests and browser/optional checks. [CI setup and exact evidence](docs/CI.md) · [Restart flake investigation](docs/CI_FLAKE_INVESTIGATION.md). No push, deployment or repository protection changes were performed.
+One deployable application and worker, not microservices. Sessions determine ownership; clients cannot select another account. PostgreSQL records processing intent before dispatch. Cache entries do not grant publication access, and private account data is not placed in shared catalog caches. SQL revision fences protect progress, drafts and publication from stale writes.
 
 ## Run locally
 
-Requires **Node.js 22.x and npm**. The verified host used Node 22.21.1 and Google Chrome. All twelve audio files are bundled; no API key, paid service or audio generation is needed.
+Requires Docker/Compose (ARM64 supported). Use a fresh local configuration; preserve any existing `.env` and volumes.
 
-```bash
-git clone https://github.com/codeit-ronit/SOUNDWAVE.git
-cd SOUNDWAVE
-npm ci
+```sh
 cp .env.example .env
-# Set POSTGRES_PASSWORD in .env, then:
-docker compose up --build
-```
-
-Open **http://localhost:3001**. Compose uses PostgreSQL as the primary database, Redis for shared limits/cache/BullMQ, and separate API/worker image targets. The worker automatically analyzes the twelve original WAV files and persists their metadata/waveforms. Named volumes preserve PostgreSQL and Redis state.
-
-To use PostgreSQL with the Node development server:
-
-1. Set a strong URL-safe `POSTGRES_PASSWORD` in `.env`.
-2. Start the database and configure the connection:
-
-   ```bash
-   docker compose up -d postgres
-   # Add DATABASE_URL to .env, replacing the password with your actual value:
-   # DATABASE_URL=postgres://soundwave:YOUR_URL_ENCODED_PASSWORD@localhost:5432/soundwave
-   npm run db:migrate
-   npm run dev
-   ```
-
-Migrations and catalog seeding also run at startup. PostgreSQL is the default: missing `DATABASE_URL` fails clearly rather than silently selecting another database. For legacy/local SQLite, explicitly set `DATABASE_DRIVER=sqlite` (or supply an explicit `DATABASE_PATH` without selecting the PostgreSQL driver). Do not point tests at a database containing important data.
-
-For the production frontend bundle and offline support:
-
-```bash
-npm run build
-npm start
+# Edit .env: set POSTGRES_PASSWORD to a strong URL-safe local password.
+docker compose up --build -d
 # Open http://localhost:3001
 ```
 
-This runs the production **frontend bundle** using local development cookie settings unless `NODE_ENV=production` is explicitly set. The service worker is disabled during Vite development. Public production mode requires HTTPS `APP_ORIGIN` and PostgreSQL.
+Development Compose starts PostgreSQL, Redis, API, worker and local Mailpit. Dependency ports bind loopback. It uses development cookies on local HTTP; this is not the public release profile. Database and private files use named volumes. Stop with `docker compose stop`; do not delete volumes containing wanted data.
 
-## Redis, jobs and account recovery
+For host development, install Node.js 22 and FFmpeg/ffprobe, start PostgreSQL/Redis, set their local URLs in `.env`, then:
 
-The architecture is implemented and verified locally. Redis shares API/auth rate limits across instances; catalog caching uses TTLs/invalidation and never stores personal state. BullMQ handles real WAV metadata extraction and waveform generation using Redis jobs. The existing PostgreSQL outbox continues analytics snapshots, cleanup and SMTP delivery, preserving its durable records. Verification/reset links are hashed, expiring and single-use; resets revoke all sessions. Backup tooling verifies a snapshot by restoring into a fresh disposable database.
-
-Run `npm run worker` alongside host-side development. Inspect media jobs with `npm run media -- list`, enqueue/backfill with `npm run media -- enqueue`, and retry a failed media job with `npm run media -- retry JOB_ID`. Compose starts the worker automatically. See [OPERATIONS.md](docs/OPERATIONS.md) for configuration, delivery semantics, job administration and backup/restore commands.
-
-## Docker Compose
-
-For a no-cost public portfolio setup, see the [free demo deployment recipe](docs/FREE_DEMO_DEPLOYMENT.md). It uses Render plus Neon and explicitly documents sleeping workers and volatile Redis. The existing resume URL has now been cut over; see the public verification report for the deployed services and checks.
-
-With `POSTGRES_PASSWORD` set in `.env`, Compose runs PostgreSQL, Redis, API, worker and a local SMTP catcher. For email features, also set `EMAIL_MODE=smtp` and a random `EMAIL_ENCRYPTION_KEY` as described in [Operations](docs/OPERATIONS.md#complete-local-stack). Without mail configuration, recovery reports an explicit error; it does not fake delivery.
-
-For Compose, leave `SMTP_URL` unset so it uses `smtp://mailpit:1025`. Then:
-
-```bash
-docker compose up --build
-# Open http://localhost:3001
-```
-
-Compose defines PostgreSQL 18.6, Redis 7.4 with a bounded memory budget, API/worker/dependency health checks, persistent database/Redis volumes and a non-root Node application/worker. The local inbox is http://localhost:8025. Exposed ports bind to loopback. Default `APP_NODE_ENV=development` deliberately supports localhost HTTP cookies. To host publicly, set `APP_NODE_ENV=production`, supply an HTTPS `APP_ORIGIN`, configure TLS termination and protect the database network. Do not expose the development configuration publicly. See the verification report for the actual container-build result.
-
-`docker compose down` keeps the database volume. Do not use `down -v` when preserving data. Reserved URL characters in passwords must be percent-encoded in `DATABASE_URL`.
-
-## Configuration
-
-Copy `.env.example`; never commit real credentials.
-
-| Variable                 | Behavior                                                                                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `DATABASE_URL`           | PostgreSQL connection string; takes precedence over SQLite                                                                                             |
-| `DATABASE_DRIVER`        | PostgreSQL default; `sqlite` explicitly selects local compatibility when no database URL is set                                                        |
-| `DATABASE_PATH`          | SQLite path for local compatibility; default `server/data/soundwave.sqlite`                                                                            |
-| `APP_ORIGIN`             | Exact app origin; required HTTPS origin in production                                                                                                  |
-| `NODE_ENV`               | `production` enforces HTTPS configuration, Secure cookies and PostgreSQL by default                                                                    |
-| `CLIENT_ORIGIN`          | Development-only CORS origins; default localhost/127.0.0.1 port 5173                                                                                   |
-| `PORT`                   | Express port, default `3001`; Vite proxy also targets 3001                                                                                             |
-| `DB_POOL_MAX`            | PostgreSQL pool limit per process, default `5`                                                                                                         |
-| `PGSSL`                  | Set `true` for PostgreSQL TLS with certificate verification; configure trusted CAs as needed                                                           |
-| `DEMO_MODE`              | Default `true`; `false` disables independent guest-account creation                                                                                    |
-| `GOOGLE_CLIENT_ID`       | Optional public Google Web client ID; enables Google sign-in. No client secret. Configure exact authorized JavaScript origins in Google Auth Platform. |
-| `SESSION_TTL_SECONDS`    | Registered session absolute lifetime, default `604800` (7 days), maximum 30 days                                                                       |
-| `GUEST_TTL_SECONDS`      | Guest session lifetime, default `86400` (1 day), maximum 7 days                                                                                        |
-| `HTTP_LOG`               | Set `1` for structured request IDs, paths, status and duration; no request bodies                                                                      |
-| `POSTGRES_PASSWORD`      | Compose database password; also used to construct its internal connection URL                                                                          |
-| `APP_NODE_ENV`           | Compose app environment; default local `development`                                                                                                   |
-| `REDIS_URL`              | Enables shared atomic limits; outages use local limits for public reads; auth/private operations fail closed; audio is exempt                          |
-| `LIBRIVOX_CATALOG`       | Enables curated background imports when Redis/media worker are configured; Compose/example enable it                                                   |
-| `MEDIA_JOBS`             | Default true: worker schedules BullMQ analysis of the catalog when Redis is configured                                                                 |
-| `REDIS_PREFIX`           | Shared deployment namespace, default `soundwave`                                                                                                       |
-| `CATALOG_CACHE`          | Enables bounded public catalog/search caching; Compose/example enable it; set false for comparison                                                     |
-| `TRUSTED_PROXY_CIDRS`    | Exact real proxy IPs/subnets; forwarding headers are ignored by default; /0 trust rejected                                                             |
-| `EMAIL_MODE`             | `disabled` or `smtp`; disabled delivery never claims to send recovery mail                                                                             |
-| `SMTP_URL`               | `smtp://` for local capture; production requires `smtps://` with certificate validation                                                                |
-| `EMAIL_ENCRYPTION_KEY`   | Required SMTP outbox AES-256-GCM key: 32 random bytes encoded as 64 hex characters                                                                     |
-| `MAIL_FROM`              | Sender identity; configure a provider-verified sender before external delivery                                                                         |
-| `ALLOW_EPHEMERAL_SQLITE` | Explicit production portfolio fallback only; never a substitute for durable PostgreSQL                                                                 |
-
-The default frontend/API deployment is same-origin. Production CORS permits only `APP_ORIGIN`; it does not reflect arbitrary origins. Custom split-origin cookie deployments are not configured or verified.
-
-## Real audiobook catalog
-
-SoundWave now supports **10 curated, human-narrated LibriVox audiobooks (212 chapters)** alongside the six bundled stories: **16 titles / 224 chapters** after the background import completes. Titles include Alice, Sherlock Holmes, Frankenstein, Dracula and Pride and Prejudice. Source/narrator credits are shown on book pages and imported books are labelled LibriVox.
-
-Browsing/search use PostgreSQL and Redis, so they do not wait for the external API. BullMQ imports validated metadata and refreshes it weekly when the worker is awake. Audio streams directly from Internet Archive through validated redirects, avoiding large transfers through the free API host. MP3 downloads support offline playback/seeking, with **25 MB per chapter / 200 MB total** limits; six large chapters are streaming-only. Provider availability and the existing free-host cold start still apply. See [implementation, actual tests and limits](docs/LIBRIVOX_INTEGRATION.md).
-
-Compose/example configuration enables `LIBRIVOX_CATALOG=true`. Host-side development also needs Redis and `npm run worker`. Operators can enqueue imports with `npm run catalog:import`, refresh with `npm run catalog:import -- --refresh`, and inspect/retry jobs with `npm run media -- list`. No external API key is required.
-
-## Implemented foundation
-
-- **PostgreSQL persistence:** a small `pg` adapter and bounded pool; normalized users, sessions, catalog and owner-scoped tables; foreign keys, uniqueness, checks and indexes; connection-pinned transactions.
-- **Versioned migrations:** transactional SQL files with checksums and migration locks. SQLite upgrades preserve existing listener rows and archive the original event table. No destructive reset or automatic rollback migration.
-- **Registration/login/logout:** validated inputs, scrypt password hashes, opaque HTTP-only sessions, absolute expiration, token rotation, CSRF validation and authentication throttling. Production cookies also use Secure and a `__Host-` name.
-- **Google identity:** official Google button, server-side signed-token verification, session-bound single-use nonce and rotating HTTP-only sessions. No automatic linking by email; existing password accounts require explicit linking. Google-only accounts recover through Google.
-- **Private playlists:** create, open, rename and delete named story collections in My Library; add/remove stories and play through the existing player. Owner-scoped keyset pagination defaults to 20 (max 50), names allow 1–80 Unicode characters and each playlist holds at most 100 stories. Guests retain collections when registering. [API and evidence](docs/M1_PLAYLISTS.md).
-- **User isolation:** library, favorites, progress, recommendations and analytics resolve identity from the session. Client-supplied user IDs never select an owner. Event idempotency and playback ordering are owner-scoped.
-- **Convenient demo:** each new visitor receives an isolated guest session when enabled. Guests cannot select existing users. Registration upgrades the guest transactionally and retains its saved data; login to another account does not silently merge histories.
-- **Frontend integration:** account form, invalid-login feedback, sign-out, state reset on account changes, stale queued-write protection and cross-tab account-change notification.
-- **Offline privacy:** sessions and private API results are not persisted in service-worker caches. Explicit downloads contain public catalog metadata with neutral progress/favorite state and remain available on the same device.
-
-### Preserved listening features
-
-- Six original stories across five genres and twelve bundled narrated chapters, plus ten curated LibriVox books and 212 external chapters when imports are enabled.
-- One persistent HTML5 audio player across routes, chapter transitions, resume after refresh, Continue Listening, buffering/error states, volume and mute.
-- Playback speeds from 0.75× to 2×, device-local speed preference, 5/15/30-minute sleep timers and keyboard controls. **Space** toggles playback after clicking Start/player buttons; **← / →** seeks ten seconds. Text fields, selects and sliders retain their native controls.
-- Backend title/genre search, exact genre filters, allowed sorts, URL query state and loading/empty/error states.
-- Favorites and My Library; deterministic recommendations weighted by favorite genres and listening history. This is **rule-based personalization**, with curated seed popularity, not ML or real engagement data.
-- Explicit PWA chapter downloads, offline shell/playback/seeking/removal, complete-length/audio-signature validation, bounded storage and quota-error feedback. No automatic catalog-wide audio caching.
-- Event-based listening analytics, a seven-day UTC chart, genre summaries, recent activity and completion/favorite counts. Seek distance never becomes listening time; duplicate events are idempotent.
-
-## Distributed protection and background operations
-
-- **Shared rate limits:** atomic Redis counters for API, auth IP and target-account buckets; bounded queues/timeouts, expiry, explicit proxy trust and 503 on configured Redis failure. During Redis outages, catalog/discovery reads use PostgreSQL and a bounded local limiter; auth/private operations fail closed and audio ranges remain available.
-- **Optional cache:** neutral catalog/search/genre results, owner-specific favorite overlays, transactional revision invalidation, 128 slots per revision and 60-second TTL. No session cache or shared private results. Cache hit/miss/error/write counters and cold/warm hit ratios are collected by the benchmark.
-- **Media work:** BullMQ schedules real PCM WAV metadata and 128-bin waveform analysis. SHA-256 job IDs, retry/backoff, stalled-job recovery, retained failures and idempotent PostgreSQL writes are verified. `GET /api/chapters/:id/metadata` serves the results; `npm run media -- list` shows queue status.
-- **Catalog imports:** real LibriVox/Internet Archive metadata fetched in background jobs; stable IDs, transactional writes, last-known catalog retention, TTL/revision invalidation, source attribution and no arbitrary URL proxy.
-- **Durable work:** transactional event/outbox writes, concurrent worker claims, lease fencing, rollback/retry/backoff, dead letters, graceful shutdown, historical analytics backfill and cleanup batches.
-- **Email flows:** registration verification, resend, forgot-password and reset forms; 24-hour verification and 30-minute reset tokens; encrypted delivery payloads, one-time consumption, token invalidation and session revocation.
-- **Recovery drills:** public-schema snapshot archives, restricted file permissions, checksum/fingerprint manifests and isolated restore verification. No source database is overwritten.
-
-The [HTTP load test](docs/http-load-results.json) records two alternating-order runs per mode at concurrency 10. For 1,006 stories (1,000 explicitly generated fixtures), cached p95 was 37–40 ms versus 58–64 ms uncached, with zero errors and 100% warm-cache hits. Small-catalog gains were variable, and earlier repository-level measurements showed overhead. These local samples do not prove production-scale performance.
-
-## Try the new account flow locally
-
-1. Open the app: an independent demo guest is created. Play a chapter, favorite a story and pause.
-2. Click **Sign in → Create a new account**. Register with an email, name and password of at least twelve characters. The guest's library/history is retained.
-3. Sign out. Log in with a wrong password to show validation, then with the correct password to restore the account.
-4. Open a separate browser profile/private context: that visitor has a different demo library and history. Two tabs in the same profile intentionally share the cookie/account.
-5. Search `mystery`, sort by title, change speed, and check Insights. Finish a chapter to verify automatic advancement.
-6. With local SMTP configured, follow the verification email in Mailpit, then use **Forgot password?** and reset the password. The worker delivers to the local inbox; no real external email is sent.
-7. In the built app, choose **Save offline** for a chapter, open Downloads, disconnect the browser network, then play, seek and remove it. Reconnect when done. Private API writes are not queued offline.
-
-## Architecture and schema
-
-```text
-React/Vite → Express validation + session/CSRF middleware
-             → business services → repositories → async adapter
-                                             ├─ PostgreSQL (DATABASE_URL)
-                                             └─ SQLite (local compatibility)
-Browser service worker → shell + selected public audio/metadata
-```
-
-The application remains a modular monolith. Public media still streams from bundled files. A separate worker process uses the same codebase and database; no microservice fleet, upload/transcoding pipeline or CDN was added.
-
-| Location                                              | Responsibility                                                                   |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `server/config.js`                                    | Validated environment configuration                                              |
-| `server/database/`                                    | PostgreSQL/SQLite adapters, migrations, catalog seed and read-only-source import |
-| `server/migrations/postgres/`                         | Additive core/session/cache/job/recovery/media SQL migrations                    |
-| `server/migrations/sqlite/`                           | Additive auth, event ownership and owner guards                                  |
-| `server/infrastructure/redis.js`                      | Distributed counters and neutral catalog cache                                   |
-| `server/media/`                                       | BullMQ queue/worker and bounded PCM WAV analysis                                 |
-| `server/jobs/`                                        | Durable queue, worker handlers and analytics backfill                            |
-| `server/operations/backup.js`                         | Snapshot backup and isolated restore verification                                |
-| `server/routes/`                                      | HTTP endpoints, validation and status codes                                      |
-| `server/services/`                                    | Authentication/password hashing, resume/discovery rules and analytics assembly   |
-| `server/repositories/`                                | Identity, catalog, listening writes and analytics queries                        |
-| `server/middleware/`                                  | Session identity, CSRF, request IDs and process-local rate limits                |
-| `client/src/AuthContext.jsx`                          | Account bootstrap, form and identity transitions                                 |
-| `client/src/PlayerContext.jsx`                        | Audio lifecycle, progress ordering, timers and transitions                       |
-| `client/src/OfflineContext.jsx`, `offlineMetadata.js` | Downloads and public metadata boundary                                           |
-| `client/public/sw.js`                                 | Versioned shell and range-aware selected audio                                   |
-| `server/test/`, `client/src/*.test.*`                 | Integration and frontend regressions                                             |
-| `scripts/*smoke.mjs`                                  | Browser playback, offline, auth, restart and keyboard checks                     |
-| `api/index.js`, `vercel.json`                         | Serverless adapter and bundle/routing configuration                              |
-
-Core relations are `playlists`, `playlist_items`, `users`, `sessions`, `oauth_identities`, `oauth_challenges`, `stories`, `chapters`, `favorites`, `listening_progress`, `progress_write_versions`, `listening_events` and `schema_migrations`, with `account_tokens`, `background_jobs`, `analytics_rollups`, `catalog_revision` and `chapter_media` for operations and derived media. Owned rows have composite user/resource keys; PostgreSQL enforces ownership references with foreign keys. Events use `(user_id,event_id)`, allowing each owner an independent idempotency namespace.
-
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for constraints, transaction boundaries, guest upgrades, password costs, cache isolation and migration tradeoffs.
-
-## Migrations and existing SQLite data
-
-```bash
+```sh
+npm ci
 npm run db:migrate
-# With DATABASE_URL set, explicitly import an existing SQLite file:
-npm run db:import:sqlite -- /absolute/path/to/soundwave.sqlite
+npm run dev
+# In another terminal:
+npm run worker
 ```
 
-Back up both databases before a real cutover. The importer opens the source read-only at a consistent snapshot and writes PostgreSQL in one transaction. IDs/timestamps are retained; existing target keys are not overwritten, and session tokens are not imported. Repeating an import does not duplicate rows. Review inserted counts and resolve conflicts; a completed command does not mean conflicting target data was reconciled. Legacy `demo-user` data is preserved but cannot be claimed through public authentication.
+Vite runs at localhost:5173 with its existing API proxy. Production-frontend/PWA checks use `npm run build && npm start` at localhost:3001; service workers are disabled in Vite development. SQLite compatibility is available by explicitly setting `DATABASE_DRIVER=sqlite` and a persistent `DATABASE_PATH`, with PostgreSQL URL unset. Email delivery is disabled by default and recovery returns an explicit error until a real sender is configured.
 
-`npm run seed` applies initialization and updates the catalog without clearing listener data. Runtime database files and `.env` are ignored by Git.
+## Verify and demonstrate
 
-## REST API
+Latest local gate: **487 application tests, 6 CI safety tests, 110 mandatory browser groups and 7 release-stack groups passed**, plus clean installation and production build. Historical larger browser totals used additional optional suites and are not the M6 mandatory count.
 
-All endpoints use `/api`. JSON errors use `{ "error": { "message": "..." } }`. Responses carry `X-Request-ID`. Private JSON uses `Cache-Control: private, no-store` and `Vary: Cookie`.
+[Latest release verification](docs/m6-release-verification.json) records actual counts/commands; [M6 report](docs/M6_RELEASE_CANDIDATE.md) explains changes and limitations. Local checks include the full application/CI-safety suites, mandatory browser gate, clean install, production build and formatting. Real PostgreSQL/Redis/backup tests require disposable services; plain `npm test` without them is not equivalent. Follow [CI setup](docs/CI.md) and use `node scripts/ci/run.mjs install`, `test`, `build`, `format`, `browser` with its guarded environment. The release-specific Docker/TLS check is `node scripts/release-smoke.mjs /private/tmp/release-proof.json`.
 
-| Method           | Path                               | Access / behavior                                                                                       |
-| ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| GET              | `/auth/session`                    | Pre-login session or current sanitized identity, CSRF token, expiry and demo availability; never cached |
-| POST             | `/auth/demo`                       | CSRF-protected independent guest creation; only when enabled and signed out                             |
-| POST             | `/auth/register`                   | `{ email, password, displayName }`; create account or upgrade current guest                             |
-| POST             | `/auth/google/challenge`           | Session + CSRF; issues a short-lived, single-use Google nonce                                           |
-| POST             | `/auth/google`                     | `{ credential }`; verify Google ID token, sign in or explicitly link current password account           |
-| POST             | `/auth/login`                      | `{ email, password }`; rotate session on valid credentials                                              |
-| POST             | `/auth/forgot-password`            | Generic accepted response; queues reset mail when configured                                            |
-| POST             | `/auth/request-verification`       | Resend for current registered account; session + CSRF                                                   |
-| POST             | `/auth/verify-email`               | One-use `{ token }`; CSRF                                                                               |
-| POST             | `/auth/reset-password`             | `{ token, password }`; reset and all-session revocation; CSRF                                           |
-| GET              | `/ready`                           | Database/Redis dependency readiness                                                                     |
-| POST             | `/auth/logout`                     | CSRF-protected revocation; 204                                                                          |
-| GET              | `/health`                          | Database connectivity and adapter type; public                                                          |
-| GET              | `/genres`                          | Public genre list                                                                                       |
-| GET              | `/stories?q=&genre=&sort=trending` | Public catalog; current user's favorite flags only                                                      |
-| GET              | `/stories/:id`                     | Public story details                                                                                    |
-| GET              | `/stories/:id/chapters`            | Chapters with current user's progress, neutral for anonymous visitors                                   |
-| GET              | `/playlists?limit=20&cursor=…`     | Private owner list; default 20/max 50; opaque next cursor                                               |
-| POST             | `/playlists`                       | Session + CSRF; `{ name }`, 1–80 Unicode characters; 201                                                |
-| GET              | `/playlists/:id`                   | Own playlist + up to 100 stories in insertion order                                                     |
-| PUT              | `/playlists/:id`                   | Session + CSRF; rename own list with `{ name }`                                                         |
-| DELETE           | `/playlists/:id`                   | Session + CSRF; remove own collection/membership only; 204                                              |
-| PUT / DELETE     | `/playlists/:id/stories/:storyId`  | Session + CSRF; idempotent add/remove; unique membership, 100-story cap                                 |
-| GET              | `/library`                         | Current user's favorites; session required                                                              |
-| PUT / DELETE     | `/library/:storyId`                | Idempotent current-user favorite changes; session + CSRF                                                |
-| GET              | `/progress`                        | Current-user progress and Continue Listening; session required                                          |
-| GET              | `/progress/:chapterId`             | Current-owner chapter state and revision, including the absent revision-0 default; session required     |
-| GET / POST / PUT | `/creator`                         | Own creator status/profile; explicit registered-only activation and active-profile editing              |
-| POST             | `/creator/deactivate`              | `{}`; soft deactivation; suspension cannot be bypassed                                                  |
-| GET              | `/history?limit=20&cursor=…`       | Private saved chapter bookmarks; cursor pagination default 20/max 50; returns history revision          |
-| DELETE           | `/history/:chapterId`              | `{ expectedRevision }`; hide own bookmark, preserve completion/analytics and advance tombstone revision |
-| DELETE           | `/history`                         | `{ expectedHistoryRevision, confirm: "CLEAR_SAVED_HISTORY" }`; guarded, transactional own-history clear |
-| PUT              | `/progress/:chapterId`             | `{ positionSeconds, completed?, clientId, sequence, expectedRevision, action? }`; session + CSRF        |
-| GET              | `/recommendations`                 | Rule-based current-user suggestions; public fallback when anonymous                                     |
-| POST             | `/analytics/events`                | `{ id, type, chapterId, listeningSeconds?, playbackRate? }`; session + CSRF                             |
-| GET              | `/analytics/rollups?days=7`        | Current-user background snapshots; session required                                                     |
-| GET              | `/analytics/overview`              | Current-user totals, genres, daily activity and recent events; session required                         |
-| GET              | `/chapters/:id/metadata`           | 202 while pending; real analyzed format/duration/RMS/waveform when complete                             |
-| GET / HEAD       | `/chapters/:id/stream`             | Public full/range audio with validated file resolution                                                  |
+Demo: register → activate Creator Studio → create a story/chapter → upload a short PCM WAV → wait for processing → submit with rights declaration → operator-provisioned moderator approves → creator publishes → listener searches, plays, seeks and downloads → revoke and verify new public reads fail. [Operator commands](docs/M6_RELEASE_CANDIDATE.md#initial-deployment-procedure--not-executed-approval-required) do not expose role grants through the public API.
 
-For unsafe requests, first obtain a session cookie and CSRF token through `/auth/session`, then send that cookie and `X-CSRF-Token`. The frontend handles this exchange. Missing/expired private identity returns 401; failed CSRF returns 403; conflicting events/account guards return 409; invalid inputs return 400. JSON is limited to 8 KB; excessive requests return 429 and Retry-After.
+Historical [M3/M4 measurements](docs/M3_M4_HARDENING.md#measured-local-results) use eight local publication cycles, not production traffic. In an injected slow-storage scenario owner-wait p95 changed 55.636→1.215 ms while submit latency increased 60.094→108.051 ms. No production-scale or real-user claims are made.
 
-`q` is limited to 100 characters; `genre` to 40; `sort` allows only `trending`, `title`, `newest`. Prepared parameter binding treats SQL injection and wildcard input as data. Progress requires a finite position within chapter duration; completed chapters must be at their end. Paused/seek/chapter saves are acknowledged; unload saves remain best effort. Every write now requires a server revision precondition and client identity/sequence. PostgreSQL/SQLite transactions reject cross-device stale writes with 409; old unversioned writers receive 428. Completion reopening requires explicit reset. [Full M1.5 contract](docs/M1_CROSS_DEVICE_SYNC.md).
+## Deployment and limits
 
-Bundled audio returns **200** for full GET/HEAD, **206** for one valid bounded/open/suffix range, and **416** for malformed/multiple/unsatisfiable ranges. HEAD has no body and ignores Range. If-Range, ETag, Last-Modified and exact content lengths are supported. Both stream and legacy `/audio` routes validate catalog mappings and real paths, including symlinks. Multipart ranges are not implemented. External chapters use a validated 307 redirect to Internet Archive for audio GET, locally validate requested ranges and return catalog-based HEAD metadata. External `/metadata` explicitly identifies provider data and does not pretend it has a measured waveform.
+[The proposed free-tier plan](docs/DEPLOYMENT_FREE_TIER.md) keeps the bundled frontend, sessions and offline audio on one HTTPS origin. `compose.release.yaml` adds private dependency networks, separate migration/runtime roles, resource caps, persistent volumes and a quarantine default. Public capacity, DNS, ACME, current-host Google configuration, remote CI and cloud pricing still require approval and verification. No paid services or public resources were created.
 
-## Verification
+A single VM is not highly available. Global disk admission, automated offsite encrypted backups, external alerts, full OpenAPI coverage and cross-browser certification remain incomplete. Offline/buffered copies cannot reliably be recalled. Email delivery is at least once; recommendation ranking is deterministic, not machine learning. See [architecture](docs/ARCHITECTURE.md), [operations](docs/OPERATIONS.md), [roadmap](docs/SOUNDWAVE_V3_ROADMAP.md) and [release blockers](docs/M6_RELEASE_CANDIDATE.md#blockers-and-decisions).
 
-```bash
-npm test                    # SQLite compatibility, real-session auth and frontend tests
-npm run build
-npm run test:browser         # existing playback/library/search/analytics browser scenario
-npm run test:offline         # selected downloads, range seeking, quota errors
-npm run test:audit           # real Node restarts and save/analytics regression checks
-npm run test:keyboard
-npm run test:auth:browser
-npm run format:check
+## Content
 
-# Additional real PostgreSQL tests; use a disposable local database.
-TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm test
-# Full backend/Redis/restore suite (source public schema must be migrated first):
-TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/test_database \
-TEST_REDIS_URL=redis://localhost:6379 TEST_BACKUP_CONTAINER=YOUR_POSTGRES_CONTAINER npm test
-# Media crash recovery and HTTP benchmark require disposable PostgreSQL + Redis:
-TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/test_database \
-TEST_REDIS_URL=redis://localhost:6379 npm run test:media:restart
-TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/test_database \
-TEST_REDIS_URL=redis://localhost:6379 npm run bench:http -- docs/http-load-results.json
-# Stops/restarts only the explicitly named dedicated test Redis container:
-TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/test_database \
-TEST_REDIS_URL=redis://localhost:6379 TEST_REDIS_CONTAINER=soundwave-your-test-redis npm run test:redis:recovery
-# Separate API/worker, captured SMTP and browser flows (all URLs must be loopback):
-TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/test_database \
-TEST_REDIS_URL=redis://localhost:6379 TEST_SMTP_URL=smtp://localhost:1025 \
-TEST_MAILPIT_URL=http://localhost:8025 npm run test:systems
-# Browser auth and restart checks can also use a disposable PostgreSQL database:
-DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm run test:auth:browser
-DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/soundwave_test npm run test:audit
-```
-
-Database tests create/remove random schemas; restore/system tests additionally create/drop generated databases, so their disposable test role needs the corresponding privileges. `TEST_BACKUP_CONTAINER` must match the same local server as `TEST_DATABASE_URL`. Without it, PostgreSQL cases are not run; the suite still tests real sessions with SQLite. Browser PostgreSQL scripts seed/write the supplied database and must use disposable data.
-
-**Historical M1.2 checkpoint:** **178 tests passed** (141 backend + 37 frontend; zero failed/skipped), including real PostgreSQL/Redis and populated 20-table backup/restore. Ten playlist browser checks passed on each adapter; the existing 14 core, 5 auth, 13 offline, 3 keyboard and 7 restart/security checks passed. Production build (1,703 modules) and formatting passed. No public release was performed. [Exact results and limitations](docs/M1_PLAYLISTS.md).
-
-**Earlier Google checkpoint:** 122 backend + 31 frontend tests passed (**153 total, zero failures/skips**), with PostgreSQL, Redis and backup tooling enabled. The production build passed; existing password/guest browser checks (5), offline checks (13), public application checks (9) and real Google widget/provider-page checks (5) passed. The owner confirmed a successful real Google login on 7 November 2026 (manual verification); see [GOOGLE_SIGN_IN.md](docs/GOOGLE_SIGN_IN.md).
-
-**Earlier catalog checkpoint:** 106 backend + 27 frontend tests passed (**133 total, zero failures/skips**) with real PostgreSQL/Redis/BullMQ and backup tools enabled. The [LibriVox report](docs/LIBRIVOX_INTEGRATION.md) records real-provider MP3/PWA verification, hosted release results and current limits.
-
-**Earlier backend implementation checkpoint:** 96 backend tests with real PostgreSQL, Redis, BullMQ and backup tools enabled, plus 26 frontend tests passed (**122 total, zero failures**). Streaming/offline playback, authentication, analytics, worker-crash recovery and Redis outage recovery are verified. [RESUME_CLAIM_VERIFICATION.md](docs/RESUME_CLAIM_VERIFICATION.md) records current inspection, exact tests, worker/Redis restart checks and HTTP measurements. [PHASE2_REPORT.md](docs/PHASE2_REPORT.md) preserves the prior checkpoint. [PHASE1_REPORT.md](docs/PHASE1_REPORT.md) preserves the earlier checkpoint. The earlier [FINAL_AUDIT.md](FINAL_AUDIT.md) is historical evidence for the pre-auth demo, not a Phase 1 deployment/security certification.
-
-The newer [public rollout report](docs/PUBLIC_DEPLOYMENT.md) records nine additional current-backend browser checks, five existing public PWA checks, five combined-launcher checks and four hosted restart assertions. Run the explicit public check with `node scripts/public-backend-smoke.mjs https://soundwave-codeit-ronit.vercel.app`; it creates a test account.
-
-Browser scripts use `CHROME_PATH`, installed macOS Chrome, or Playwright Chromium. If needed, run `npx playwright install chromium`. Chrome coverage does not establish Safari/Firefox, native OS installation or physical-mobile compatibility.
-
-Playlist browser verification (disposable local data only):
-
-```bash
-npm run test:playlists:browser
-# PostgreSQL: use a disposable loopback database; the script creates/drops its own schema.
-TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/test_database npm run test:playlists:browser
-```
-
-## Deployment and remaining work
-
-The current public demo is **https://soundwave-codeit-ronit.vercel.app/**. The submitted `tmp.now` URL still redirects there. Vercel serves the current static frontend and proxies API/audio to **https://soundwave-demo.onrender.com**. The Docker-built Render service runs the API and worker under the demo supervisor, with PostgreSQL 18 on Neon and private Render Key Value connections. Verified TLS protects the database connection; HTTPS and Secure HTTP-only session cookies were checked at the public origin. Twelve chapter waveforms/metadata results are persisted in PostgreSQL.
-
-Read [FREE_DEMO_DEPLOYMENT.md](docs/FREE_DEMO_DEPLOYMENT.md) before recreating this setup. The free web service and worker sleep while idle; free Redis loses its state on restart. PostgreSQL holds persistent user data, analytics jobs and derived media. Media jobs can be rebuilt from the bundled catalog. Email verification/recovery delivery remains disabled until a supported external mail provider is configured. This demo is not an always-running or durable Redis job service. The normal Compose configuration retains separate API/worker containers and persistent Redis AOF.
-
-Frontend release commands (the backend must be deployed and verified first):
-
-```bash
-# After configuring and verifying the production database/environment:
-npx vercel link --yes --project zippy-nitrogen-wd3scr3 --scope ronit-choudharys-projects
-npx vercel deploy --prod --skip-domain --yes --scope ronit-choudharys-projects
-# Check the staged URL, then: npx vercel promote STAGED_URL --yes --scope ronit-choudharys-projects
-```
-
-Use a remote Linux build for native SQLite dependencies; never upload a Mac-built serverless function. A Node host can serve the app with `npm ci`, `npm run build`, `npm start`, a separately supervised `npm run worker`, HTTPS termination, persistent PostgreSQL and Redis. The public Vercel deployment excludes the old ephemeral serverless API; its external rewrites reach Render. A serverless API alone does not run the durable worker. Retain bundled audio and SPA routing. GitHub pushes alone are not verified to deploy this project.
-
-Remaining gaps include MFA, account deletion, private content entitlements, offline private-data synchronization, continuous durable worker hosting, HA/failover, database role separation, scheduled encrypted/offsite backups, full disaster-recovery promotion, security review and load testing. Verification, recovery, cleanup, distributed limits and local restore drills are implemented; external internet delivery is not verified. The catalog contains six bundled stories plus ten curated external audiobooks; it does not mirror the entire provider library. Browser downloads are public content stored on one device and can be evicted. Analytics are bounded client-observed demo metrics, not tamper-proof engagement tracking.
-
-See [Operations](docs/OPERATIONS.md) and the [architecture document](docs/ARCHITECTURE.md) for Redis/worker/email/backup behavior and remaining operational work.
-
-## Audio and artwork
-
-The twelve original 32–37-second chapters are mono 22.05 kHz PCM WAV files, approximately 18 MB total, narrated with the macOS Samantha voice from `server/content/catalog.js`. They are bundled with measured durations. Covers use original CSS/vector compositions and Lucide icons (ISC).
-
-Imported books use real LibriVox recordings hosted by Internet Archive. Source metadata and attribution are imported, and existing vector covers are retained. The UI identifies public-domain status in the USA; see the provider policy and jurisdiction qualification in [LIBRIVOX_INTEGRATION.md](docs/LIBRIVOX_INTEGRATION.md).
-
-Optional macOS-only regeneration is `npm run audio:generate`, then `npm run seed`. The generator reuses existing WAVs; remove a specific generated file before regenerating an edited script. Normal setup does not invoke it.
-
-## M1.1 — account profile and settings
-
-Settings now edits display names and saves per-account playback speed, autoplay-next and default volume. Email, verification and linked Google information are read-only. PostgreSQL and SQLite use additive migrations; isolated guests retain preferences when upgraded to an account. Saving settings preserves the running audio element. No public release was performed. See [API contract, architecture, verification and limitations](docs/M1_SETTINGS.md) and [exact current results](docs/m1-settings-verification.json). The 178-test M1.2/CI checkpoint above remains historical; no remote GitHub Actions success is claimed.
-
-Current local M1.1 verification: **206 application tests passed** (155 backend + 51 frontend), six CI safety tests, eight Settings browser checks on each database, existing playback/auth/offline/keyboard/restart/playlist suites, production build and formatting. Preferences restore on login/refresh or explicit reload; no live cross-device push is implemented.
-
-## M1.3 — editable playback queue
-
-The persistent player now opens an editable cross-story queue: Play Next, Add to Queue, remove, move up/down, Previous/Next and confirmed clear. Chapter actions appear on story pages; playlist StoryCards enqueue their chapters without changing membership. The owner-scoped queue persists within a tab across refresh and restores paused; logout/account switching clears it. Offline queue playback uses downloaded public chapters. No queue database/API or deployment was added. [Semantics, tests and known limits](docs/M1_QUEUE.md). Run `npm run test:queue:browser` for its disposable local browser checks.
-
-Current local M1.3 verification: **240 application tests** (155 backend + 85 frontend), six CI safety tests and 14 queue browser checks per database passed, alongside all existing browser suites, build and formatting. [Exact evidence](docs/m1-queue-verification.json). Remote Actions remains unverified.
-
-## M1.5 — cross-device progress consistency
-
-Progress writes now require an acknowledged server revision and idempotency identity. PostgreSQL/SQLite transactions reject stale device writes; exact retries do not duplicate effects. The player offers Resume Latest or Keep My Position, preserves active audio and queue state, and refreshes on foreground/reconnection without polling. Old clients must refresh; release requires draining old API writers. Offline playback works, while unsaved progress is labeled and is not a durable offline event queue. No push/deployment occurred. [API, schema, rollout, tests and limitations](docs/M1_CROSS_DEVICE_SYNC.md). Run `npm run test:sync:browser` for disposable browser fixtures.
-
-Current local M1.5 verification: **289 application tests** (175 backend + 114 frontend), six CI safety tests, ten cross-device browser checks per database with real Redis, all existing browser suites, production build and formatting passed. [Exact evidence](docs/m1-cross-device-verification.json). Remote GitHub Actions remains unverified.
-
-## M1.4 — listening history and removal controls
-
-History now provides bounded cursor pages, Resume/Replay, confirmed individual removal and guarded bulk clear. Removal hides bookmarks from History and Continue Listening and clears incomplete resume positions. Completion markers, analytics/events, playlists, downloads and the tab queue remain. Server revision tombstones reject stale saves; explicit reset/replay can restore a bookmark. This is not full privacy erasure. See [API, data semantics and limitations](docs/M1_HISTORY.md) and [current local verification](docs/m1-history-verification.json). Local verification: **321 application tests** (195 backend + 126 frontend), **6 CI safety tests**, **98 browser checks**, clean install, build and formatting passed. No public deployment or remote Actions success is claimed.
-
-## M2.1 — creator identity and ownership
-
-Registered listeners can explicitly activate a private creator profile at `/creator`, edit their name/bio and deactivate/reactivate access. Guests cannot become creators; suspension is operator-controlled and preserves listener features. Staff roles require explicit operator provisioning and are never self-assigned. Story ownership/provenance constraints, shared service authorization, seed/import guards and fail-closed creator-content visibility prepare for private Studio drafts. Uploading and publishing are not implemented. [Policy, API and operator commands](docs/M2_CREATOR_IDENTITY.md) · [Local verification](docs/m2-creator-identity-verification.json): **355 application tests, 6 CI safety tests and 114 browser check groups passed**, alongside clean install, build and formatting. No deployment or remote CI success is claimed.
-
-## M2.2 — private Creator Studio drafts
-
-Active registered creators can create/edit private story metadata, manage and reorder chapters, and archive drafts at `/studio`. Server-derived ownership, monotonic revisions, durable create receipts, additive PostgreSQL/SQLite migrations and import/backup preservation protect edits. Drafts remain absent from listener APIs, streaming and offline caches. This is metadata editing only: no audio uploads or publishing. [API, lifecycle and limits](docs/M2_CREATOR_DRAFTS.md) · [Actual local verification](docs/m2-creator-drafts-verification.json). Run `npm run test:drafts:browser` with no test URL for isolated SQLite or a disposable local `TEST_DATABASE_URL` for PostgreSQL. Current local verification: **393 application tests, 6 CI safety tests and 134 browser check groups passed**, plus clean install, build and formatting. No push/deployment or remote Actions success is claimed.
-
-## M2.3/M2.4 — private audio uploads
-
-Creator Studio now accepts bounded canonical PCM 16-bit WAV uploads into private local-volume storage, with transactional creator quotas, streamed size/hash checks, technical validation, cancellation, status, replacement/deletion and authenticated range preview. Draft audio remains unpublished and inaccessible through public/offline audio APIs. Defaults are 10 MiB/file and 50 MiB/creator. Compose shares a non-root private volume between API/cleanup worker. Database backups now cover 26 tables; audio files require a matching separate private-volume backup. Database-only SQLite import deliberately invalidates unavailable media. [Setup, API, lifecycle and limitations](docs/M2_MEDIA_UPLOADS.md) · [Actual verification](docs/m2-media-uploads-verification.json). Run `npm run test:uploads:browser`; operator verification is `npm run media:private -- verify --confirm-operator` with explicit database and storage-root settings. Local verification: **423 application tests, 6 CI safety tests and 148 browser check groups passed**, plus clean install, builds, formatting, Docker private-volume persistence and a real API restart. No push/deployment or remote Actions success is claimed.
-
-## M2.5 — private asynchronous MP3 processing
-
-A validated WAV now commits a durable processing intent/outbox event. A separate BullMQ worker runs bounded FFmpeg/ffprobe, generates a checked private MP3, and publishes its internal ready reference only under current ownership/head/lease fences. SQL-backed replay, bounded retry, explicit repair and orphan cleanup handle Redis loss and worker crashes. Studio shows real stages and private previews; originals remain available and publishing remains absent. Install FFmpeg locally (`brew install ffmpeg`, or the documented Ubuntu packages); the Docker worker includes it. [Setup, limits, API and recovery guarantees](docs/M2_MEDIA_PROCESSING.md) · [Actual verification](docs/m2-media-processing-verification.json). Run `npm run test:processing:browser` with disposable Redis, or `npm run test:processing:systems` for isolated Docker recovery checks. Local verification: **446 application tests, 6 CI safety tests, 158 browser check groups and 6 Docker checks passed**, plus clean install, builds and formatting. No push/deployment or remote Actions success is claimed.
-
-## M2.6 + M2.7: reviewed creator publishing
-
-Creator Studio now supports versioned rights declarations, exact-media review, explicit publication/unpublication and staff revocation. Operator-provisioned moderators get a bounded dashboard with private review audio, decisions and audit history; admins can suspend creators. Public catalog/audio checks current SQL eligibility even with stale cached metadata. Previously downloaded copies cannot reliably be recalled. See [the publication contract](docs/M2_PUBLISHING_MODERATION.md) and [local verification](docs/m2-publishing-verification.json). No push, deployment or remote Actions run.
-
-## M3/M4 targeted hardening
-
-Publication verifies real media outside SQL hashing locks and rechecks revisions/storage identity at commit. Public/review streams detect same-size corruption, admin-only diagnostics expose bounded telemetry, and recovery supports quarantine plus monotonic takedown reconciliation. See [hardening and limits](docs/M3_M4_HARDENING.md), [actual benchmarks](docs/m3-m4-benchmarks.json) and [verification](docs/m3-m4-verification.json). No deployment or remote CI success is claimed.
+The twelve bundled 32–37-second PCM WAV chapters were generated from `server/content/catalog.js` using the macOS Samantha voice; covers use original CSS/vector compositions and Lucide icons (ISC). Optional LibriVox imports retain source attribution and stream Internet Archive recordings; public-domain status is qualified for the USA, not promised globally. See [provider policy](docs/LIBRIVOX_INTEGRATION.md). Creator uploads require a rights declaration. Normal setup does not regenerate audio or call a paid content API.

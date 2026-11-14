@@ -1,0 +1,272 @@
+{
+  "milestone": "M6-A local release candidate and conditional zero-cost hosting plan",
+  "baseCommit": "63a8e53",
+  "branch": "feature/m1-private-playlists",
+  "status": "Implemented and locally verified; public release blocked pending approval and external verification",
+  "recordedAt": "2026-11-14T11:10:53.601623+00:00",
+  "remoteActions": "NOT RUN",
+  "pushed": false,
+  "deployed": false,
+  "cloudResourcesCreated": false,
+  "productionOrDeveloperDataMutated": false,
+  "environment": {
+    "node": "22.21.1; Apple Silicon macOS",
+    "cleanExport": "/private/tmp/soundwave-m6-ci; no dotenv or node_modules copied",
+    "postgres": "18.6; dedicated loopback fixture and new disposable soundwave_ci_m6_20261114 plus generated test schemas/databases/roles",
+    "redis": "7.4; dedicated loopback fixture and unique test namespaces",
+    "docker": "Native Linux ARM64 under Colima, 2 CPUs / 2 GiB",
+    "browser": "Headless Chromium/Chrome via Playwright"
+  },
+  "releaseStack": {
+    "passed": 7,
+    "evidence": "docs/m6-release-stack.json",
+    "scope": "Disposable standalone Compose; native ARM64 API, FFmpeg worker, PostgreSQL, Redis and Caddy; production HTTPS cookie/CSRF, WAV upload, moderation/publication/ranges/native playback, offline ranges, revocation, forwarded-IP spoof resistance, quarantine",
+    "publicTLS": "NOT VERIFIED: local disposable leaf SPKI pinned for browser only",
+    "cleanup": "Own project containers, networks and volumes removed in finally"
+  },
+  "migrations": {
+    "postgres": 18,
+    "sqlite": 19,
+    "added": 0,
+    "runtimeMode": "Production PostgreSQL defaults to verify; explicit operator migration/seed retains migrate mode",
+    "roles": "Fresh empty database bootstrap only; no automatic adoption/rotation"
+  },
+  "historicalEvidenceNotRerun": {
+    "checkpoint": "docs/m3-m4-verification.json",
+    "dockerChecks": 7,
+    "coordinatedRestoreChecks": 5,
+    "benchmarks": "docs/m3-m4-benchmarks.json; reused unchanged, not new performance evidence"
+  },
+  "limitations": [
+    "Remote GitHub Actions and AMD64 runner not executed",
+    "Oracle account entitlement/capacity, network pricing, DNS, public ACME, firewall and new-host Google sign-in not verified",
+    "Existing populated-database ownership adoption requires a reviewed disposable rehearsal",
+    "Offsite encrypted backup scheduling, global disk admission, sustained load and high availability not implemented or certified",
+    "Previously downloaded audio cannot reliably be recalled",
+    "Historical root vercel.json intentionally unchanged; review Git auto-deploy before a future push"
+  ],
+  "approvalBoundary": [
+    "Review/disable historical Vercel automatic deployment before any approved push",
+    "Explicit approval to push feature branch and separately open PR/run remote gates",
+    "Explicit approval for free account resource provisioning, DNS, credentials, migrations and public promotion; no paid fallback"
+  ],
+  "costSourcesCheckedOn": "2026-11-14",
+  "costSources": [
+    "https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm",
+    "https://vercel.com/docs/plans/hobby",
+    "https://vercel.com/docs/limits/fair-use-guidelines"
+  ],
+  "commitNote": "Recorded before local delivery commit; git log identifies the final commit.",
+  "applicationTests": {
+    "backend": 327,
+    "frontend": 160,
+    "total": 487,
+    "failed": 0,
+    "skipped": 0,
+    "newBackend": 2
+  },
+  "ciSafety": {
+    "passed": 6,
+    "failed": 0
+  },
+  "focusedFinalRestrictedRoleTests": {
+    "passed": 2,
+    "failed": 0,
+    "note": "Reran after adding explicit denied TEMP-table and migration-ledger mutation assertions; full suite already includes the same two test cases."
+  },
+  "localGates": {
+    "install": [
+      {
+        "name": "install",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 6175
+      }
+    ],
+    "test": [
+      {
+        "name": "ci-safety",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 115
+      },
+      {
+        "name": "migrations",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 698
+      },
+      {
+        "name": "tests",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 119939
+      }
+    ],
+    "build": [
+      {
+        "name": "build",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 2829
+      }
+    ],
+    "browser": [
+      {
+        "name": "login",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 6815
+      },
+      {
+        "name": "playlists",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 7709
+      },
+      {
+        "name": "settings",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 6220
+      },
+      {
+        "name": "queue",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 8973
+      },
+      {
+        "name": "cross-device",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 6649
+      },
+      {
+        "name": "history",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 5507
+      },
+      {
+        "name": "creator",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 5203
+      },
+      {
+        "name": "drafts",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 7938
+      },
+      {
+        "name": "uploads",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 3875
+      },
+      {
+        "name": "processing",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 4545
+      },
+      {
+        "name": "publishing",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 5137
+      },
+      {
+        "name": "offline",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 3207
+      },
+      {
+        "name": "restart",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 4776
+      }
+    ]
+  },
+  "integrationCoverage": {
+    "missing": [],
+    "zeroSkipped": true
+  },
+  "mandatoryBrowser": {
+    "groups": 110,
+    "bySuite": {
+      "creator": 8,
+      "processing": 5,
+      "history": 7,
+      "cross-device": 10,
+      "publishing": 6,
+      "playlists": 10,
+      "offline": 13,
+      "restart": 7,
+      "queue": 14,
+      "uploads": 7,
+      "drafts": 10,
+      "login": 5,
+      "settings": 8
+    },
+    "failed": 0,
+    "scope": "13 existing mandatory CI scripts; PostgreSQL and SQLite fixtures as each suite defines"
+  },
+  "format": {
+    "passed": true,
+    "results": [
+      {
+        "name": "format",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 2514
+      },
+      {
+        "name": "ci-doc-format",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 756
+      }
+    ]
+  },
+  "commands": [
+    "CI=true TEST_DATABASE_URL=<disposable-loopback-soundwave_ci_database> TEST_REDIS_URL=<dedicated-loopback-redis> REDIS_PREFIX=ci-m6 TEST_BACKUP_CONTAINER=soundwave-phase1-pg18 node scripts/ci/run.mjs install|test|build|format|browser (separate invocations in clean export)",
+    "TEST_DATABASE_URL=<same disposable database> node --test server/test/release.test.js",
+    "node scripts/release-smoke.mjs (own disposable Docker project; seven groups)"
+  ],
+  "verificationSequenceNote": "Full app/mandatory browser gates ran in the clean export. Final added negative-permission assertions were then rerun in the focused two-test suite; no runtime code changed after the full gate.",
+  "arm64": {
+    "verified": true,
+    "evidence": "m6-release-stack.json image IDs/architectures plus genuine FFmpeg output and native browser playback",
+    "notVerified": [
+      "Oracle VM runtime",
+      "AMD64 GitHub runner",
+      "Cross-compilation or multi-platform image publication"
+    ],
+    "runtimeProbes": {
+      "api": {
+        "node": "v22.23.5",
+        "arch": "arm64",
+        "uid": 1000,
+        "sqlite": "3.53.2"
+      },
+      "worker": {
+        "node": "v22.23.5",
+        "arch": "arm64",
+        "uid": 1000,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers"
+      }
+    },
+    "runtimeProbeScope": "docker run --rm --network none, no host data mounts; API SQLite in-memory query and worker FFmpeg -version; both UID 1000"
+  },
+  "failuresFixedDuringVerification": [
+    "Release edge IP collision: API dynamic address took proxy reserved .2; fixed API to .3.",
+    "Local HTTPS test certificate was accepted for navigation but blocked service-worker registration; pinned only the disposable leaf SPKI in Chromium instead of globally ignoring TLS.",
+    "Initial disposable PostgreSQL fixture creation raced readiness; waited for readiness before creating the new test database."
+  ],
+  "cleanup": "Release smoke removed its own project/volumes; dedicated M6 database dropped; two test fixtures stopped; Colima returned to its initially stopped state. No volumes pruned or existing data restored/overwritten."
+}

@@ -1,0 +1,17 @@
+{
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": "client/dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://APPROVED_BACKEND_HOST/api/:path*"
+    },
+    {
+      "source": "/audio/:path*",
+      "destination": "https://APPROVED_BACKEND_HOST/audio/:path*"
+    },
+    { "source": "/:path*", "destination": "/index.html" }
+  ]
+}

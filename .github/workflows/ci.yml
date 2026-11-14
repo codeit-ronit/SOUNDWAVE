@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       extended:
-        description: Run optional worker, SMTP, supervisor and local HTTP load checks
+        description: Run optional release Docker, worker, SMTP, recovery and load checks
         type: boolean
         default: false
 
@@ -139,7 +139,7 @@ jobs:
     name: Optional systems and load checks
     if: github.event_name == 'workflow_dispatch' && inputs.extended
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:18.6-trixie

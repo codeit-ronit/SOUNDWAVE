@@ -131,6 +131,7 @@ try {
     const { readFileSync } = await import("node:fs");
     const text = readFileSync(log, "utf8");
     const required = [
+      "PostgreSQL release roles migrate separately while runtime starts without DDL or reseeding",
       "postgres: transaction rollback, concurrent completions and stale progress writes",
       "PostgreSQL fresh concurrent migrations",
       "postgres: playlist reads/writes reject anonymous sessions",
@@ -208,6 +209,12 @@ try {
       "prettier",
       "--check",
       "docs/CI.md",
+      "docs/M6_RELEASE_CANDIDATE.md",
+      "docs/DEPLOYMENT_FREE_TIER.md",
+      "docs/m6-release-verification.json",
+      "docs/m6-release-stack.json",
+      "compose.release.yaml",
+      "deploy/vercel.frontend.example.json",
       "docs/CI_FLAKE_INVESTIGATION.md",
       "docs/M1_CROSS_DEVICE_SYNC.md",
       "docs/m1-cross-device-verification.json",
@@ -254,6 +261,12 @@ try {
       ["demo-supervisor", "demo-smoke"],
     ])
       await node(name, `scripts/${file}.mjs`, [], 240000);
+    await node(
+      "release-stack",
+      "scripts/release-smoke.mjs",
+      [join(dir, "release-stack.json")],
+      600000,
+    );
     await node(
       "private-processing-docker",
       "scripts/private-processing-systems.mjs",

@@ -17,3 +17,6 @@ backups
 **/*.backup
 **/.env
 **/.env.*
+**/*.env
+deploy/redis.conf
+deploy/secrets
