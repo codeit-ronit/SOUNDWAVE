@@ -82,7 +82,13 @@ async function command(
       stopped = true;
       return code === 0 && !reason
         ? resolve()
-        : reject(fault(reason || "FFMPEG_FAILED"));
+        : reject(
+            fault(
+              reason ||
+                // prlimit starts successfully but returns 127 if exec cannot find the binary.
+                (hard && code === 127 ? "FFMPEG_UNAVAILABLE" : "FFMPEG_FAILED"),
+            ),
+          );
     });
   });
   const inputPromise = input
