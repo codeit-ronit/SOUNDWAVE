@@ -1,0 +1,295 @@
+import { spawn } from "node:child_process";
+import { mkdirSync, writeFileSync, appendFileSync } from "node:fs";
+import { resolve, join } from "node:path";
+import { validateTestEnvironment, sanitizeLog } from "./safety.mjs";
+
+const mode = process.argv[2];
+if (
+  ![
+    "install",
+    "browsers",
+    "test",
+    "build",
+    "format",
+    "browser",
+    "extended",
+  ].includes(mode)
+)
+  throw Error("Choose a documented CI runner mode.");
+const environment = validateTestEnvironment(process.env, {
+  backupRequired: mode === "test",
+});
+const dir = resolve("artifacts/ci");
+mkdirSync(join(dir, "logs"), { recursive: true });
+const env = {
+  ...process.env,
+  DATABASE_URL: "",
+  DATABASE_DRIVER: "sqlite",
+  DATABASE_PATH: "",
+  REDIS_URL: "",
+  SMTP_URL: "",
+  EMAIL_MODE: "disabled",
+  GOOGLE_CLIENT_ID: "",
+  LIBRIVOX_CATALOG: "false",
+  MEDIA_JOBS: "false",
+  HTTP_LOG: "0",
+  PGSSL: "",
+  NPM_CONFIG_USERCONFIG: "/dev/null",
+  BROWSER_ARTIFACT_DIR: join(dir, "browser"),
+};
+const results = [];
+async function run(name, command, args, timeout = 180000) {
+  const file = join(dir, "logs", name + ".log");
+  writeFileSync(file, "");
+  const started = Date.now();
+  const child = spawn(command, args, {
+    env,
+    detached: process.platform !== "win32",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let timedOut = false;
+  const kill = (signal) => {
+    try {
+      process.platform !== "win32"
+        ? process.kill(-child.pid, signal)
+        : child.kill(signal);
+    } catch {}
+  };
+  let hardStop;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    kill("SIGTERM");
+    hardStop = setTimeout(() => kill("SIGKILL"), 5000);
+  }, timeout);
+  for (const stream of [child.stdout, child.stderr]) {
+    let pending = "";
+    const output = (line) => {
+      const safe = sanitizeLog(line);
+      appendFileSync(file, safe);
+      process.stdout.write(safe);
+    };
+    stream.setEncoding("utf8");
+    stream.on("data", (chunk) => {
+      pending += chunk;
+      let at;
+      while ((at = pending.indexOf("\n")) >= 0) {
+        output(pending.slice(0, at + 1));
+        pending = pending.slice(at + 1);
+      }
+      if (pending.length > 65536) {
+        output("[oversized log line omitted]\n");
+        pending = "";
+      }
+    });
+    stream.on("end", () => {
+      if (pending) output(pending + "\n");
+    });
+  }
+  const code = await new Promise((resolve) => {
+    child.on("error", () => resolve(1));
+    child.on("close", resolve);
+  });
+  clearTimeout(timer);
+  clearTimeout(hardStop);
+  results.push({
+    name,
+    exitCode: code,
+    timedOut,
+    durationMs: Date.now() - started,
+  });
+  writeFileSync(
+    join(dir, mode + ".json"),
+    JSON.stringify({ mode, environment, results }, null, 2) + "\n",
+  );
+  if (code !== 0 || timedOut)
+    throw Error(`CI command ${name} failed; see sanitized artifact log.`);
+  return file;
+}
+const node = (name, file, args = [], timeout) =>
+  run(name, process.execPath, [file, ...args], timeout);
+try {
+  if (mode === "install")
+    await run("install", "npm", ["ci", "--no-fund"], 300000);
+  if (mode === "browsers")
+    await run(
+      "browser-install",
+      "npx",
+      ["--no-install", "playwright", "install", "--with-deps", "chromium"],
+      300000,
+    );
+  if (mode === "test") {
+    await run("ci-safety", process.execPath, [
+      "--test",
+      "scripts/ci/safety.test.mjs",
+    ]);
+    // Explicit fresh migration/seed, then the full unchanged backend/frontend scripts.
+    const saved = env.DATABASE_URL;
+    env.DATABASE_URL = env.TEST_DATABASE_URL;
+    await run("migrations", "npm", ["run", "db:migrate"]);
+    env.DATABASE_URL = saved;
+    const log = await run("tests", "npm", ["test"], 360000);
+    const { readFileSync } = await import("node:fs");
+    const text = readFileSync(log, "utf8");
+    const required = [
+      "PostgreSQL release roles migrate separately while runtime starts without DDL or reseeding",
+      "postgres: transaction rollback, concurrent completions and stale progress writes",
+      "PostgreSQL fresh concurrent migrations",
+      "postgres: playlist reads/writes reject anonymous sessions",
+      "postgres: concurrent playlist additions serialize",
+      "Redis atomically shares request limits across independent application instances",
+      "real PostgreSQL backup restores all 32",
+      "postgres: account writes serialize concurrent field changes and roll back atomically",
+      "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
+      "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
+      "postgres: rejected valid attempts also reserve their identity and cannot be repurposed",
+      "postgres: progress survives Redis disconnect/reconnect and streaming remains available",
+      "postgres: concurrent history removal and progress updates serialize without resurrection",
+      "postgres: guarded bulk clear is atomic, repeat-safe and does not erase post-clear activity",
+      "postgres: additive history migration preserves bookmarks, completion and revision receipts",
+      "postgres: creator authorization requires both active role and exact story ownership, including staff",
+      "postgres: concurrent onboarding and suspension serialize; failed creator transactions roll back",
+      "postgres: additive creator migration preserves populated listener state and marks catalog provenance",
+      "PostgreSQL creator import preserves identity, role, suspension and ownership; conflicts roll back",
+      "postgres: creator identity and suspension survive password and Google sign-in on the same account",
+      "postgres: logout or session expiry during media verification prevents publication commit",
+      "postgres: publication hashes outside owner locks and revocation wins during verification",
+      "postgres: published streaming rejects same-size corruption even after a warm integrity cache",
+      "postgres: internal diagnostics are admin-only, bounded and free of private identities",
+      "postgres: takedown reconciliation is monotonic, atomic, repeat-safe and quarantined",
+      "postgres: publishing real MP3 requires exact review and revocation gates every public read",
+      "postgres: publication role checks, rights validation, receipts and concurrent decisions serialize",
+      "postgres: publication transaction rollback and publish versus revoke races are safe",
+      "postgres: additive publishing migration preserves processed media without granting visibility",
+      "postgres: real FFmpeg private MP3 conversion is checked, playable and idempotent",
+      "postgres: expired processing fences cannot publish or remove a newer immutable result",
+      "postgres: durable outbox dispatch and Redis-loss replay recover the same processing identity",
+      "postgres: worker crash during transcoding, after output and after commit recovers without duplicate artifacts",
+      "postgres: additive processing migration backfills validated uploads and durable outbox atomically",
+      "postgres: replacement, deletion, archive and suspension cannot publish stale processing output",
+      "postgres: invalid encoder output is rejected and chapter edits fence in-flight intent revisions",
+      "postgres: private upload persists validated PCM, checksums and owner-only range preview",
+      "postgres: quota reservation is shared, idempotent and safe across simultaneous chapters",
+      "postgres: streaming byte limit, interruption and timeout release quota after cleanup",
+      "postgres: suspension and chapter changes during upload prevent attachment",
+      "postgres: replacement and delete races retain only a validated current asset",
+      "postgres: storage failures retain quota until recoverable cleanup succeeds; abandoned leases expire",
+      "postgres: private media additive migration preserves populated drafts and listener state",
+      "PostgreSQL private media import preserves metadata but invalidates unavailable bytes and retained target pointers",
+      "private upload bytes, current pointer and single-use identity survive a real API process restart",
+      "postgres: draft role and ownership checks deny guests, suspended creators and staff bypasses",
+      "postgres: same-resource draft edits conflict while independent resources retain both accepted edits",
+      "postgres: concurrent membership/order writes and suspension races serialize safely",
+      "postgres: allocation, receipts, ordering and revisions roll back together on real constraint failures",
+      "postgres: draft migrations preserve populated catalog and initialize allocation above existing reserved IDs",
+      "PostgreSQL draft import preserves receipts, tombstones and ID high-water marks without overwriting retained collections",
+      "postgres: drafts stay invisible to every listener catalog, streaming and collection API",
+      "postgres: external provenance is read-only to creators and imports cannot overwrite creator ownership",
+    ];
+    const missing = required.filter(
+      (evidence) =>
+        !text
+          .split("\n")
+          .some((line) => /^ok \d+ - /.test(line) && line.includes(evidence)),
+    );
+    const zeroSkipped = /^# skipped 0$/m.test(text);
+    writeFileSync(
+      join(dir, "integration-coverage.json"),
+      JSON.stringify({ required, missing, zeroSkipped }, null, 2) + "\n",
+    );
+    if (missing.length || !zeroSkipped)
+      throw Error(
+        "Required PostgreSQL/Redis/backup coverage is missing or skipped; inspect integration-coverage.json.",
+      );
+  }
+  if (mode === "build") await run("build", "npm", ["run", "build"]);
+  if (mode === "format") {
+    await run("format", "npm", ["run", "format:check"]);
+    await run("ci-doc-format", "npx", [
+      "--no-install",
+      "prettier",
+      "--check",
+      "docs/CI.md",
+      "docs/M6_RELEASE_CANDIDATE.md",
+      "docs/DEPLOYMENT_FREE_TIER.md",
+      "docs/m6-release-verification.json",
+      "docs/m6-release-stack.json",
+      "compose.release.yaml",
+      "deploy/vercel.frontend.example.json",
+      "docs/CI_FLAKE_INVESTIGATION.md",
+      "docs/M1_CROSS_DEVICE_SYNC.md",
+      "docs/m1-cross-device-verification.json",
+      "docs/M1_HISTORY.md",
+      "docs/m1-history-verification.json",
+      "docs/M2_MEDIA_PROCESSING.md",
+      "docs/M3_M4_HARDENING.md",
+      "docs/m3-m4-verification.json",
+      "docs/m3-m4-benchmarks.json",
+      "docs/M2_PUBLISHING_MODERATION.md",
+      "docs/m2-publishing-verification.json",
+      "docs/m2-media-processing-verification.json",
+      "docs/M2_MEDIA_UPLOADS.md",
+      "docs/m2-media-uploads-verification.json",
+      "docs/M2_CREATOR_DRAFTS.md",
+      "docs/m2-creator-drafts-verification.json",
+      "docs/M2_CREATOR_IDENTITY.md",
+      "docs/m2-creator-identity-verification.json",
+    ]);
+  }
+  if (mode === "browser")
+    for (const [name, file] of [
+      ["login", "auth-smoke"],
+      ["playlists", "playlists-smoke"],
+      ["settings", "settings-smoke"],
+      ["queue", "queue-smoke"],
+      ["cross-device", "cross-device-smoke"],
+      ["history", "history-smoke"],
+      ["creator", "creator-smoke"],
+      ["drafts", "drafts-smoke"],
+      ["uploads", "uploads-smoke"],
+      ["processing", "processing-smoke"],
+      ["publishing", "publishing-smoke"],
+      ["offline", "offline-smoke"],
+      ["restart", "audit-smoke"],
+    ])
+      await node(name, `scripts/${file}.mjs`);
+  if (mode === "extended") {
+    if (!env.TEST_SMTP_URL || !env.TEST_MAILPIT_URL)
+      throw Error("Extended checks require explicit local SMTP capture URLs.");
+    for (const [name, file] of [
+      ["systems", "systems-smoke"],
+      ["worker-restart", "media-restart-smoke"],
+      ["demo-supervisor", "demo-smoke"],
+    ])
+      await node(name, `scripts/${file}.mjs`, [], 240000);
+    await node(
+      "release-stack",
+      "scripts/release-smoke.mjs",
+      [join(dir, "release-stack.json")],
+      600000,
+    );
+    await node(
+      "private-processing-docker",
+      "scripts/private-processing-systems.mjs",
+      [join(dir, "private-processing-docker.json")],
+      600000,
+    );
+    await node(
+      "matching-restore",
+      "scripts/hardening-recovery.mjs",
+      [join(dir, "matching-restore.json")],
+      120000,
+    );
+    await node(
+      "hardening-benchmark",
+      "scripts/hardening-benchmark.mjs",
+      [join(dir, "hardening-benchmark.json")],
+      120000,
+    );
+    await node("http-load", "scripts/http-load.mjs", [
+      join(dir, "http-load.json"),
+    ]);
+  }
+} catch (error) {
+  console.error(sanitizeLog(error.message));
+  process.exitCode = 1;
+}

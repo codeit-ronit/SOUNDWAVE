@@ -9,12 +9,13 @@ export function jobQueue(db) {
         key = randomUUID(),
         at = new Date().toISOString(),
         maxAttempts = 5,
+        topic = null,
       } = {},
     ) {
       const id = randomUUID();
       await db
         .prepare(
-          `INSERT INTO background_jobs(id,kind,dedupe_key,owner_id,payload,available_at,created_at,max_attempts) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(dedupe_key) DO NOTHING`,
+          `INSERT INTO background_jobs(id,kind,dedupe_key,owner_id,payload,available_at,created_at,max_attempts,dispatch_topic) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(dedupe_key) DO NOTHING`,
         )
         .run(
           id,
@@ -25,6 +26,7 @@ export function jobQueue(db) {
           at,
           new Date().toISOString(),
           maxAttempts,
+          topic,
         );
       return (
         await db
@@ -32,7 +34,12 @@ export function jobQueue(db) {
           .get(key)
       ).id;
     },
-    async claim(worker, leaseMs = 30000, now = new Date()) {
+    async claim(
+      worker,
+      leaseMs = 30000,
+      now = new Date(),
+      skipPrivate = false,
+    ) {
       return db.transaction(async () => {
         const time = now.toISOString();
         // Expired final attempts become visible dead letters instead of stuck leases.
@@ -43,7 +50,7 @@ export function jobQueue(db) {
           .run(time);
         const row = await db
           .prepare(
-            `SELECT * FROM background_jobs WHERE attempts<max_attempts AND ((status='pending' AND available_at<=?) OR (status='running' AND lease_until<=?))
+            `SELECT * FROM background_jobs WHERE attempts<max_attempts ${skipPrivate ? "AND dispatch_topic IS NULL" : ""} AND ((status='pending' AND available_at<=?) OR (status='running' AND lease_until<=?))
       ORDER BY available_at,created_at,id LIMIT 1 ${db.dialect === "postgres" ? "FOR UPDATE SKIP LOCKED" : ""}`,
           )
           .get(time, time);

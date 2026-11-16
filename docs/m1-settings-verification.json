@@ -1,0 +1,245 @@
+{
+  "milestone": "M1.1 \u2014 Editable Profile and Per-Account Settings",
+  "verifiedAt": "2026-11-07T18:06:40.372435+00:00",
+  "branch": "feature/m1-private-playlists",
+  "baseCommit": "7031577",
+  "remoteActions": "NOT RUN / NOT VERIFIED",
+  "pushed": false,
+  "deployed": false,
+  "productionResourcesChanged": false,
+  "environment": {
+    "node": "22.21.1",
+    "postgres": "18.6 local disposable PostgreSQL container",
+    "redis": "7.4.12 dedicated local test container, port 56419",
+    "browser": "local headless Google Chrome via Playwright 1.64.1",
+    "database": "soundwave_ci_settings_20261107; generated schemas/databases and temporary SQLite fixtures only"
+  },
+  "applicationTests": {
+    "command": "TEST_DATABASE_URL=<disposable-loopback-postgres> TEST_REDIS_URL=<dedicated-loopback-redis> TEST_BACKUP_CONTAINER=<local-pg-test-container> npm test",
+    "backend": 155,
+    "frontend": 51,
+    "total": 206,
+    "failed": 0,
+    "skipped": 0,
+    "existingBaseline": 178,
+    "newTests": 28
+  },
+  "ciSafetyTests": {
+    "command": "node --test scripts/ci/safety.test.mjs",
+    "passed": 6,
+    "failed": 0
+  },
+  "migrations": [
+    "server/migrations/postgres/010_user_preferences.sql",
+    "server/migrations/sqlite/011_user_preferences.sql"
+  ],
+  "databaseChecks": [
+    "Fresh migration chains on both adapters",
+    "Upgrade populated pre-preferences fixture, migration rerun and preserved favorites/progress",
+    "Foreign key, CHECK constraints and expired-guest cascade",
+    "Concurrent independent-field updates and transaction rollback on both adapters",
+    "SQLite preferences import and retained target preferences",
+    "Real PostgreSQL 21-table snapshot backup/restore including nonempty preferences",
+    "Private profile/preferences bypass shared Redis catalog cache"
+  ],
+  "browserChecks": [
+    {
+      "command": "node scripts/settings-smoke.mjs docs/m1-settings-browser-sqlite.json",
+      "database": "sqlite",
+      "passed": 8
+    },
+    {
+      "command": "TEST_DATABASE_URL=<disposable-loopback-postgres> node scripts/settings-smoke.mjs docs/m1-settings-browser-postgres.json",
+      "database": "postgres",
+      "passed": 8
+    },
+    {
+      "command": "node scripts/browser-smoke.mjs",
+      "passed": 14
+    },
+    {
+      "command": "node scripts/auth-smoke.mjs",
+      "passed": 5
+    },
+    {
+      "command": "node scripts/offline-smoke.mjs",
+      "passed": 13
+    },
+    {
+      "command": "node scripts/keyboard-smoke.mjs",
+      "passed": 3
+    },
+    {
+      "command": "node scripts/audit-smoke.mjs",
+      "passed": 7
+    },
+    {
+      "command": "node scripts/playlists-smoke.mjs",
+      "passed": 10
+    }
+  ],
+  "localCiRunner": {
+    "workingDirectory": "dotenv-free disposable export with previously installed Node 22 lockfile dependencies; npm ci was not repeated in M1.1",
+    "commands": [
+      "node scripts/ci/run.mjs test",
+      "node scripts/ci/run.mjs build",
+      "node scripts/ci/run.mjs browser",
+      "node scripts/ci/run.mjs format"
+    ],
+    "test": [
+      {
+        "name": "ci-safety",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 89
+      },
+      {
+        "name": "migrations",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 370
+      },
+      {
+        "name": "tests",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 19596
+      }
+    ],
+    "build": [
+      {
+        "name": "build",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 7965
+      }
+    ],
+    "browser": [
+      {
+        "name": "login",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 7998
+      },
+      {
+        "name": "playlists",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 7674
+      },
+      {
+        "name": "settings",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 8834
+      },
+      {
+        "name": "offline",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 3854
+      },
+      {
+        "name": "restart",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 5769
+      }
+    ],
+    "format": [
+      {
+        "name": "format",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 1507
+      },
+      {
+        "name": "ci-doc-format",
+        "exitCode": 0,
+        "timedOut": false,
+        "durationMs": 471
+      }
+    ],
+    "requiredIntegrationCoverage": {
+      "required": [
+        "postgres: transaction rollback, concurrent completions and stale progress writes",
+        "PostgreSQL fresh concurrent migrations",
+        "postgres: playlist reads/writes reject anonymous sessions",
+        "postgres: concurrent playlist additions serialize",
+        "Redis atomically shares request limits across independent application instances",
+        "real PostgreSQL backup restores all 21",
+        "postgres: account writes serialize concurrent field changes and roll back atomically"
+      ],
+      "missing": [],
+      "zeroSkipped": true
+    }
+  },
+  "build": {
+    "command": "npm run build",
+    "passed": true,
+    "modules": 1705
+  },
+  "format": {
+    "command": "npm run format:check; explicit Prettier checks for changed Markdown/JSON docs; git diff --check",
+    "passed": true
+  },
+  "findingsAndFixes": [
+    "New Settings browser test corrected its progress-response path and contextual error locator; no sleeps or weakened product assertions",
+    "SQLite browser surfaced queued animation frame dereferencing detached audio during account switch; guarded ref and added regression test",
+    "Offline speed test now awaits server settings-save acknowledgement before refresh",
+    "Failure screenshots additionally mask the read-only profile identity panel"
+  ],
+  "limitations": [
+    "No automatic real-time cross-device preference push; mount/login/refresh or explicit reload fetches changes",
+    "Same-field concurrent updates are last-committed-write wins",
+    "Private preferences require online account and are never persisted to browser caches; offline anonymous playback uses defaults",
+    "Runtime speed may change even when saving fails; warning/retry explains persistence failure",
+    "No email/OAuth identity reassignment, avatars, account deletion, queue editing or creator roles",
+    "Actual Google provider UI not exercised in this milestone; signed local verifier/upgrade tests passed",
+    "Local Chrome evidence only; no cross-browser or production-scale claim"
+  ],
+  "changedFiles": [
+    ".github/workflows/ci.yml",
+    "README.md",
+    "client/src/App.jsx",
+    "client/src/AuthContext.jsx",
+    "client/src/PlayerContext.jsx",
+    "client/src/PlayerContext.test.jsx",
+    "client/src/PreferencesContext.jsx",
+    "client/src/PreferencesContext.test.jsx",
+    "client/src/Settings.jsx",
+    "client/src/Settings.test.jsx",
+    "client/src/api.js",
+    "client/src/components.jsx",
+    "client/src/main.jsx",
+    "client/src/styles.css",
+    "docs/ARCHITECTURE.md",
+    "docs/CI.md",
+    "docs/M1_SETTINGS.md",
+    "docs/OPERATIONS.md",
+    "docs/SOUNDWAVE_V3_ROADMAP.md",
+    "docs/m1-settings-browser-postgres.json",
+    "docs/m1-settings-browser-sqlite.json",
+    "docs/m1-settings-verification.json",
+    "package.json",
+    "scripts/auth-smoke.mjs",
+    "scripts/browser-artifacts.mjs",
+    "scripts/ci/run.mjs",
+    "scripts/offline-smoke.mjs",
+    "scripts/playlists-smoke.mjs",
+    "scripts/settings-smoke.mjs",
+    "server/app.js",
+    "server/database/import-sqlite.js",
+    "server/migrations/postgres/010_user_preferences.sql",
+    "server/migrations/sqlite/011_user_preferences.sql",
+    "server/operations/backup.js",
+    "server/repositories/account.js",
+    "server/routes/account.js",
+    "server/services/account.js",
+    "server/test/account.test.js",
+    "server/test/backup.test.js",
+    "server/test/google.test.js",
+    "server/test/migration.test.js"
+  ],
+  "implementationCommits": ["f3eb147", "ea85b05"]
+}

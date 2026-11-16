@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { fileURLToPath } from "node:url";
 export function loadConfig(env = process.env) {
   const production = env.NODE_ENV === "production";
   const positive = (name, fallback, max) => {
@@ -52,8 +53,30 @@ export function loadConfig(env = process.env) {
         "Production email requires an smtps:// transport with verified TLS",
       );
   }
+  const databaseInit =
+    env.DATABASE_INIT ||
+    (production && env.DATABASE_URL ? "verify" : "migrate");
+  if (!["verify", "migrate"].includes(databaseInit))
+    throw Error("DATABASE_INIT must be verify or migrate");
   return {
     production,
+    databaseInit,
+    privateMediaRoot:
+      env.PRIVATE_MEDIA_ROOT ||
+      fileURLToPath(new URL("./data/private-media/", import.meta.url)),
+    ffmpegPath: env.FFMPEG_PATH || "ffmpeg",
+    ffprobePath: env.FFPROBE_PATH || "ffprobe",
+    processingSeconds: positive("PROCESSING_TIMEOUT_SECONDS", 20, 60),
+    derivativeMaxBytes: positive("DERIVATIVE_MAX_BYTES", 8388608, 16777216),
+    processingMemoryBytes: positive(
+      "PROCESSING_MEMORY_BYTES",
+      268435456,
+      536870912,
+    ),
+    uploadMaxBytes: positive("UPLOAD_MAX_BYTES", 10485760, 52428800),
+    creatorStorageBytes: positive("CREATOR_STORAGE_BYTES", 52428800, 524288000),
+    uploadSeconds: positive("UPLOAD_TIMEOUT_SECONDS", 60, 120),
+    uploadReservationSeconds: positive("UPLOAD_RESERVATION_SECONDS", 600, 3600),
     googleClientId,
     trustedProxies,
     redisUrl: env.REDIS_URL || null,
@@ -66,6 +89,7 @@ export function loadConfig(env = process.env) {
     mailFrom: env.MAIL_FROM || "SoundWave <noreply@soundwave.local>",
     mailKey: env.EMAIL_ENCRYPTION_KEY || null,
     origin,
+    releaseQuarantined: env.RELEASE_QUARANTINED === "true",
     demoEnabled: env.DEMO_MODE !== "false",
     sessionSeconds: positive("SESSION_TTL_SECONDS", 604800, 2592000),
     guestSeconds: positive("GUEST_TTL_SECONDS", 86400, 604800),

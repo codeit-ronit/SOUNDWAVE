@@ -1,3 +1,4 @@
+import { progressBody } from "./progress-body.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
@@ -104,14 +105,34 @@ for (const kind of backends) {
       await a.write("/demo");
       const old = a.data;
       await a.agent
+        .put("/api/settings")
+        .set("X-CSRF-Token", old.csrfToken)
+        .send({ playbackSpeed: 1.5, autoplayNext: false, defaultVolume: 0.4 })
+        .expect(200);
+      const playlist = (
+        await a.agent
+          .post("/api/playlists")
+          .set("X-CSRF-Token", old.csrfToken)
+          .send({ name: "Google upgrade playlist" })
+          .expect(201)
+      ).body.playlist;
+      await a.agent
+        .put(`/api/playlists/${playlist.id}/stories/1`)
+        .set("X-CSRF-Token", old.csrfToken)
+        .expect(200);
+      await a.agent
         .put("/api/library/1")
         .set("X-CSRF-Token", old.csrfToken)
         .send({})
         .expect(200);
+      const progressPayload = await progressBody(
+        { get: (p) => a.agent.get("/api" + p) },
+        { positionSeconds: 12 },
+      );
       await a.agent
         .put("/api/progress/101")
         .set("X-CSRF-Token", old.csrfToken)
-        .send({ positionSeconds: 12 })
+        .send(progressPayload)
         .expect(200);
       const c = await a.challenge();
       const challenge = await f.db
@@ -125,8 +146,26 @@ for (const kind of backends) {
       assert.equal(r.body.user.kind, "registered");
       assert.equal(r.body.user.googleLinked, true);
       assert.equal(r.body.user.emailVerified, true);
+      assert.equal(
+        (await a.get("/profile").expect(200)).body.profile.googleLinked,
+        true,
+      );
+      assert.equal(
+        (await a.get("/settings").expect(200)).body.settings.autoplayNext,
+        false,
+      );
+      await a.agent
+        .put("/api/profile")
+        .set("X-CSRF-Token", r.body.csrfToken)
+        .send({ displayName: "Edited Google listener" })
+        .expect(200);
       assert.notEqual(r.body.csrfToken, old.csrfToken);
       assert.equal((await a.get("/library").expect(200)).body.stories[0].id, 1);
+      assert.equal(
+        (await a.get(`/playlists/${playlist.id}`).expect(200)).body.stories[0]
+          .id,
+        1,
+      );
       assert.equal(
         (await a.get("/progress").expect(200)).body.progress[0]
           .position_seconds,
@@ -142,7 +181,20 @@ for (const kind of backends) {
       const b = await f.client();
       await b.google();
       assert.equal(b.data.user.id, old.user.id);
+      assert.equal(
+        (await b.get("/profile").expect(200)).body.profile.displayName,
+        "Edited Google listener",
+      );
+      assert.equal(
+        (await b.get("/settings").expect(200)).body.settings.playbackSpeed,
+        1.5,
+      );
       assert.equal((await b.get("/library").expect(200)).body.stories[0].id, 1);
+      assert.equal(
+        (await b.get(`/playlists/${playlist.id}`).expect(200)).body.playlist
+          .name,
+        "Google upgrade playlist",
+      );
       await b.write("/logout", {}, 204);
       const p = await f.client();
       await p.write(
@@ -367,3 +419,48 @@ test("Google sign-in cannot recreate a session revoked while token verification 
     await f.close();
   }
 });
+for (const kind of backends)
+  test(`${kind}: creator identity and suspension survive password and Google sign-in on the same account`, async () => {
+    const f = await setup(kind);
+    try {
+      const a = await f.client();
+      await a.write("/demo");
+      await a.write("/register", {
+        email: "alice@gmail.com",
+        password,
+        displayName: "Creator listener",
+      });
+      const id = a.data.user.id;
+      await a.agent
+        .post("/api/creator")
+        .set("X-CSRF-Token", a.data.csrfToken)
+        .send({ displayName: "Linked creator", bio: "Same account" })
+        .expect(200);
+      const before = (await a.get("/creator").expect(200)).body;
+      await a.google();
+      assert.equal(a.data.user.id, id);
+      assert.deepEqual((await a.get("/creator").expect(200)).body, before);
+      await f.db
+        .prepare(
+          "UPDATE creator_profiles SET status='suspended' WHERE user_id=?",
+        )
+        .run(id);
+      await a.write("/logout", {}, 204);
+      const b = await f.client();
+      await b.google();
+      assert.equal(b.data.user.id, id);
+      assert.equal((await b.get("/creator")).body.creator.status, "suspended");
+      await b.agent
+        .post("/api/creator")
+        .set("X-CSRF-Token", b.data.csrfToken)
+        .send({ displayName: "Bypass", bio: "" })
+        .expect(403);
+      await b.write("/logout", {}, 204);
+      const c = await f.client();
+      await c.write("/login", { email: "alice@gmail.com", password });
+      assert.equal(c.data.user.id, id);
+      assert.equal((await c.get("/creator")).body.creator.status, "suspended");
+    } finally {
+      await f.close();
+    }
+  });

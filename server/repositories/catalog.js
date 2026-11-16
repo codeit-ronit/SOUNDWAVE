@@ -1,3 +1,4 @@
+import { publicStory } from "../services/publication-visibility.js";
 import { storySelect, serializeStory, serializeProgress } from "../db.js";
 export const sorts = Object.freeze({
   trending: "s.popularity DESC, s.id ASC",
@@ -29,22 +30,33 @@ export function catalogRepository(db, cache = null) {
     genres: async () =>
       (
         await db
-          .prepare("SELECT DISTINCT genre FROM stories ORDER BY genre")
+          .prepare(
+            `SELECT DISTINCT genre FROM stories WHERE ${publicStory("stories")} ORDER BY genre`,
+          )
           .all()
       ).map((r) => r.genre),
     chapters: async (user, story) =>
       (
         await db
           .prepare(
-            `SELECT c.*,(SELECT byte_length FROM chapter_sources x WHERE x.chapter_id=c.id) AS audio_bytes,COALESCE(p.position_seconds,0) AS position_seconds,COALESCE(p.completed,0) AS completed
-      FROM chapters c LEFT JOIN listening_progress p ON p.chapter_id=c.id AND p.user_id=? WHERE c.story_id=? ORDER BY c.chapter_number`,
+            `SELECT c.*,COALESCE((SELECT byte_length FROM chapter_sources x WHERE x.chapter_id=c.id),(SELECT o.byte_size FROM publication_chapters pc JOIN private_media_outputs o ON o.id=pc.output_id WHERE pc.chapter_id=c.id)) AS audio_bytes,COALESCE(p.position_seconds,0) AS position_seconds,COALESCE(p.completed,0) AS completed,COALESCE(p.revision,0) AS revision,COALESCE(p.history_removed,0) AS removed
+      FROM chapters c LEFT JOIN listening_progress p ON p.chapter_id=c.id AND p.user_id=? WHERE c.story_id=? AND c.draft_removed=0 AND EXISTS(SELECT 1 FROM stories s WHERE s.id=c.story_id AND ${publicStory()}) ORDER BY c.chapter_number`,
           )
           .all(user, story)
-      ).map((row) => ({
-        ...serializeProgress(row),
-        audio_url: `/api/chapters/${row.id}/stream`,
-      })),
-    chapter: (id) => db.prepare("SELECT * FROM chapters WHERE id=?").get(id),
+      ).map((row) => {
+        const { draft_revision, draft_removed, summary, ...publicChapter } =
+          row;
+        return {
+          ...serializeProgress(publicChapter),
+          audio_url: `/api/chapters/${row.id}/stream`,
+        };
+      }),
+    chapter: (id) =>
+      db
+        .prepare(
+          `SELECT c.* FROM chapters c JOIN stories s ON s.id=c.story_id WHERE c.id=? AND c.draft_removed=0 AND ${publicStory()}`,
+        )
+        .get(id),
     library: async (user) =>
       (
         await db
@@ -62,7 +74,7 @@ export function catalogRepository(db, cache = null) {
         await db
           .prepare(
             `SELECT p.*,c.story_id,c.title AS chapter_title,c.chapter_number,c.duration_seconds FROM listening_progress p JOIN chapters c ON c.id=p.chapter_id
-      WHERE p.user_id=? ORDER BY p.updated_at DESC,p.chapter_id DESC`,
+      WHERE p.user_id=? AND p.history_removed=0 AND EXISTS(SELECT 1 FROM stories s WHERE s.id=c.story_id AND ${publicStory()}) ORDER BY p.updated_at DESC,p.chapter_id DESC`,
           )
           .all(user)
       ).map(serializeProgress),
@@ -97,6 +109,14 @@ export function catalogRepository(db, cache = null) {
   };
   if (cache) {
     const original = { ...repo };
+    const visible = async () =>
+      new Set(
+        (
+          await db
+            .prepare(`SELECT s.id FROM stories s WHERE ${publicStory()}`)
+            .all()
+        ).map((r) => r.id),
+      );
     const revision = async () =>
       (
         await db
@@ -127,22 +147,35 @@ export function catalogRepository(db, cache = null) {
         () => original.stories(null, input),
       );
       const favorites = await favoriteIds(user);
-      return rows.map((row) => ({
-        ...row,
-        is_favorite: favorites.has(row.id),
-      }));
+      const current = await visible();
+      return rows
+        .filter((row) => current.has(row.id))
+        .map((row) => ({
+          ...row,
+          is_favorite: favorites.has(row.id),
+        }));
     };
     repo.story = async (user, id) => {
       const row = await cache.cached(
         await revision(),
         JSON.stringify(["story", id]),
-        async () => (await original.story(null, id)) || null,
+        async () => {
+          const row = await original.story(null, id);
+          return row ? serializeStory(row) : null;
+        },
       );
-      if (!row) return undefined;
+      if (!row || !(await visible()).has(id)) return undefined;
       return { ...row, is_favorite: (await favoriteIds(user)).has(row.id) };
     };
-    repo.genres = async () =>
-      cache.cached(await revision(), "genres", original.genres);
+    repo.genres = async () => {
+      const rows = await cache.cached(
+        await revision(),
+        "genres",
+        original.genres,
+      );
+      const live = new Set(await original.genres());
+      return rows.filter((x) => live.has(x));
+    };
   }
   return repo;
 }

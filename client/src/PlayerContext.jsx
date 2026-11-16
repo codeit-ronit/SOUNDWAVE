@@ -7,6 +7,21 @@ import {
   useState,
 } from "react";
 import { api } from "./api";
+import { createProgressSync } from "./progressSync";
+import { usePreferences } from "./PreferencesContext";
+import {
+  EMPTY_QUEUE,
+  MAX_UPCOMING,
+  MAX_HISTORY,
+  queueEntry,
+  queueReducer,
+} from "./queue";
+import {
+  getQueueEpoch,
+  readStoredQueue,
+  writeStoredQueue,
+  restoreQueue,
+} from "./queueStorage";
 import {
   resumeChapter,
   resumePosition,
@@ -18,9 +33,58 @@ const PlayerContext = createContext(null);
 export const usePlayer = () => useContext(PlayerContext);
 
 export function PlayerProvider({ children, session }) {
+  const preferences = usePreferences();
+  const autoplayNext = useRef(true);
   const audioRef = useRef(null);
   const activeRef = useRef(null);
-  const queueRef = useRef([]);
+  const queueRef = useRef(EMPTY_QUEUE);
+  const [queue, setQueue] = useState(EMPTY_QUEUE);
+  const [queueReady, setQueueReady] = useState(false);
+  const [queueError, setQueueError] = useState("");
+  const [queueMessage, setQueueMessage] = useState("");
+  const queueOwner = useRef(session?.user?.id || null);
+  const storageEpoch = useRef(getQueueEpoch());
+  const enqueueChain = useRef(Promise.resolve());
+  const queueGeneration = useRef(0);
+  const endedEntry = useRef(null);
+  const sync = useRef(null);
+  if (!sync.current) sync.current = createProgressSync({ api, session });
+  const resetEntry = useRef(null),
+    skipPauseSave = useRef(false),
+    syncRead = useRef(null),
+    syncingRef = useRef(false),
+    lastRefresh = useRef(0),
+    autoSyncTimer = useRef(null),
+    autoSyncPending = useRef(false);
+  const [progressConflict, setProgressConflict] = useState(null),
+    [syncing, setSyncing] = useState(false),
+    [progressStatus, setProgressStatus] = useState("");
+  const persistQueue = useCallback((position = 0) => {
+    const warning = writeStoredQueue(
+      queueRef.current,
+      queueOwner.current,
+      position,
+      storageEpoch.current,
+      activeRef.current
+        ? sync.current.record(activeRef.current.chapter.id).revision
+        : null,
+    );
+    if (warning && mounted.current) setQueueError(warning);
+  }, []);
+  const commitQueue = useCallback(
+    (action) => {
+      const next = queueReducer(queueRef.current, action);
+      queueRef.current = next;
+      setQueue(next);
+      persistQueue(
+        next.current?.id === activeRef.current?.entryId
+          ? audioRef.current?.currentTime || 0
+          : 0,
+      );
+      return next;
+    },
+    [persistQueue],
+  );
   const selectionRef = useRef(0);
   const desiredPlay = useRef(false);
   const requestVersion = useRef(0);
@@ -31,7 +95,9 @@ export function PlayerProvider({ children, session }) {
   const segmentStart = useRef(null);
   const analyticsPlaying = useRef(false);
   const buffering = useRef(false);
-  const [speed, setSpeedState] = useState(preferredSpeed);
+  const [speed, setSpeedState] = useState(() =>
+    preferences ? 1 : preferredSpeed(),
+  );
   const speedRef = useRef(speed);
   const [sleepDeadline, setSleepDeadline] = useState(null);
   const [sleepRemaining, setSleepRemaining] = useState(0);
@@ -48,45 +114,78 @@ export function PlayerProvider({ children, session }) {
   const notify = useCallback(() => setRevision((n) => n + 1), []);
 
   const save = useCallback(
-    (completed = false, keepalive = false) => {
+    (completed = false, keepalive = false, retryOnly = false) => {
       clearTimeout(seekSaveTimer.current);
       seekSaveTimer.current = null;
-      const current = activeRef.current;
-      const audio = audioRef.current;
+      const current = activeRef.current,
+        audio = audioRef.current;
       if (!current || !audio || audio.readyState === 0)
         return Promise.resolve();
-      const positionSeconds = completed
-        ? current.chapter.duration_seconds
-        : Math.min(audio.currentTime || 0, current.chapter.duration_seconds);
-      const chapterId = current.chapter.id;
-      const version = nextProgressVersion();
-      // Snapshot before switching sources; serialize writes so an older save cannot overwrite a newer one.
+      const snapshot = {
+        chapterId: current.chapter.id,
+        editVersion: sync.current.record(current.chapter.id).editVersion,
+        baseRevision: sync.current.record(current.chapter.id).revision,
+        position: completed
+          ? current.chapter.duration_seconds
+          : Math.min(audio.currentTime || 0, current.chapter.duration_seconds),
+        completed:
+          completed || audio.currentTime >= current.chapter.duration_seconds,
+        identity: nextProgressVersion(),
+        reset: resetEntry.current === current.entryId,
+      };
+      persistQueue(audio.currentTime);
       const send = () =>
-        api.save(
-          chapterId,
-          positionSeconds,
-          completed,
-          keepalive,
-          version,
-          ...(session ? [session] : []),
-        );
-      const pending = keepalive
-        ? send()
-        : saveQueue.current.catch(() => {}).then(send);
+        session && !session.user
+          ? Promise.resolve({ offline: true })
+          : sync.current.write(snapshot, keepalive, { retryOnly });
+      const pending = saveQueue.current.catch(() => {}).then(send);
       saveQueue.current = pending;
       return pending
-        .then(() => {
-          if (mounted.current) {
+        .then((result) => {
+          if (!mounted.current) return result;
+          if (result?.saved) notify();
+          if (activeRef.current !== current) return result;
+          if (result?.conflict) {
+            setProgressConflict({
+              entryId: current.entryId,
+              server: result.conflict,
+            });
             setSaveError("");
-            notify();
+            setProgressStatus(
+              "Progress conflict — choose which position to keep.",
+            );
+          } else if (result?.removed) {
+            setProgressConflict(null);
+            setSaveError("");
+            setProgressStatus(
+              "Removed from saved history. Playback continues without restoring it.",
+            );
+          } else if (result?.offline) {
+            setSaveError(
+              "Offline playback is not synchronized. Reconnect and refresh progress; offline writes are not durably queued.",
+            );
+            setProgressStatus("Progress not synchronized");
+          } else if (result?.saved) {
+            if (resetEntry.current === current.entryId)
+              resetEntry.current = null;
+            setSaveError("");
+            setProgressConflict(null);
+            setProgressStatus(
+              `Saved to account · revision ${result.progress.revision}`,
+            );
+            persistQueue(audio.currentTime);
           }
+          return result;
         })
         .catch((err) => {
-          if (mounted.current)
+          if (mounted.current && activeRef.current === current) {
             setSaveError(`Progress could not be saved: ${err.message}`);
+            setProgressStatus("Progress not synchronized");
+          }
+          return { failed: true };
         });
     },
-    [notify],
+    [notify, persistQueue],
   );
 
   const emitPlayback = useCallback(
@@ -146,7 +245,7 @@ export function PlayerProvider({ children, session }) {
   }, []);
 
   const select = useCallback(
-    (story, chapter, chapters, autoplay = true) => {
+    (story, chapter, entryId, autoplay = true) => {
       const audio = audioRef.current;
       clearTimeout(seekSaveTimer.current);
       seekSaveTimer.current = null;
@@ -155,9 +254,37 @@ export function PlayerProvider({ children, session }) {
       if (analyticsPlaying.current) flushListening("playback_paused");
       analyticsPlaying.current = false;
       audio.pause();
-      const current = { story, chapter };
+      const current = { story, chapter, entryId };
+      const known = sync.current.seed(chapter);
+      const suppressRestore =
+        (chapter.removed || known.removed) &&
+        chapter.allowHistoryRestore === false;
+      resetEntry.current =
+        !suppressRestore &&
+        (chapter.completed || chapter.removed || chapter.resetProgress)
+          ? entryId
+          : null;
+      if (resetEntry.current) sync.current.markDirty(chapter.id);
+      setProgressConflict(
+        known.conflict ? { entryId, server: known.conflict } : null,
+      );
+      const offline = !navigator.onLine || (session && !session.user);
+      setSaveError(
+        offline
+          ? "Offline playback is not synchronized. Sign in online to refresh account progress."
+          : "",
+      );
+      setProgressStatus(
+        offline || known.dirty || known.pending
+          ? "Progress not synchronized"
+          : known.conflict
+            ? "Progress conflict — choose which position to keep."
+            : known.revision
+              ? `Account progress loaded · revision ${known.revision}`
+              : "",
+      );
       activeRef.current = current;
-      queueRef.current = chapters;
+      endedEntry.current = null;
       const start = resumePosition(chapter);
       selectionRef.current = start;
       setActive(current);
@@ -171,25 +298,45 @@ export function PlayerProvider({ children, session }) {
       audio.load();
       desiredPlay.current = autoplay;
       // Calling play in the user's click gesture helps browsers with strict autoplay policies.
+      persistQueue(start);
       if (autoplay) void tryPlay();
     },
-    [tryPlay, flushListening],
+    [tryPlay, flushListening, persistQueue],
   );
 
   const playStory = useCallback(
     async (story, chapterId) => {
       const version = ++requestVersion.current;
+      queueGeneration.current++;
       setLoading(true);
       setError("");
       try {
         await save();
-        const { chapters } = await api.chapters(story.id);
-        if (version !== requestVersion.current) return;
+        const { chapters } = await api.chapters(story.id, undefined, session);
+        if (!mounted.current || version !== requestVersion.current) return;
         const chapter = chapterId
           ? chapters.find((c) => c.id === chapterId)
           : resumeChapter(chapters);
         if (!chapter) throw new Error("This story has no playable chapters.");
-        select(story, chapter, chapters);
+        const index = chapters.indexOf(chapter),
+          current = queueEntry(story, chapter);
+        commitQueue({
+          type: "replace",
+          current,
+          upcoming: chapters
+            .slice(index + 1, index + 1 + MAX_UPCOMING)
+            .map((c) => queueEntry(story, c)),
+          history: chapters
+            .slice(Math.max(0, index - MAX_HISTORY), index)
+            .map((c) => queueEntry(story, c)),
+        });
+        setQueueReady(true);
+        setQueueMessage(
+          chapters.length - index - 1 > MAX_UPCOMING
+            ? "Only the next 50 chapters fit in this device queue."
+            : "Story chapter order loaded. Previous upcoming entries were replaced.",
+        );
+        select(story, chapter, current.id);
       } catch (err) {
         if (version === requestVersion.current) {
           setError(err.message);
@@ -197,20 +344,98 @@ export function PlayerProvider({ children, session }) {
         }
       }
     },
-    [save, select],
+    [save, select, commitQueue],
   );
 
   const move = useCallback(
-    async (delta) => {
-      const current = activeRef.current;
-      if (!current) return;
-      const index = queueRef.current.findIndex(
-        (c) => c.id === current.chapter.id,
+    (delta, completed = false) => {
+      const before = queueRef.current;
+      const next = queueReducer(before, {
+        type: delta === -1 ? "previous" : "next",
+      });
+      if (next === before) return;
+      // Reserve/consume synchronously. Rapid clicks advance distinct occurrences,
+      // and an old completion callback cannot consume another entry afterwards.
+      if (!completed) void save();
+      commitQueue({ type: "replace", ...next });
+      const entry = next.current;
+      select(
+        entry.story,
+        {
+          ...entry.chapter,
+          position_seconds: 0,
+          completed: false,
+          resetProgress: true,
+          allowHistoryRestore: !completed,
+        },
+        entry.id,
       );
-      const chapter = queueRef.current[index + delta];
-      if (chapter) await playStory(current.story, chapter.id);
     },
-    [playStory],
+    [save, select, commitQueue],
+  );
+
+  const enqueue = useCallback(
+    (story, chapterId, next = false) => {
+      const generation = queueGeneration.current;
+      const work = enqueueChain.current
+        .catch(() => {})
+        .then(async () => {
+          if (!mounted.current || generation !== queueGeneration.current)
+            return;
+          const { chapters } = await api.chapters(story.id, undefined, session);
+          if (!mounted.current || generation !== queueGeneration.current)
+            return;
+          const selected = chapterId
+            ? chapters.filter((c) => c.id === chapterId)
+            : chapters;
+          if (!selected.length)
+            throw Error("This chapter is no longer available.");
+          if (!navigator.onLine) {
+            const cache = await caches.open("soundwave-audio-v1");
+            for (const chapter of selected) {
+              if (!(await cache.match(chapter.audio_url)))
+                throw Error(
+                  "Only downloaded chapters can be queued offline. Connect or download this chapter first.",
+                );
+            }
+            if (!mounted.current || generation !== queueGeneration.current)
+              return;
+          }
+          if (selected.length + queueRef.current.upcoming.length > MAX_UPCOMING)
+            throw Error(
+              "Queue holds at most 50 upcoming chapters. Remove some entries first.",
+            );
+          commitQueue({
+            type: "enqueue",
+            next,
+            entries: selected.map((c) => queueEntry(story, c)),
+          });
+          setQueueMessage(
+            `${selected.length} chapter${selected.length === 1 ? "" : "s"} ${next ? "will play next" : "added to queue"}.`,
+          );
+          return true;
+        })
+        .catch((e) => {
+          if (mounted.current && generation === queueGeneration.current)
+            setQueueError(e.message);
+          return false;
+        });
+      enqueueChain.current = work;
+      return work;
+    },
+    [commitQueue],
+  );
+  const editQueue = useCallback(
+    (action) => {
+      if (action.type === "clear") queueGeneration.current++;
+      commitQueue(action);
+      setQueueMessage(
+        action.type === "clear"
+          ? "Upcoming queue cleared. Current playback continues."
+          : "Queue updated.",
+      );
+    },
+    [commitQueue],
   );
 
   useEffect(() => {
@@ -249,6 +474,10 @@ export function PlayerProvider({ children, session }) {
       if (analyticsPlaying.current) flushListening("playback_paused");
       analyticsPlaying.current = false;
       setPlaying(false);
+      if (skipPauseSave.current) {
+        skipPauseSave.current = false;
+        return;
+      }
       if (!audio.ended) void save();
     };
     const onPlay = () => {
@@ -275,18 +504,26 @@ export function PlayerProvider({ children, session }) {
     };
     const onEnded = async () => {
       const current = activeRef.current;
+      if (
+        !current ||
+        !desiredPlay.current ||
+        endedEntry.current === current.entryId
+      )
+        return;
+      endedEntry.current = current.entryId;
+      const version = requestVersion.current;
       flushListening();
       analyticsPlaying.current = false;
       desiredPlay.current = false;
       setPlaying(false);
-      await save(true);
-      // User navigation or manual selection while the save was pending takes priority.
-      if (activeRef.current !== current) return;
-      const index = queueRef.current.findIndex(
-        (c) => c.id === current.chapter.id,
-      );
-      const next = queueRef.current[index + 1];
-      if (next) select(current.story, next, queueRef.current);
+      const outcome = await save(true);
+      if (
+        !mounted.current ||
+        activeRef.current !== current ||
+        version !== requestVersion.current
+      )
+        return;
+      if (!outcome?.conflict && autoplayNext.current) move(1, true);
     };
     const onPageHide = () => {
       flushListening("listening_interval", true);
@@ -319,43 +556,530 @@ export function PlayerProvider({ children, session }) {
       audio.addEventListener(name, listener);
     window.addEventListener("pagehide", onPageHide);
     document.addEventListener("visibilitychange", onVisibility);
-    // Restore from SQLite without attempting autoplay on page load.
+    // Restore only catalog-validated references, paused. No private JSON cache.
     const controller = new AbortController();
     const version = requestVersion.current;
-    (session && !session.user
-      ? Promise.resolve({ continueListening: [] })
-      : api.progress(controller.signal)
-    )
-      .then(async ({ continueListening }) => {
-        const latest = continueListening[0];
-        if (!latest) return;
-        const { chapters } = await api.chapters(latest.id, controller.signal);
-        if (version !== requestVersion.current || controller.signal.aborted)
+    const restoreTimeout = setTimeout(() => {
+      controller.abort();
+      if (mounted.current && version === requestVersion.current) {
+        setQueueError(
+          "Queue restoration timed out. Refresh to retry, or play a story to replace it.",
+        );
+        setQueueReady(true);
+      }
+    }, 15000);
+    async function restore() {
+      const { snapshot, error: storageError } = readStoredQueue(session);
+      storageEpoch.current = getQueueEpoch();
+      if (storageError) setQueueError(storageError);
+      if (snapshot) {
+        queueOwner.current = snapshot.owner;
+        const { state, removed } = await restoreQueue(
+          snapshot,
+          api,
+          controller.signal,
+          session,
+        );
+        if (controller.signal.aborted || version !== requestVersion.current)
           return;
-        const chapter = chapters.find((c) => c.id === latest.resume_chapter_id);
-        if (chapter) select(latest, chapter, chapters, false);
-      })
+        queueRef.current = state;
+        setQueue(state);
+        if (removed)
+          setQueueMessage(
+            `${removed} unavailable queue entries removed${navigator.onLine ? "" : " from the offline queue"}.`,
+          );
+        if (state.current) {
+          const entry = state.current;
+          const remote = {
+            chapter_id: entry.chapter.id,
+            revision: entry.chapter.revision ?? 0,
+            position_seconds: entry.chapter.position_seconds || 0,
+            completed: !!entry.chapter.completed,
+            removed: !!entry.chapter.removed,
+          };
+          select(
+            entry.story,
+            {
+              ...entry.chapter,
+              position_seconds: snapshot.position,
+              completed: false,
+            },
+            entry.id,
+            false,
+          );
+          sync.current.seed(entry.chapter);
+          if (remote.removed) {
+            sync.current.adopt(entry.chapter.id, remote);
+            resetEntry.current = null;
+            setProgressStatus(
+              "Removed from saved history. Explicit replay can restore it.",
+            );
+          }
+          if (!navigator.onLine || session?.offline) {
+            sync.current.record(entry.chapter.id).dirty = true;
+            setSaveError(
+              "Offline playback is not synchronized. Sign in online to refresh progress; offline writes are not durably queued.",
+            );
+            setProgressStatus("Progress not synchronized");
+          }
+          if (
+            navigator.onLine &&
+            session?.user &&
+            !remote.removed &&
+            Math.abs(snapshot.position - remote.position_seconds) > 0.05
+          ) {
+            sync.current.conflict(entry.chapter.id, remote);
+            setProgressConflict({
+              entryId: entry.id,
+              server: remote,
+              reason:
+                snapshot.baseRevision === remote.revision
+                  ? "unsaved"
+                  : "remote",
+            });
+            setProgressStatus(
+              "Saved device position differs from latest account progress.",
+            );
+          }
+        } else persistQueue();
+        return;
+      }
+      const { continueListening } =
+        session && !session.user
+          ? { continueListening: [] }
+          : await api.progress(controller.signal);
+      const latest = continueListening[0];
+      if (!latest) return;
+      const { chapters } = await api.chapters(
+        latest.id,
+        controller.signal,
+        session,
+      );
+      if (controller.signal.aborted || version !== requestVersion.current)
+        return;
+      const chapter = chapters.find((c) => c.id === latest.resume_chapter_id);
+      if (chapter) {
+        const index = chapters.indexOf(chapter),
+          current = queueEntry(latest, chapter);
+        commitQueue({
+          type: "replace",
+          current,
+          upcoming: chapters
+            .slice(index + 1, index + 1 + MAX_UPCOMING)
+            .map((c) => queueEntry(latest, c)),
+          history: chapters
+            .slice(Math.max(0, index - MAX_HISTORY), index)
+            .map((c) => queueEntry(latest, c)),
+        });
+        select(latest, chapter, current.id, false);
+      }
+    }
+    void restore()
       .catch((err) => {
-        if (err.name !== "AbortError")
-          setSaveError(`Listening history could not load: ${err.message}`);
+        if (!controller.signal.aborted && version === requestVersion.current)
+          setQueueError(
+            `Saved queue or listening history could not load: ${err.message} Refresh to retry, or play a story to replace it.`,
+          );
+      })
+      .finally(() => {
+        clearTimeout(restoreTimeout);
+        if (!controller.signal.aborted) setQueueReady(true);
       });
     return () => {
       mounted.current = false;
+      queueGeneration.current++;
       clearTimeout(seekSaveTimer.current);
       controller.abort();
+      syncRead.current?.abort();
+      clearTimeout(restoreTimeout);
       for (const [name, listener] of Object.entries(events))
         audio.removeEventListener(name, listener);
       window.removeEventListener("pagehide", onPageHide);
       document.removeEventListener("visibilitychange", onVisibility);
       audio.pause();
     };
-  }, [save, select, emitPlayback, flushListening]);
+  }, [
+    save,
+    select,
+    emitPlayback,
+    flushListening,
+    move,
+    persistQueue,
+    commitQueue,
+  ]);
+
+  const applyRemote = useCallback(
+    (current, state) => {
+      if (!mounted.current || activeRef.current !== current) return;
+      const audio = audioRef.current;
+      desiredPlay.current = false;
+      requestVersion.current++;
+      if (!audio.paused) {
+        skipPauseSave.current = true;
+        audio.pause();
+      }
+      sync.current.adopt(current.chapter.id, state);
+      const position = Math.min(
+        state.position_seconds,
+        current.chapter.duration_seconds,
+      );
+      const next = {
+        ...current,
+        chapter: {
+          ...current.chapter,
+          position_seconds: position,
+          completed: state.completed,
+          revision: state.revision,
+        },
+      };
+      activeRef.current = next;
+      setActive(next);
+      queueRef.current = {
+        ...queueRef.current,
+        current: { ...queueRef.current.current, chapter: next.chapter },
+      };
+      setQueue(queueRef.current);
+      selectionRef.current = position;
+      if (audio.readyState > 0) audio.currentTime = position;
+      setPosition(position);
+      setPlaying(false);
+      setLoading(false);
+      endedEntry.current = state.completed ? current.entryId : null;
+      resetEntry.current = null;
+      setProgressConflict(null);
+      setSaveError("");
+      setProgressStatus(
+        `Latest account progress loaded · revision ${state.revision}`,
+      );
+      persistQueue(position);
+      notify();
+    },
+    [persistQueue, notify],
+  );
+  const refreshProgress = useCallback(
+    async (explicit = false) => {
+      const current = activeRef.current;
+      if (
+        !current ||
+        syncingRef.current ||
+        (!explicit && Date.now() - lastRefresh.current < 1500)
+      )
+        return;
+      if (!navigator.onLine || (session && !session.user)) {
+        setSaveError(
+          "Sign in online to refresh account progress. Offline audio remains available.",
+        );
+        setProgressStatus("Progress not synchronized");
+        return;
+      }
+      clearTimeout(autoSyncTimer.current);
+      autoSyncPending.current = false;
+      syncingRef.current = true;
+      setSyncing(true);
+      lastRefresh.current = Date.now();
+      const controller = new AbortController();
+      syncRead.current?.abort();
+      syncRead.current = controller;
+      const version = requestVersion.current;
+      const timer = setTimeout(() => controller.abort(), 8000);
+      try {
+        const read = () => {
+          if (controller.signal.aborted)
+            throw new DOMException("Refresh canceled", "AbortError");
+          return sync.current.refresh(current.chapter.id, controller.signal);
+        };
+        const pending = saveQueue.current.catch(() => {}).then(read);
+        saveQueue.current = pending;
+        const aborted = new Promise((_, reject) =>
+          controller.signal.addEventListener(
+            "abort",
+            () => reject(new DOMException("Refresh timed out", "AbortError")),
+            { once: true },
+          ),
+        );
+        const result = await Promise.race([pending, aborted]);
+        if (
+          controller.signal.aborted ||
+          !mounted.current ||
+          activeRef.current !== current ||
+          version !== requestVersion.current
+        )
+          return;
+        const recordAtRead = sync.current.record(current.chapter.id);
+        const unsaved =
+          result.unsaved ||
+          (!result.conflict &&
+            !result.remote &&
+            audioRef.current.paused &&
+            Math.abs(
+              audioRef.current.currentTime - recordAtRead.position_seconds,
+            ) > 0.05);
+        const remote =
+          result.conflict ||
+          result.remote ||
+          (unsaved ? result.progress : null);
+        if (remote) {
+          const record = sync.current.record(current.chapter.id),
+            audio = audioRef.current;
+          if (
+            !result.conflict &&
+            audio.paused &&
+            !record.dirty &&
+            !record.pending &&
+            Math.abs(audio.currentTime - record.position_seconds) < 0.05
+          )
+            applyRemote(current, remote);
+          else {
+            sync.current.conflict(current.chapter.id, remote);
+            setProgressConflict({
+              entryId: current.entryId,
+              server: remote,
+              reason: unsaved ? "unsaved" : "remote",
+            });
+            setProgressStatus(
+              "Another session saved progress. Your audio has not moved.",
+            );
+          }
+        } else {
+          setSaveError("");
+          setProgressStatus(
+            `Account checked · revision ${result.progress.revision}`,
+          );
+        }
+      } catch (err) {
+        if (
+          mounted.current &&
+          activeRef.current === current &&
+          !controller.signal.aborted
+        ) {
+          setSaveError(`Progress refresh failed: ${err.message}`);
+          setProgressStatus("Progress not synchronized");
+        }
+        if (
+          controller.signal.aborted &&
+          mounted.current &&
+          activeRef.current === current
+        ) {
+          setSaveError(
+            "Progress refresh timed out. Your audio has not moved; refresh to retry.",
+          );
+          setProgressStatus("Progress not synchronized");
+        }
+      } finally {
+        clearTimeout(timer);
+        syncingRef.current = false;
+        if (mounted.current) {
+          setSyncing(false);
+          if (autoSyncPending.current) {
+            autoSyncPending.current = false;
+            autoSyncTimer.current = setTimeout(
+              () => void refreshProgress(),
+              1500,
+            );
+          }
+        }
+      }
+    },
+    [applyRemote],
+  );
+  useEffect(() => {
+    const schedule = () => {
+      clearTimeout(autoSyncTimer.current);
+      autoSyncTimer.current = setTimeout(
+        () => {
+          if (syncingRef.current) {
+            autoSyncPending.current = true;
+            return;
+          }
+          void refreshProgress(true);
+        },
+        Math.max(0, 1500 - (Date.now() - lastRefresh.current)),
+      );
+    };
+    const visible = () => {
+      if (document.visibilityState === "visible") schedule();
+    };
+    document.addEventListener("visibilitychange", visible);
+    window.addEventListener("online", schedule);
+    const offline = () => {
+      if (activeRef.current) {
+        setSaveError(
+          "Offline playback is not synchronized. Reconnect and refresh progress; offline writes are not durably queued.",
+        );
+        setProgressStatus("Progress not synchronized");
+      }
+    };
+    window.addEventListener("offline", offline);
+    return () => {
+      clearTimeout(autoSyncTimer.current);
+      autoSyncPending.current = false;
+      document.removeEventListener("visibilitychange", visible);
+      window.removeEventListener("online", schedule);
+      window.removeEventListener("offline", offline);
+    };
+  }, [refreshProgress]);
+  const resolveProgress = async (choice) => {
+    const current = activeRef.current;
+    if (
+      !current ||
+      syncingRef.current ||
+      !progressConflict ||
+      progressConflict.entryId !== current.entryId
+    )
+      return;
+    if (!navigator.onLine) {
+      setSaveError(
+        "Reconnect before resolving account progress. Downloaded audio still plays.",
+      );
+      return;
+    }
+    const record = sync.current.record(current.chapter.id),
+      remote = record.conflict || {
+        chapter_id: current.chapter.id,
+        revision: record.revision,
+        position_seconds: record.position_seconds,
+        completed: record.completed,
+        removed: !!record.removed,
+      };
+    const shown = progressConflict.server;
+    if (
+      remote.revision !== shown.revision ||
+      remote.position_seconds !== shown.position_seconds ||
+      remote.completed !== shown.completed ||
+      !!remote.removed !== !!shown.removed
+    ) {
+      sync.current.conflict(current.chapter.id, remote);
+      setProgressConflict({ entryId: current.entryId, server: remote });
+      return;
+    }
+    if (choice === "removed" && remote.removed) {
+      sync.current.adopt(current.chapter.id, remote);
+      resetEntry.current = null;
+      setProgressConflict(null);
+      setSaveError("");
+      setProgressStatus(
+        "Removed from saved history. Current audio and queue are unchanged.",
+      );
+      persistQueue(audioRef.current.currentTime);
+      return;
+    }
+    if (choice === "latest") {
+      applyRemote(current, remote);
+      return;
+    }
+    syncingRef.current = true;
+    setSyncing(true);
+    const audio = audioRef.current,
+      snapshot = {
+        chapterId: current.chapter.id,
+        editVersion: record.editVersion,
+        baseRevision: record.revision,
+        position: Math.min(
+          audio.currentTime || 0,
+          current.chapter.duration_seconds,
+        ),
+        completed:
+          audio.ended || audio.currentTime >= current.chapter.duration_seconds,
+        identity: nextProgressVersion(),
+        reset: resetEntry.current === current.entryId,
+      };
+    if (remote.removed && snapshot.completed) {
+      snapshot.position = 0;
+      snapshot.completed = false;
+      snapshot.reset = true;
+    }
+    try {
+      const pending = saveQueue.current
+        .catch(() => {})
+        .then(() =>
+          sync.current.write(snapshot, false, {
+            resolution: true,
+            expectedConflictRevision: shown.revision,
+          }),
+        );
+      saveQueue.current = pending;
+      const result = await pending;
+      if (!mounted.current || activeRef.current !== current) return;
+      if (result.conflict)
+        setProgressConflict({
+          entryId: current.entryId,
+          server: result.conflict,
+        });
+      else if (result.saved) {
+        resetEntry.current = null;
+        setProgressConflict(null);
+        setSaveError("");
+        setProgressStatus(
+          `Your position saved · revision ${result.progress.revision}`,
+        );
+        persistQueue(audio.currentTime);
+        notify();
+      }
+    } catch (err) {
+      if (mounted.current && activeRef.current === current)
+        setSaveError(`Progress could not be saved: ${err.message}`);
+    } finally {
+      syncingRef.current = false;
+      if (mounted.current) {
+        setSyncing(false);
+        if (autoSyncPending.current) {
+          autoSyncPending.current = false;
+          autoSyncTimer.current = setTimeout(
+            () => void refreshProgress(),
+            1500,
+          );
+        }
+      }
+    }
+  };
+
+  const historyRemoved = useCallback(
+    async (progress) => {
+      const current = activeRef.current;
+      notify();
+      if (!current) return;
+      try {
+        const state =
+          progress ||
+          (await api.progressChapter(current.chapter.id, undefined, session))
+            .progress;
+        if (
+          !mounted.current ||
+          activeRef.current !== current ||
+          state.chapter_id !== current.chapter.id ||
+          !state.removed ||
+          state.revision < sync.current.record(current.chapter.id).revision
+        )
+          return;
+        sync.current.adopt(current.chapter.id, state);
+        resetEntry.current = null;
+        setProgressConflict(null);
+        setSaveError("");
+        setProgressStatus(
+          "Removed from saved history. Current audio and queue are unchanged.",
+        );
+        persistQueue(audioRef.current.currentTime);
+      } catch (error) {
+        if (mounted.current && activeRef.current === current)
+          setSaveError(
+            `History changed; refresh progress before saving: ${error.message}`,
+          );
+      }
+    },
+    [notify, persistQueue],
+  );
 
   const toggle = () => {
     const audio = audioRef.current;
     if (!active) return;
     if (audio.paused) {
-      if (audio.ended) {
+      if (
+        sync.current.record(activeRef.current.chapter.id).completed ||
+        sync.current.record(activeRef.current.chapter.id).removed
+      )
+        resetEntry.current = activeRef.current.entryId;
+      if (audio.ended || audio.currentTime >= duration) {
+        endedEntry.current = null;
         audio.currentTime = 0;
         setPosition(0);
       }
@@ -369,6 +1093,7 @@ export function PlayerProvider({ children, session }) {
   const seek = (value) => {
     const audio = audioRef.current;
     if (!active || audio.readyState === 0) return;
+    sync.current.markDirty(activeRef.current.chapter.id);
     audio.currentTime = Math.max(0, Math.min(value, duration));
     setPosition(audio.currentTime);
     clearTimeout(seekSaveTimer.current);
@@ -387,7 +1112,7 @@ export function PlayerProvider({ children, session }) {
         position_seconds: position,
         completed: false,
       };
-      select(active.story, current, queueRef.current);
+      select(active.story, current, active.entryId);
     }
   };
   const setSpeed = (value) => {
@@ -395,12 +1120,34 @@ export function PlayerProvider({ children, session }) {
     speedRef.current = value;
     audioRef.current.playbackRate = value;
     setSpeedState(value);
+    if (preferences) {
+      void preferences.update({ playbackSpeed: value }).catch(() => {});
+      return;
+    }
     try {
       localStorage.setItem("soundwave.playbackSpeed", String(value));
     } catch {
       /* Private mode/storage restrictions do not block playback. */
     }
   };
+  useEffect(() => {
+    if (!preferences) return;
+    const value = preferences.settings.playbackSpeed;
+    speedRef.current = value;
+    audioRef.current.playbackRate = value;
+    setSpeedState(value);
+  }, [preferences?.settings.playbackSpeed]);
+  useEffect(() => {
+    if (!preferences) return;
+    const value = preferences.settings.defaultVolume;
+    audioRef.current.volume = value;
+    setVolumeState(value);
+  }, [preferences?.settings.defaultVolume]);
+  useEffect(() => {
+    autoplayNext.current = preferences
+      ? preferences.ready && preferences.settings.autoplayNext
+      : true;
+  }, [preferences?.settings.autoplayNext, preferences?.ready]);
   const setSleepTimer = (minutes) => {
     if (![0, 5, 15, 30].includes(minutes)) return;
     setSleepDeadline(minutes ? Date.now() + minutes * 60000 : null);
@@ -477,15 +1224,15 @@ export function PlayerProvider({ children, session }) {
     if (!playing) return;
     let frame;
     const tick = () => {
+      // React detaches the media ref before passive effect cleanup on an account
+      // switch. A queued frame can run in that interval.
+      if (!audioRef.current) return;
       setPosition(audioRef.current.currentTime);
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [playing]);
-  const index = active
-    ? queueRef.current.findIndex((c) => c.id === active.chapter.id)
-    : -1;
   return (
     <PlayerContext.Provider
       value={{
@@ -502,6 +1249,7 @@ export function PlayerProvider({ children, session }) {
         volume,
         error,
         saveError,
+        preferenceError: preferences?.error || "",
         revision,
         notify,
         playStory,
@@ -510,9 +1258,23 @@ export function PlayerProvider({ children, session }) {
         setVolume,
         move,
         retry,
-        retrySave: () => save(),
-        hasPrevious: index > 0,
-        hasNext: index >= 0 && index < queueRef.current.length - 1,
+        retrySave: () => save(false, false, true),
+        historyRemoved,
+        progressConflict,
+        progressStatus,
+        syncing,
+        refreshProgress,
+        resolveProgress,
+        queue,
+        queueReady,
+        queueError,
+        queueMessage,
+        enqueue,
+        editQueue,
+        dismissQueueError: () => setQueueError(""),
+        hasPrevious:
+          queue.history.length > 0 && queue.upcoming.length < MAX_UPCOMING,
+        hasNext: queue.upcoming.length > 0,
       }}
     >
       <audio ref={audioRef} preload="metadata" />

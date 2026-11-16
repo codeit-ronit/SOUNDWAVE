@@ -1,0 +1,218 @@
+{
+  "milestone": "M1.2",
+  "date": "2026-11-07",
+  "branch": "feature/m1-private-playlists",
+  "baseCommit": "286dd90",
+  "implementationCommits": [
+    "d4d30b1 Preserve playlist append counters and capacity during SQLite imports",
+    "2da13e1 Verify account switching and handle empty Redis scan batches in playlist checks",
+    "6f5bc5a Close audio descriptors when clients disconnect during file setup",
+    "53a1c09 Add private playlists to My Library with verified browser flows",
+    "4d3e0d3 Add private playlist persistence and owner-scoped transactional REST API"
+  ],
+  "environment": {
+    "node": "22.21.1",
+    "platform": "darwin",
+    "arch": "arm64",
+    "postgres": "18.6",
+    "redis": "7.4",
+    "browser": "installed Google Chrome"
+  },
+  "summary": {
+    "backend": 141,
+    "frontend": 37,
+    "total": 178,
+    "failures": 0,
+    "skipped": 0,
+    "playlistBrowserChecks": 20,
+    "existingBrowserChecks": 42,
+    "buildModules": 1703,
+    "backupTables": 20
+  },
+  "checks": [
+    {
+      "id": "fresh-migrations",
+      "command": "DATABASE_URL=<disposable local database> npm run db:migrate",
+      "result": "PASS",
+      "checks": null,
+      "localLog": "/private/tmp/soundwave-m1-migrations.log",
+      "sha256": "868e82210bc07480a8ec92f39f1cde94652ff31d8d240d638c8727464c131b19"
+    },
+    {
+      "id": "full-tests",
+      "command": "TEST_DATABASE_URL=<local> TEST_REDIS_URL=<dedicated local Redis> TEST_BACKUP_CONTAINER=<matching container> npm test",
+      "result": "PASS",
+      "checks": 178,
+      "localLog": "/private/tmp/soundwave-m1-full-tests.log",
+      "sha256": "b60cd8a4d8cd0bcb713ac3feadc9b843292a448157602e8b128a2e7a632a273e"
+    },
+    {
+      "id": "import-safety",
+      "command": "TEST_DATABASE_URL=<local> node --test server/test/migration.test.js",
+      "result": "PASS",
+      "checks": 2,
+      "localLog": "/private/tmp/soundwave-m1-import-regression.log",
+      "sha256": "3ddaf78aa2d2ca57fa895e64f9f28d73d29ae3ab0127569a300fd0e134dd6615"
+    },
+    {
+      "id": "build",
+      "command": "npm run build",
+      "result": "PASS",
+      "checks": null,
+      "localLog": "/private/tmp/soundwave-m1-build.log",
+      "sha256": "1937468644436f85a71081a852b3c7d95ec8025fd67ea3b02800c33ecfae2b00"
+    },
+    {
+      "id": "format",
+      "command": "npm run format:check",
+      "result": "PASS",
+      "checks": null,
+      "localLog": "/private/tmp/soundwave-m1-format.log",
+      "sha256": "47abaa611d92de5b9d3dd6d036abd9b413b8b73b0855091703a026d10e8e0b7b"
+    },
+    {
+      "id": "playlists-postgres-browser",
+      "command": "TEST_DATABASE_URL=<local> node scripts/playlists-smoke.mjs docs/m1-playlists-browser-results.json",
+      "result": "PASS",
+      "checks": 10,
+      "localLog": "/private/tmp/soundwave-m1-playlists-browser.log",
+      "sha256": "02c133d87a2a27ad312b67c10f6bbd46d95e36528835315755d1445a602ca1fd"
+    },
+    {
+      "id": "playlists-sqlite-browser",
+      "command": "node scripts/playlists-smoke.mjs docs/m1-playlists-sqlite-browser-results.json",
+      "result": "PASS",
+      "checks": 10,
+      "localLog": "/private/tmp/soundwave-m1-playlists-sqlite-browser.log",
+      "sha256": "270648faebec99f201325a2d40bd84ef781a01604b6759d7d4330de04bc78f80"
+    },
+    {
+      "id": "core-browser",
+      "command": "node scripts/browser-smoke.mjs",
+      "result": "PASS",
+      "checks": 14,
+      "localLog": "/private/tmp/soundwave-m1-core-browser.log",
+      "sha256": "9703406ea2f1cc6828f3a961387669ee7c7b70fbcb3ef02f01de0f5746d4f17e"
+    },
+    {
+      "id": "auth-browser",
+      "command": "node scripts/auth-smoke.mjs",
+      "result": "PASS",
+      "checks": 5,
+      "localLog": "/private/tmp/soundwave-m1-auth-browser.log",
+      "sha256": "2e9d64db164ba3322e7e3c82413cceea03c7ba9a8cd9ffda5877580aff29b83a"
+    },
+    {
+      "id": "offline-browser",
+      "command": "node scripts/offline-smoke.mjs",
+      "result": "PASS",
+      "checks": 13,
+      "localLog": "/private/tmp/soundwave-m1-offline-browser.log",
+      "sha256": "e9d776d051b5b00fc6e9b2efe17107d8da34a072ecf58536ec3503263a33c743"
+    },
+    {
+      "id": "keyboard-browser",
+      "command": "node scripts/keyboard-smoke.mjs",
+      "result": "PASS",
+      "checks": 3,
+      "localLog": "/private/tmp/soundwave-m1-keyboard-browser.log",
+      "sha256": "2caab8ff476d84eb46269d6c9bece9285d6b0a8dac74b97296be74ffb6d79d1e"
+    },
+    {
+      "id": "restart-browser-first-repeat",
+      "command": "node scripts/audit-smoke.mjs",
+      "result": "FAIL",
+      "checks": 2,
+      "localLog": "/private/tmp/soundwave-m1-restart-browser.log",
+      "sha256": "44c13db334da61ce29920cf04b325b25251ebaa77add544841f42de1b3a58696"
+    },
+    {
+      "id": "restart-browser-isolated-rerun",
+      "command": "node scripts/audit-smoke.mjs",
+      "result": "PASS",
+      "checks": 7,
+      "localLog": "/private/tmp/soundwave-m1-restart-browser-rerun.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "id": "audio-abort-regression-before-fix",
+      "command": "node --test --test-name-pattern='audio descriptor closes' server/test/stream.test.js",
+      "result": "EXPECTED_FAIL",
+      "checks": 1,
+      "localLog": "/private/tmp/soundwave-m1-stream-abort-before.log",
+      "sha256": "0221c67cb5bead15cd6a9b5eae1be31ab292a65ba92b56abfc8c62e639c43b4d"
+    },
+    {
+      "id": "audio-stream-after-fix",
+      "command": "node --test server/test/stream.test.js",
+      "result": "PASS",
+      "checks": 9,
+      "localLog": "/private/tmp/soundwave-m1-stream-abort-after.log",
+      "sha256": "d0a3fffa7783d45794545868ec065c85a37957b7b7aded53c13b029483854053"
+    }
+  ],
+  "knownVerificationIssue": "One repeated existing restart browser run timed out after 2 checks waiting for exact paused position restoration; isolated rerun passed 7 unchanged checks. Cause not established.",
+  "scopeNotes": [
+    "New browser read-error fixture injects a controlled 503-shaped fetch response; it does not represent a live Redis/DB outage.",
+    "Google guest-upgrade tests use real locally signed JWT/JWKS fixtures, not a new public Google account login.",
+    "Focused import tests were extended after the last full-suite run and passed separately; no application code changed after that full run.",
+    "Both playlist browser flows reran after the audio cleanup fix without the earlier GC warning.",
+    "No push, deployment, public mutations, production data reads or destructive migrations.",
+    "Dedicated test Redis stopped; new disposable test database retained; existing developer services/data preserved."
+  ],
+  "changedFiles": [
+    "README.md",
+    "client/src/Playlists.jsx",
+    "client/src/Playlists.test.jsx",
+    "client/src/api.js",
+    "client/src/pages.jsx",
+    "client/src/styles.css",
+    "docs/ARCHITECTURE.md",
+    "docs/M1_PLAYLISTS.md",
+    "docs/OPERATIONS.md",
+    "docs/SOUNDWAVE_V3_ROADMAP.md",
+    "docs/m1-playlists-browser-results.json",
+    "docs/m1-playlists-sqlite-browser-results.json",
+    "docs/m1-playlists-verification.json",
+    "package.json",
+    "scripts/auth-smoke.mjs",
+    "scripts/playlists-smoke.mjs",
+    "server/app.js",
+    "server/database/import-sqlite.js",
+    "server/migrations/postgres/009_playlists.sql",
+    "server/migrations/sqlite/010_playlists.sql",
+    "server/operations/backup.js",
+    "server/repositories/playlists.js",
+    "server/routes/playlists.js",
+    "server/routes/stream.js",
+    "server/services/playlists.js",
+    "server/test/backup.test.js",
+    "server/test/google.test.js",
+    "server/test/migration.test.js",
+    "server/test/playlists.test.js",
+    "server/test/stream.test.js"
+  ],
+  "documentationCommits": [
+    "33d07ec Document M1.2 playlist contracts, verification and remaining limits"
+  ],
+  "milestoneCommitRange": "286dd90..33d07ec",
+  "milestoneCommits": [
+    "33d07ec Document M1.2 playlist contracts, verification and remaining limits",
+    "d4d30b1 Preserve playlist append counters and capacity during SQLite imports",
+    "2da13e1 Verify account switching and handle empty Redis scan batches in playlist checks",
+    "6f5bc5a Close audio descriptors when clients disconnect during file setup",
+    "53a1c09 Add private playlists to My Library with verified browser flows",
+    "4d3e0d3 Add private playlist persistence and owner-scoped transactional REST API"
+  ],
+  "commitInventory": {
+    "implementationAndTests": 5,
+    "documentation": 1,
+    "total": 6,
+    "explanation": "The original evidence snapshot was generated before its own final documentation commit 33d07ec. The five implementation commits were accurate; six total milestone commits include that documentation commit. Later M6 commits are excluded."
+  },
+  "restartFollowUp": {
+    "milestone": "M6.1 early CI",
+    "report": "CI_FLAKE_INVESTIGATION.md",
+    "conclusion": "Repeated isolated reproduction identified premature test continuation before the debounced seek save; server restored the correctly persisted earlier value. Harness now waits for server acknowledgement and asserts the persisted value. Historical M1 evidence remains unchanged."
+  }
+}

@@ -1,3 +1,4 @@
+import { progressBody } from "./progress-body.js";
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -51,7 +52,7 @@ test("event UUIDs are idempotent, and conflicting reuse is rejected", async () =
 test("listening time sums intervals, not absolute seeks or saved progress", async () => {
   await request(app)
     .put("/api/progress/101")
-    .send({ positionSeconds: 30 })
+    .send(await progressBody(app, { positionSeconds: 30 }, "/api/progress/101"))
     .expect(200);
   assert.equal(
     (await request(app).get("/api/analytics/overview")).body
@@ -93,7 +94,13 @@ test("favorite and completion transitions generate events atomically without dup
   for (let i = 0; i < 2; i++)
     await request(app)
       .put("/api/progress/101")
-      .send({ positionSeconds: duration, completed: true })
+      .send(
+        await progressBody(
+          app,
+          { positionSeconds: duration, completed: true },
+          "/api/progress/101",
+        ),
+      )
       .expect(200);
   const { body } = await request(app)
     .get("/api/analytics/overview")
@@ -146,7 +153,7 @@ test("schema initialization and reseeding preserve existing progress, favorites 
   await request(app).put("/api/library/1").expect(200);
   await request(app)
     .put("/api/progress/101")
-    .send({ positionSeconds: 8 })
+    .send(await progressBody(app, { positionSeconds: 8 }, "/api/progress/101"))
     .expect(200);
   await request(app).post("/api/analytics/events").send(event()).expect(201);
   seedDatabase(db);

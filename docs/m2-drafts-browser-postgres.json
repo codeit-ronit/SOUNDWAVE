@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-13T07:12:18.554Z",
+  "database": "postgres",
+  "checks": [
+    "guests cannot create drafts; server and UI enforce creator eligibility",
+    "registered active creator creates and edits a private story with revisioned plain-text metadata",
+    "chapter add/edit/reorder/remove flow persists contiguous order; removal confirmation retains the old ID",
+    "refresh restores owned metadata, stable IDs, revisions and chapter order from the database",
+    "stale edits show current server state and require explicit review/save; Studio navigation preserves real audio playback",
+    "a committed chapter with a lost response is resolved using the same persisted UUID and original precondition, without duplicates",
+    "My Stories loads bounded 20-item pages and Load More appends the next private cursor page",
+    "archive confirmation makes retained drafts read-only; public catalog, favorites and media cannot expose them",
+    "a real accepted creation delayed across logout/login cannot navigate or leak private state into another account",
+    "Studio recovers from read errors, keeps private data out of PWA caches, fits mobile width and emits no uncaught errors"
+  ]
+}

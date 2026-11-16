@@ -47,7 +47,39 @@ function rangeBounds(header, size) {
 async function audioResponse(request) {
   const audioCache = await caches.open(AUDIO).catch(() => null);
   const cached = audioCache && (await audioCache.match(request.url));
-  if (!cached) return fetch(request);
+  // Explicit downloads always reach the current server gate, even if an older
+  // device copy exists. Offline replay cannot reliably be revoked remotely.
+  if (!cached || request.cache === "no-store") return fetch(request);
+  let creator = false;
+  try {
+    creator =
+      JSON.parse(decodeURIComponent(cached.headers.get("X-SoundWave-Metadata")))
+        .story.content_source === "creator";
+  } catch {}
+  if (creator) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    try {
+      const gate = await fetch(request.url, {
+        method: "HEAD",
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!gate.ok) {
+        if (gate.status === 404 || gate.status === 410)
+          await audioCache.delete(request.url);
+        return gate;
+      }
+      if (gate.headers.get("ETag") !== cached.headers.get("ETag")) {
+        await audioCache.delete(request.url);
+        return fetch(request);
+      }
+    } catch {
+      /* Disconnected devices may replay already downloaded copies. */
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   const range = request.headers.get("Range");
   if (!range) return cached;
   const bytes = await cached.arrayBuffer();

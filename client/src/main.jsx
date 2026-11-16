@@ -6,6 +6,7 @@ import { LibraryProvider } from "./LibraryContext";
 import { OfflineProvider } from "./OfflineContext";
 import App from "./App";
 import { AuthProvider } from "./AuthContext";
+import { PreferencesProvider } from "./PreferencesContext";
 import "./styles.css";
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -13,11 +14,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <AuthProvider>
         {(session) => (
           <OfflineProvider key={session.csrfToken || "offline"}>
-            <PlayerProvider session={session}>
-              <LibraryProvider session={session}>
-                <App />
-              </LibraryProvider>
-            </PlayerProvider>
+            <PreferencesProvider session={session}>
+              <PlayerProvider session={session}>
+                <LibraryProvider session={session}>
+                  <App />
+                </LibraryProvider>
+              </PlayerProvider>
+            </PreferencesProvider>
           </OfflineProvider>
         )}
       </AuthProvider>

@@ -1,0 +1,11 @@
+{
+  "date": "2026-11-13T14:23:03.461Z",
+  "checks": [
+    "API and FFmpeg worker images build from the current source",
+    "real API upload persists a private source and pending database intent before any worker exists",
+    "actual resource-limited Docker worker dispatches the outbox through BullMQ and commits a private MP3",
+    "worker SIGKILL and volatile Redis restart recover SQL-persisted work without duplicate committed processing",
+    "API restart retains original WAV, ready derivative reference and private range bytes on the named volume",
+    "Docker-processed media stays excluded from public playback and anonymous derivative access"
+  ]
+}

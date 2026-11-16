@@ -1,0 +1,196 @@
+name: SoundWave CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, feature/m1-private-playlists]
+  workflow_dispatch:
+    inputs:
+      extended:
+        description: Run optional release Docker, worker, SMTP, recovery and load checks
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soundwave-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  integration:
+    name: Tests, migrations and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6-trixie
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-local-only
+          POSTGRES_DB: soundwave_ci_tests
+        ports: ["127.0.0.1:5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d soundwave_ci_tests"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ["127.0.0.1:6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      CI: "true"
+      TEST_DATABASE_URL: postgres://postgres:ci-local-only@127.0.0.1:5432/soundwave_ci_tests
+      TEST_REDIS_URL: redis://127.0.0.1:6379
+      REDIS_PREFIX: ci-unit-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          package-manager-cache: false
+      - name: Install FFmpeg for real private-media tests
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Clean dependency installation
+        run: node scripts/ci/run.mjs install
+      - name: Migrations, complete test suite and integration coverage gate
+        env:
+          TEST_BACKUP_CONTAINER: ${{ job.services.postgres.id }}
+        run: node scripts/ci/run.mjs test
+      - name: Production build
+        run: node scripts/ci/run.mjs build
+      - name: Formatting
+        run: node scripts/ci/run.mjs format
+      - name: Upload sanitized failure evidence
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: integration-failure-${{ github.run_attempt }}
+          path: artifacts/ci/
+          if-no-files-found: warn
+          retention-days: 7
+          include-hidden-files: false
+
+  browser:
+    name: Browser regression smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6-trixie
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-local-only
+          POSTGRES_DB: soundwave_ci_browser
+        ports: ["127.0.0.1:5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d soundwave_ci_browser"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ["127.0.0.1:6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      CI: "true"
+      TEST_DATABASE_URL: postgres://postgres:ci-local-only@127.0.0.1:5432/soundwave_ci_browser
+      TEST_REDIS_URL: redis://127.0.0.1:6379
+      REDIS_PREFIX: ci-browser-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          package-manager-cache: false
+      - name: Install FFmpeg for real private-media tests
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Clean dependency installation
+        run: node scripts/ci/run.mjs install
+      - name: Install pinned Playwright Chromium and OS dependencies
+        run: node scripts/ci/run.mjs browsers
+      - name: Production build
+        run: node scripts/ci/run.mjs build
+      - name: Login, PostgreSQL playlists/settings/queue, cross-device sync, history, creator identity/drafts/uploads/processing/publishing, offline and restart smoke
+        run: node scripts/ci/run.mjs browser
+      - name: Upload sanitized logs and masked failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: browser-failure-${{ github.run_attempt }}
+          path: artifacts/ci/
+          if-no-files-found: warn
+          retention-days: 7
+          include-hidden-files: false
+
+  extended:
+    name: Optional systems and load checks
+    if: github.event_name == 'workflow_dispatch' && inputs.extended
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:18.6-trixie
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-local-only
+          POSTGRES_DB: soundwave_ci_extended
+        ports: ["127.0.0.1:5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d soundwave_ci_extended"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ["127.0.0.1:6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      mailpit:
+        image: axllent/mailpit:v1.27
+        ports: ["127.0.0.1:1025:1025", "127.0.0.1:8025:8025"]
+    env:
+      CI: "true"
+      TEST_DATABASE_URL: postgres://postgres:ci-local-only@127.0.0.1:5432/soundwave_ci_extended
+      TEST_REDIS_URL: redis://127.0.0.1:6379
+      TEST_SMTP_URL: smtp://127.0.0.1:1025
+      TEST_MAILPIT_URL: http://127.0.0.1:8025
+      REDIS_PREFIX: ci-extended-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          package-manager-cache: false
+      - run: node scripts/ci/run.mjs install
+      - run: node scripts/ci/run.mjs browsers
+      - run: node scripts/ci/run.mjs build
+      - name: Install FFmpeg for optional hardening drills
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Opt-in systems, crash recovery and synthetic local HTTP load
+        env:
+          TEST_BACKUP_CONTAINER: ${{ job.services.postgres.id }}
+        run: node scripts/ci/run.mjs extended
+      - name: Upload sanitized results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: extended-results-${{ github.run_attempt }}
+          path: artifacts/ci/
+          if-no-files-found: warn
+          retention-days: 7
+          include-hidden-files: false

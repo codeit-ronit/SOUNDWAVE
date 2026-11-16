@@ -7,18 +7,32 @@ RUN npm ci
 COPY client client
 RUN npm run build
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS dependencies
 ENV NODE_ENV=production
+ENV PRIVATE_MEDIA_ROOT=/app/private-media
 WORKDIR /app
 COPY package*.json ./
 COPY client/package.json client/package.json
 COPY server/package.json server/package.json
 RUN npm ci --omit=dev && npm cache clean --force
+
+# Install OS media dependencies before copying source so ordinary fixes do not
+# repeat the measured slow FFmpeg package download/install.
+FROM dependencies AS worker-dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg util-linux procps && rm -rf /var/lib/apt/lists/*
+
+FROM dependencies AS runtime
 COPY server server
 COPY --from=build /app/client/dist client/dist
+RUN mkdir -p /app/private-media && chown node:node /app/private-media && chmod 700 /app/private-media
 USER node
 EXPOSE 3001
-FROM runtime AS worker
+
+FROM worker-dependencies AS worker
+COPY server server
+COPY --from=build /app/client/dist client/dist
+RUN mkdir -p /app/private-media && chown node:node /app/private-media && chmod 700 /app/private-media
+USER node
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s CMD ["node","server/scripts/worker-health.js"]
 CMD ["node","server/scripts/worker.js"]
 

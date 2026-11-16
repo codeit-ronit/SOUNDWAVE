@@ -1,3 +1,4 @@
+import { publicStory } from "./services/publication-visibility.js";
 import Database from "better-sqlite3";
 import { mkdirSync, readFileSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
@@ -64,6 +65,12 @@ export function openDatabase(
       "CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)",
     );
     const dir = new URL("./migrations/sqlite/", import.meta.url);
+    const known = new Set(readdirSync(dir).filter((f) => f.endsWith(".sql")));
+    for (const row of db.prepare("SELECT version FROM schema_migrations").all())
+      if (!known.has(row.version))
+        throw Error(
+          "Database has a newer/unknown schema; matching writer required.",
+        );
     for (const version of readdirSync(dir)
       .filter((f) => f.endsWith(".sql"))
       .sort()) {
@@ -95,15 +102,19 @@ export function seedDatabase(db) {
       "utf8",
     ),
   );
+  const ownedSchema = db
+    .prepare("PRAGMA table_info(stories)")
+    .all()
+    .some((c) => c.name === "ownership_kind");
   const insertStory =
     db.prepare(`INSERT INTO stories (id,title,genre,author,tagline,description,color,symbol,popularity)
     VALUES (@id,@title,@genre,@author,@tagline,@description,@color,@symbol,@popularity)
     ON CONFLICT(id) DO UPDATE SET title=excluded.title, genre=excluded.genre, author=excluded.author,
-    tagline=excluded.tagline, description=excluded.description, color=excluded.color, symbol=excluded.symbol, popularity=excluded.popularity`);
+    tagline=excluded.tagline, description=excluded.description, color=excluded.color, symbol=excluded.symbol, popularity=excluded.popularity${ownedSchema ? " WHERE stories.ownership_kind='system' AND stories.owner_id IS NULL AND NOT EXISTS(SELECT 1 FROM story_sources x WHERE x.story_id=stories.id)" : ""}`);
   const insertChapter =
     db.prepare(`INSERT INTO chapters (id,story_id,chapter_number,title,audio_url,duration_seconds)
     VALUES (@id,@story_id,@chapter_number,@title,@audio_url,@duration_seconds)
-    ON CONFLICT(id) DO UPDATE SET title=excluded.title, audio_url=excluded.audio_url, duration_seconds=excluded.duration_seconds`);
+    ON CONFLICT(id) DO UPDATE SET title=excluded.title, audio_url=excluded.audio_url, duration_seconds=excluded.duration_seconds${ownedSchema ? " WHERE chapters.story_id=excluded.story_id AND NOT EXISTS(SELECT 1 FROM chapter_sources x WHERE x.chapter_id=chapters.id)" : ""}`);
   db.transaction(() => {
     if (
       db
@@ -117,7 +128,7 @@ export function seedDatabase(db) {
       );
     for (const story of catalog) {
       const { chapters, ...row } = story;
-      insertStory.run(row);
+      if (!insertStory.run(row).changes) continue;
       chapters.forEach((chapter, index) => {
         const audio = manifest[`${story.id}-${index + 1}`];
         insertChapter.run({
@@ -134,16 +145,28 @@ export function seedDatabase(db) {
 }
 
 export const storySelect = `SELECT s.*,
-  (SELECT provider FROM story_sources x WHERE x.story_id=s.id) AS content_source,
+  CASE WHEN s.ownership_kind='creator' THEN 'creator' ELSE (SELECT provider FROM story_sources x WHERE x.story_id=s.id) END AS content_source,
   (SELECT source_url FROM story_sources x WHERE x.story_id=s.id) AS source_url,
   (SELECT narrator FROM story_sources x WHERE x.story_id=s.id) AS narrator,
-  (SELECT COUNT(*) FROM chapters c WHERE c.story_id=s.id) AS chapter_count,
-  (SELECT SUM(duration_seconds) FROM chapters c WHERE c.story_id=s.id) AS duration_seconds,
+  (SELECT COUNT(*) FROM chapters c WHERE c.story_id=s.id AND c.draft_removed=0) AS chapter_count,
+  (SELECT SUM(duration_seconds) FROM chapters c WHERE c.story_id=s.id AND c.draft_removed=0) AS duration_seconds,
   EXISTS(SELECT 1 FROM favorites f WHERE f.story_id=s.id AND f.user_id=@user) AS is_favorite
-  FROM stories s`;
+  FROM (SELECT s.* FROM stories s WHERE ${publicStory()}) s`;
 export function serializeStory(row) {
-  return { ...row, is_favorite: Boolean(row.is_favorite) };
+  const {
+    owner_id,
+    ownership_kind,
+    draft_state,
+    draft_revision,
+    language,
+    ...publicRow
+  } = row;
+  return { ...publicRow, is_favorite: Boolean(row.is_favorite) };
 }
 export function serializeProgress(row) {
-  return { ...row, completed: Boolean(row.completed) };
+  return {
+    ...row,
+    completed: Boolean(row.completed),
+    ...(row.removed !== undefined ? { removed: !!row.removed } : {}),
+  };
 }

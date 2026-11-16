@@ -1,0 +1,206 @@
+{
+  "date": "2026-11-07",
+  "playwright": "1.64.1",
+  "originalIsolatedRuns": [
+    {
+      "run": 1,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/baseline-1.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 2,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/baseline-2.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 3,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/baseline-3.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 4,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/baseline-4.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 5,
+      "result": "FAIL",
+      "log": "/private/tmp/soundwave-ci-investigation/baseline-5.log",
+      "sha256": "44c13db334da61ce29920cf04b325b25251ebaa77add544841f42de1b3a58696"
+    }
+  ],
+  "instrumentedIsolatedRuns": [
+    {
+      "run": 1,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/diagnostic-1.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 2,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/diagnostic-2.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 3,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/diagnostic-3.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 4,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/diagnostic-4.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 5,
+      "result": "FAIL",
+      "log": "/private/tmp/soundwave-ci-investigation/diagnostic-5.log",
+      "sha256": "9d01cac305468498fbaf4561d21b4837e5d3b40f5d47241b5e0d2db4d442baa1"
+    }
+  ],
+  "correctedIsolatedRuns": [
+    {
+      "run": 1,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/fixed-1.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 2,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/fixed-2.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 3,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/fixed-3.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 4,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/fixed-4.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "run": 5,
+      "result": "PASS",
+      "log": "/private/tmp/soundwave-ci-investigation/fixed-5.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    }
+  ],
+  "asyncFalseProbe": {
+    "expression": "await page.waitForFunction(async () => false)",
+    "observedResolvedValue": false,
+    "interpretation": "The old script advanced on a Promise and did not assert its resolved boolean."
+  },
+  "failingInstrumentedRun": {
+    "events": [
+      {
+        "type": "progress-response",
+        "status": 200,
+        "positions": []
+      },
+      {
+        "type": "progress-response",
+        "status": 200,
+        "positions": []
+      },
+      {
+        "type": "loadedmetadata",
+        "time": 0,
+        "paused": false,
+        "ready": 1,
+        "network": 1,
+        "error": null
+      },
+      {
+        "type": "seeked",
+        "time": 0,
+        "paused": false,
+        "ready": 4,
+        "network": 1,
+        "error": null
+      },
+      {
+        "type": "save-request",
+        "position": 1.158796,
+        "sequence": 1,
+        "completed": false
+      },
+      {
+        "type": "progress-response",
+        "status": 200,
+        "positions": [1.158796]
+      },
+      {
+        "type": "progress-response",
+        "status": 200,
+        "positions": [1.158796]
+      },
+      {
+        "type": "seeked",
+        "time": 7.9,
+        "paused": true,
+        "ready": 4,
+        "network": 1,
+        "error": null
+      },
+      {
+        "type": "progress-response",
+        "status": 200,
+        "positions": [1.158796]
+      },
+      {
+        "type": "progress-response",
+        "status": 200,
+        "positions": [1.158796]
+      },
+      {
+        "type": "progress-response",
+        "status": 200,
+        "positions": [1.158796]
+      },
+      {
+        "type": "loadedmetadata",
+        "time": 0,
+        "paused": true,
+        "ready": 4,
+        "network": 1,
+        "error": null
+      },
+      {
+        "type": "seeked",
+        "time": 1.158796,
+        "paused": true,
+        "ready": 4,
+        "network": 1,
+        "error": null
+      }
+    ],
+    "restoredAudio": {
+      "time": 1.158796,
+      "ready": 4,
+      "paused": true,
+      "error": null,
+      "source": "/api/chapters/101/stream"
+    },
+    "persistedProgress": [
+      {
+        "position": 1.158796,
+        "completed": false
+      }
+    ],
+    "expectedPosition": 7.9,
+    "seekSaveObserved": false
+  },
+  "conclusion": "The reproduced failure is test synchronization: no acknowledged seek save existed before restart; the server/browser retained the earlier acknowledged pause. Product code unchanged."
+}

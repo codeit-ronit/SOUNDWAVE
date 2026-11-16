@@ -1,3 +1,4 @@
+import { QueueActions } from "./QueuePanel";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -28,6 +29,7 @@ import {
   Empty,
 } from "./components";
 import { timeLabel } from "./playback";
+import Playlists from "./Playlists";
 
 function ContinueListening({ stories }) {
   const { playStory } = usePlayer();
@@ -349,6 +351,7 @@ export function MyLibrary() {
           {library.stories.length === 1 ? "story" : "stories"}
         </span>
       </div>
+      <Playlists />
       {history.error ? (
         <ErrorState message={history.error} retry={history.retry} />
       ) : (
@@ -505,6 +508,7 @@ export function StoryDetails() {
                       )}
                     </span>
                   </div>
+                  <QueueActions story={story} chapter={chapter} />
                   <ChapterDownload story={story} chapter={chapter} />
                   <span className="chapter-duration">
                     {timeLabel(chapter.duration_seconds)}

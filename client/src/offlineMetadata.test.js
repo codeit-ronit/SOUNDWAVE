@@ -21,6 +21,11 @@ it("removes personalized state and unexpected identity fields from offline metad
       completed: true,
       user_id: "alice",
       updated_at: "private",
+      revision: 24,
+      removed: true,
+      history_revision: 12,
+      expectedRevision: 23,
+      clientId: "private-client",
     }),
   ).toEqual({
     id: 101,

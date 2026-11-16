@@ -16,8 +16,15 @@ import {
   ArrowUpRight,
   AudioLines,
   X,
+  Settings2,
 } from "lucide-react";
 import AccountRecovery from "./AccountRecovery";
+import Settings from "./Settings";
+import History from "./History";
+import Creator from "./Creator";
+import { Moderation } from "./Publication";
+import Studio from "./Studio";
+import QueuePanel from "./QueuePanel";
 import { Account } from "./AuthContext";
 import Analytics from "./Analytics";
 import { Downloads, PwaStatus } from "./Downloads";
@@ -57,6 +64,10 @@ export default function App() {
             My library
             <span className="nav-count">{library.stories.length}</span>
           </NavLink>
+          <NavLink to="/history">
+            <LibraryBig size={18} />
+            History
+          </NavLink>
           <NavLink to="/downloads">
             <Download size={20} />
             Downloads
@@ -64,6 +75,18 @@ export default function App() {
           <NavLink to="/analytics">
             <BarChart3 size={20} />
             Insights
+          </NavLink>
+          <NavLink to="/studio">
+            <Settings2 size={18} />
+            Creator Studio
+          </NavLink>
+          <NavLink to="/creator">
+            <Settings2 size={18} />
+            Creator access
+          </NavLink>
+          <NavLink to="/settings">
+            <Settings2 size={20} />
+            Settings
           </NavLink>
         </nav>
         <div className="sidebar-card">
@@ -132,6 +155,10 @@ export default function App() {
             <LibraryBig size={17} />
             My library
           </NavLink>
+          <NavLink to="/history">
+            <LibraryBig size={18} />
+            History
+          </NavLink>
           <NavLink to="/downloads">
             <Download size={17} />
             Downloads
@@ -139,6 +166,18 @@ export default function App() {
           <NavLink to="/analytics">
             <BarChart3 size={17} />
             Insights
+          </NavLink>
+          <NavLink to="/studio">
+            <Settings2 size={18} />
+            Creator Studio
+          </NavLink>
+          <NavLink to="/creator">
+            <Settings2 size={18} />
+            Creator access
+          </NavLink>
+          <NavLink to="/settings">
+            <Settings2 size={17} />
+            Settings
           </NavLink>
         </nav>
         <main id="main-content">
@@ -152,11 +191,17 @@ export default function App() {
             )}
           </div>
           <Routes>
+            <Route path="/moderation" element={<Moderation />} />
+            <Route path="/studio" element={<Studio />} />
+            <Route path="/creator" element={<Creator />} />
+            <Route path="/history" element={<History />} />
+            <Route path="/queue" element={<QueuePanel />} />
             <Route path="/" element={<Discover />} />
             <Route path="/account" element={<AccountRecovery />} />
             <Route path="/library" element={<MyLibrary />} />
             <Route path="/downloads" element={<Downloads />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/stories/:id" element={<StoryDetails />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

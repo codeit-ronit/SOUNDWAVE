@@ -1,0 +1,253 @@
+{
+  "auditDate": "2026-11-07",
+  "timezone": "Asia/Kolkata",
+  "baselineCommit": "94c6e74",
+  "verifiedTestFixCommit": "6e49ceb",
+  "environment": {
+    "node": "22.21.1",
+    "npm": "10.9.4",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "postgres": "18.6",
+    "redis": "7.4",
+    "browser": "installed Google Chrome",
+    "note": "Docker build uses its Node 22 image; initial temp Node 25 attempt was repeated on supported Node 22."
+  },
+  "tests": [
+    {
+      "id": "full-tests",
+      "command": "npm test with TEST_DATABASE_URL, TEST_REDIS_URL, TEST_BACKUP_CONTAINER",
+      "status": "PASS",
+      "assertions": 153,
+      "note": "122 backend + 31 frontend, zero failed/skipped",
+      "localLog": "/private/tmp/soundwave-m0-tests.log",
+      "sha256": "557e0bf1ecabb62aff24655aa0b4f532fecfa6cae2f9a56abfbee3c57a21868b"
+    },
+    {
+      "id": "clean-install",
+      "command": "git archive 94c6e74; npm ci with explicit Node 22 PATH",
+      "status": "PASS",
+      "assertions": null,
+      "note": "341 packages added / 344 audited; 0 reported vulnerabilities",
+      "localLog": "/private/tmp/soundwave-m0-clean-install-node22.log",
+      "sha256": "f2fb09aad4896b1b0d1b6083edb161bf6937b5c0d6d9268ec47d9b0f82e7baf3"
+    },
+    {
+      "id": "fresh-migrations",
+      "command": "DATABASE_URL=<audit database> npm run db:migrate",
+      "status": "PASS",
+      "assertions": null,
+      "note": "Fresh isolated PostgreSQL database; suite also tests migration/import correctness",
+      "localLog": "/private/tmp/soundwave-m0-migrate.log",
+      "sha256": "868e82210bc07480a8ec92f39f1cde94652ff31d8d240d638c8727464c131b19"
+    },
+    {
+      "id": "build",
+      "command": "npm run build",
+      "status": "PASS",
+      "assertions": null,
+      "note": "1702 modules",
+      "localLog": "/private/tmp/soundwave-m0-build.log",
+      "sha256": "cced5c4a4910f22bdc35c9e12dbe6090f145db4eacf6df938312426e03a30ea9"
+    },
+    {
+      "id": "clean-build",
+      "command": "npm run build in HEAD archive under Node 22",
+      "status": "PASS",
+      "assertions": null,
+      "note": "No existing bundle reused",
+      "localLog": "/private/tmp/soundwave-m0-clean-build-node22.log",
+      "sha256": "b5a74e1460f718b981681a12f6242d82a292959ece1bc8d41c13ba8adda59b57"
+    },
+    {
+      "id": "format",
+      "command": "npm run format:check",
+      "status": "PASS",
+      "assertions": null,
+      "note": "Configured globs only; docs checked separately",
+      "localLog": "/private/tmp/soundwave-m0-format.log",
+      "sha256": "47abaa611d92de5b9d3dd6d036abd9b413b8b73b0855091703a026d10e8e0b7b"
+    },
+    {
+      "id": "core-browser",
+      "command": "node scripts/browser-smoke.mjs",
+      "status": "PASS",
+      "assertions": 14,
+      "note": "Node 22 clean archive",
+      "localLog": "/private/tmp/soundwave-m0-browser-node22.log",
+      "sha256": "3db0e1ef18af23716a0379870856ba370ce7413d8abe54b6f0668b3587f7a30b"
+    },
+    {
+      "id": "auth-browser",
+      "command": "node scripts/auth-smoke.mjs",
+      "status": "PASS",
+      "assertions": 5,
+      "note": "Node 22 clean archive; SQLite",
+      "localLog": "/private/tmp/soundwave-m0-auth-browser-node22.log",
+      "sha256": "2e9d64db164ba3322e7e3c82413cceea03c7ba9a8cd9ffda5877580aff29b83a"
+    },
+    {
+      "id": "offline-browser",
+      "command": "node scripts/offline-smoke.mjs",
+      "status": "PASS",
+      "assertions": 13,
+      "note": "Node 22 clean archive",
+      "localLog": "/private/tmp/soundwave-m0-offline-node22.log",
+      "sha256": "e9d776d051b5b00fc6e9b2efe17107d8da34a072ecf58536ec3503263a33c743"
+    },
+    {
+      "id": "keyboard-browser",
+      "command": "node scripts/keyboard-smoke.mjs",
+      "status": "PASS",
+      "assertions": 3,
+      "note": "Node 22 clean archive",
+      "localLog": "/private/tmp/soundwave-m0-keyboard-node22.log",
+      "sha256": "2caab8ff476d84eb46269d6c9bece9285d6b0a8dac74b97296be74ffb6d79d1e"
+    },
+    {
+      "id": "restart-security-browser",
+      "command": "node scripts/audit-smoke.mjs",
+      "status": "PASS",
+      "assertions": 7,
+      "note": "Node 22 clean archive",
+      "localLog": "/private/tmp/soundwave-m0-audit-browser-node22.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "id": "original-systems-regression",
+      "command": "node scripts/systems-smoke.mjs at original HEAD in initial Node 25 archive",
+      "status": "FAIL",
+      "assertions": 4,
+      "note": "Strict-mode ambiguous Return to sign in locator; four checks passed before failure; not a supported-runtime pass",
+      "localLog": "/private/tmp/soundwave-m0-systems.log",
+      "sha256": "4d9fe4a0218de4eed370bd896cabae1632c82e4b99080a4b5ec025cba509495a"
+    },
+    {
+      "id": "fixed-systems",
+      "command": "node scripts/systems-smoke.mjs after selector correction",
+      "status": "PASS",
+      "assertions": 7,
+      "note": "Node 22 workspace, PostgreSQL/Redis/separate worker/SMTP/process/browser",
+      "localLog": "/private/tmp/soundwave-m0-systems-node22.log",
+      "sha256": "83619f22bf4d83bd6178879089e3ac221fa93b8694ca082d7d089f83e864651c"
+    },
+    {
+      "id": "worker-crash-recovery",
+      "command": "node scripts/media-restart-smoke.mjs",
+      "status": "PASS",
+      "assertions": 4,
+      "note": "Actual BullMQ active-job kill and replacement worker",
+      "localLog": "/private/tmp/soundwave-m0-media-restart.log",
+      "sha256": "d320e976b4aa2a88c6abde11a15f33f8d28ceebeddfdb8826103148b2e67ae21"
+    },
+    {
+      "id": "demo-supervisor",
+      "command": "node scripts/demo-smoke.mjs",
+      "status": "PASS",
+      "assertions": 5,
+      "note": "Disposable database and namespace",
+      "localLog": "/private/tmp/soundwave-m0-demo.log",
+      "sha256": "beb1a9c5e247812488e5402caa0599b8c643e96b06230e0ef12b1e6c82d985af"
+    },
+    {
+      "id": "live-provider",
+      "command": "node scripts/catalog-live-smoke.mjs",
+      "status": "PASS",
+      "assertions": 6,
+      "note": "Real LibriVox/Archive, 10 books/212 chapters plus 12 WAVs; final quota test uses a size-header fixture",
+      "localLog": "/private/tmp/soundwave-m0-catalog-live.log",
+      "sha256": "35c6d6daf157549adcd5c8afc787df5a9bb807589c7b2c49e17b3ddf1d45581e"
+    },
+    {
+      "id": "compose-startup",
+      "command": "docker compose --env-file <private audit env> -p soundwave-m0-audit up --build -d",
+      "status": "PASS",
+      "assertions": null,
+      "note": "New local volumes, distinct loopback ports; all five services healthy",
+      "localLog": "/private/tmp/soundwave-m0-compose.log",
+      "sha256": "9400e2ab6f4b4b5d9de2efb1efc49c9e58529d3983f246218d29c0746526fdbd"
+    },
+    {
+      "id": "container-mail",
+      "command": "node scripts/mail-smoke.mjs <local audit app> <local Mailpit>",
+      "status": "PASS",
+      "assertions": 4,
+      "note": "Corrected selector, newly built API/worker",
+      "localLog": "/private/tmp/soundwave-m0-mail-container.log",
+      "sha256": "09e4703ba3a424eebe3fb67fe391629717a4f296042ed4578a65fd9761168c28"
+    },
+    {
+      "id": "container-seed",
+      "command": "node scripts/container-smoke.mjs <local audit app> seed <private temporary state>",
+      "status": "PASS",
+      "assertions": 1,
+      "note": "Audit-only account",
+      "localLog": "/private/tmp/soundwave-m0-container-seed.log",
+      "sha256": "0639d098235120e7cf356e4df65f574b2829f2a540edc03c51fe6bd79d1b005a"
+    },
+    {
+      "id": "container-restart",
+      "command": "restart audit app/worker/postgres; container-smoke.mjs ... verify ...",
+      "status": "PASS",
+      "assertions": 1,
+      "note": "Retained session/library/progress/exact event and rollup analytics",
+      "localLog": "/private/tmp/soundwave-m0-container-verify.log",
+      "sha256": "55a14fb94c2ce256393feb12fb306ef29aa47485aafc02a2b7eef9ae3d1a669e"
+    },
+    {
+      "id": "redis-outage-recovery",
+      "command": "node scripts/redis-recovery-smoke.mjs with TEST_REDIS_CONTAINER=soundwave-m0-audit-redis",
+      "status": "PASS",
+      "assertions": 3,
+      "note": "Only dedicated new audit Redis stopped/restarted",
+      "localLog": "/private/tmp/soundwave-m0-redis-recovery.log",
+      "sha256": "e37b5171844470721f0c46508ba0699daed041a9ac895f0e786908b31c38e01c"
+    },
+    {
+      "id": "repository-benchmark",
+      "command": "node scripts/cache-benchmark.mjs",
+      "status": "PASS",
+      "assertions": null,
+      "note": "100 sequential requests per mode, isolated six-story fixture",
+      "localLog": "/private/tmp/soundwave-m0-cache-benchmark.json",
+      "sha256": "042c227451e5be191c552f467fbc858a2a37b664d1a8d0332c2ad824314c327d"
+    },
+    {
+      "id": "http-benchmark",
+      "command": "node scripts/http-load.mjs docs/m0-http-load-results.json",
+      "status": "PASS",
+      "assertions": null,
+      "note": "500 requests x concurrency 10 x 8 runs, zero errors; response digests checked",
+      "localLog": "/private/tmp/soundwave-m0-http-load.log",
+      "sha256": "5db628fe9a3800279fb2ccdee2b9f72b9d554f99d245230a5e6fe2055b17e4cc"
+    }
+  ],
+  "repositoryBenchmark": {
+    "catalogStories": 6,
+    "query": "mystery",
+    "direct": {
+      "requests": 100,
+      "p50Milliseconds": 0.538,
+      "p95Milliseconds": 0.797
+    },
+    "warmRedis": {
+      "requests": 100,
+      "p50Milliseconds": 0.677,
+      "p95Milliseconds": 1.032
+    },
+    "note": "Sequential local sample. Revision lookup stays in PostgreSQL. No scalability or latency improvement is implied."
+  },
+  "httpBenchmark": "m0-http-load-results.json",
+  "secretScan": {
+    "trackedBaselineFiles": 182,
+    "privateKeyOrCommonCredentialPatternFiles": [],
+    "scope": "Bounded pattern scan, not historical/comprehensive secret audit"
+  },
+  "notRerun": [
+    "Public mutation/deployment smoke scripts: no approval requested or deployment performed",
+    "Real Google account completion: prior owner-confirmed manual check only",
+    "External SMTP internet delivery: local capture only",
+    "Safari/Firefox/physical mobile, upload security, production capacity/HA/DR promotion: no evidence"
+  ],
+  "preservation": "No production/developer rows deleted or existing developer services stopped. Temporary test fixtures self-clean via their existing scripts; new audit volumes are preserved."
+}

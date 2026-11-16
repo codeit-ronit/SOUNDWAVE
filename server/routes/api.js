@@ -1,4 +1,8 @@
-import { saveFavorite, saveProgress } from "../repositories/listening.js";
+import {
+  saveFavorite,
+  saveProgress,
+  readProgress,
+} from "../repositories/listening.js";
 import { requireUser } from "../middleware/auth.js";
 import { Router } from "express";
 import { serializeStory } from "../db.js";
@@ -56,6 +60,16 @@ export function apiRouter(db, { cache } = {}) {
     if (!validId(req.params.id)) return fail(res, "Invalid chapter ID.");
     if (!(await repo.chapter(Number(req.params.id))))
       return fail(res, "Chapter not found.", 404);
+    const derivative = await db
+      .prepare(
+        "SELECT o.duration_seconds,o.sample_rate,o.channels,o.byte_size,o.format FROM publication_chapters pc JOIN private_media_outputs o ON o.id=pc.output_id WHERE pc.chapter_id=? AND o.status='ready'",
+      )
+      .get(Number(req.params.id));
+    if (derivative)
+      return res.json({
+        status: "completed",
+        metadata: { ...derivative, waveform: null },
+      });
     const source = await db
       .prepare(
         "SELECT s.byte_length,s.content_type,c.duration_seconds,b.provider,b.source_url FROM chapter_sources s JOIN chapters c ON c.id=s.chapter_id JOIN story_sources b ON b.story_id=c.story_id WHERE s.chapter_id=?",
@@ -104,7 +118,17 @@ export function apiRouter(db, { cache } = {}) {
   api.get("/progress", requireUser, async (req, res) =>
     res.json(await listeningHistory(repo, req.user.id)),
   );
+  api.get("/progress/:chapterId", requireUser, async (req, res) => {
+    if (Object.keys(req.query).length)
+      return fail(res, "No progress query parameters are accepted.");
+    if (!validId(req.params.chapterId)) return fail(res, "Invalid chapter ID.");
+    const chapter = await repo.chapter(Number(req.params.chapterId));
+    if (!chapter) return fail(res, "Chapter not found.", 404);
+    res.json({ progress: await readProgress(db, req.user.id, chapter.id) });
+  });
   api.put("/progress/:chapterId", requireUser, async (req, res) => {
+    if (Object.keys(req.query).length)
+      return fail(res, "No progress query parameters are accepted.");
     const user = req.user?.id || null;
     if (!validId(req.params.chapterId)) return fail(res, "Invalid chapter ID.");
     const chapter = await repo.chapter(Number(req.params.chapterId));
@@ -112,11 +136,25 @@ export function apiRouter(db, { cache } = {}) {
     const body = req.body;
     if (!body || Array.isArray(body) || typeof body !== "object")
       return fail(res, "A JSON object is required.");
-    const { positionSeconds, completed = false, clientId, sequence } = body;
+    const {
+      positionSeconds,
+      completed = false,
+      clientId,
+      sequence,
+      expectedRevision,
+      action = "update",
+    } = body;
     if (
       Object.keys(body).some(
         (k) =>
-          !["positionSeconds", "completed", "clientId", "sequence"].includes(k),
+          ![
+            "positionSeconds",
+            "completed",
+            "clientId",
+            "sequence",
+            "expectedRevision",
+            "action",
+          ].includes(k),
       )
     )
       return fail(res, "Unknown progress field.");
@@ -134,29 +172,53 @@ export function apiRouter(db, { cache } = {}) {
       return fail(res, "completed must be a boolean.");
     if (completed && positionSeconds < chapter.duration_seconds - 1)
       return fail(res, "A completed chapter must be at its end.");
-    const versioned = clientId !== undefined || sequence !== undefined;
     if (
-      versioned &&
-      (typeof clientId !== "string" ||
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-          clientId,
-        ) ||
-        !Number.isSafeInteger(sequence) ||
-        sequence < 1)
+      expectedRevision === undefined ||
+      clientId === undefined ||
+      sequence === undefined
     )
-      return fail(
-        res,
-        "clientId and a positive integer sequence must be supplied together.",
-      );
+      return res.status(428).json({
+        error: {
+          code: "PROGRESS_PRECONDITION_REQUIRED",
+          message:
+            "Refresh this application. Progress writes require expectedRevision, clientId and sequence.",
+        },
+      });
+    if (
+      !Number.isSafeInteger(expectedRevision) ||
+      expectedRevision < 0 ||
+      typeof clientId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        clientId,
+      ) ||
+      !Number.isSafeInteger(sequence) ||
+      sequence < 1 ||
+      !["update", "reset"].includes(action)
+    )
+      return fail(res, "Invalid progress revision, write identity or action.");
     const position = Math.min(positionSeconds, chapter.duration_seconds);
     const isComplete = completed || position >= chapter.duration_seconds;
-    await saveProgress(db, user, chapter, {
-      position,
-      isComplete,
-      clientId,
-      sequence,
-    });
-    res.json({ progress: await repo.chapterProgress(user, chapter.id) });
+    if (action === "reset" && isComplete)
+      return fail(res, "A reset must be incomplete and below the chapter end.");
+    try {
+      res.json(
+        await saveProgress(db, user, chapter, {
+          position,
+          isComplete,
+          clientId,
+          sequence,
+          expectedRevision,
+          action,
+          request: { positionSeconds, completed, expectedRevision, action },
+        }),
+      );
+    } catch (error) {
+      if (!error.progressFailure) throw error;
+      res.status(error.status).json({
+        error: { code: error.code, message: error.message },
+        progress: error.progress,
+      });
+    }
   });
   api.get("/recommendations", async (req, res) =>
     res.json(await recommendations(repo, req.user?.id || null)),

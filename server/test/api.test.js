@@ -1,3 +1,4 @@
+import { progressBody } from "./progress-body.js";
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
@@ -123,11 +124,11 @@ test("malformed IDs and missing resources have distinct errors", async () => {
   await request(app).get("/api/stories/999/chapters").expect(404);
   await request(app)
     .put("/api/progress/no")
-    .send({ positionSeconds: 1 })
+    .send(await progressBody(app, { positionSeconds: 1 }, "/api/progress/no"))
     .expect(400);
   await request(app)
     .put("/api/progress/999")
-    .send({ positionSeconds: 1 })
+    .send(await progressBody(app, { positionSeconds: 1 }, "/api/progress/999"))
     .expect(404);
   await request(app).get("/api/missing").expect(404);
 });
@@ -157,11 +158,15 @@ test("favorites reject invalid and missing story IDs", async () => {
 test("progress upserts one row and is included in chapters and continue listening", async () => {
   await request(app)
     .put("/api/progress/101")
-    .send({ positionSeconds: 8.5 })
+    .send(
+      await progressBody(app, { positionSeconds: 8.5 }, "/api/progress/101"),
+    )
     .expect(200);
   await request(app)
     .put("/api/progress/101")
-    .send({ positionSeconds: 12.25 })
+    .send(
+      await progressBody(app, { positionSeconds: 12.25 }, "/api/progress/101"),
+    )
     .expect(200);
   const { body } = await request(app).get("/api/progress").expect(200);
   assert.equal(body.progress.length, 1);
@@ -178,7 +183,13 @@ test("completion advances continue listening then removes a fully completed stor
     .chapters;
   await request(app)
     .put("/api/progress/101")
-    .send({ positionSeconds: chapters[0].duration_seconds, completed: true })
+    .send(
+      await progressBody(
+        app,
+        { positionSeconds: chapters[0].duration_seconds, completed: true },
+        "/api/progress/101",
+      ),
+    )
     .expect(200);
   assert.equal(
     (await request(app).get("/api/progress")).body.continueListening[0]
@@ -187,14 +198,26 @@ test("completion advances continue listening then removes a fully completed stor
   );
   await request(app)
     .put("/api/progress/102")
-    .send({ positionSeconds: chapters[1].duration_seconds, completed: true })
+    .send(
+      await progressBody(
+        app,
+        { positionSeconds: chapters[1].duration_seconds, completed: true },
+        "/api/progress/102",
+      ),
+    )
     .expect(200);
   const progress = (await request(app).get("/api/progress")).body;
   assert.equal(progress.continueListening.length, 0);
   assert.ok(progress.progress.every((p) => p.completed));
   await request(app)
     .put("/api/progress/101")
-    .send({ positionSeconds: 2, completed: false })
+    .send(
+      await progressBody(
+        app,
+        { positionSeconds: 2, completed: false, action: "reset" },
+        "/api/progress/101",
+      ),
+    )
     .expect(200);
   assert.equal(
     (await request(app).get("/api/progress")).body.continueListening[0]
@@ -205,7 +228,7 @@ test("completion advances continue listening then removes a fully completed stor
 test("invalid progress bodies cannot corrupt existing saved state", async () => {
   await request(app)
     .put("/api/progress/101")
-    .send({ positionSeconds: 5 })
+    .send(await progressBody(app, { positionSeconds: 5 }, "/api/progress/101"))
     .expect(200);
   for (const body of [
     {},
@@ -218,12 +241,15 @@ test("invalid progress bodies cannot corrupt existing saved state", async () => 
     { positionSeconds: 1, completed: true },
     { positionSeconds: 1, other: "ignored?" },
   ]) {
-    await request(app).put("/api/progress/101").send(body).expect(400);
+    await request(app)
+      .put("/api/progress/101")
+      .send(await progressBody(app, body, "/api/progress/101"))
+      .expect(400);
   }
   await request(app)
     .put("/api/progress/101")
     .type("json")
-    .send("{broken")
+    .send(await progressBody(app, "{broken", "/api/progress/101"))
     .expect(400);
   assert.equal(
     (await request(app).get("/api/progress")).body.progress[0].position_seconds,
@@ -239,7 +265,13 @@ test("progress and favorites survive a database close and server recreation", as
     seedDatabase(persistent);
     await request(createApp(persistent))
       .put("/api/progress/101")
-      .send({ positionSeconds: 17 })
+      .send(
+        await progressBody(
+          createApp(persistent),
+          { positionSeconds: 17 },
+          "/api/progress/101",
+        ),
+      )
       .expect(200);
     await request(createApp(persistent)).put("/api/library/1").expect(200);
     // Model the pre-audit schema: additive initialization must preserve listener data.
@@ -282,11 +314,11 @@ test("recommendations weight favorite genres and distinct listened stories, excl
   await request(app).put("/api/library/1").expect(200);
   await request(app)
     .put("/api/progress/101")
-    .send({ positionSeconds: 5 })
+    .send(await progressBody(app, { positionSeconds: 5 }, "/api/progress/101"))
     .expect(200);
   await request(app)
     .put("/api/progress/102")
-    .send({ positionSeconds: 5 })
+    .send(await progressBody(app, { positionSeconds: 5 }, "/api/progress/102"))
     .expect(200);
   const stories = (await request(app).get("/api/recommendations")).body.stories;
   assert.equal(stories[0].id, 6);
@@ -300,7 +332,13 @@ test("fully completed stories are excluded from recommendations", async () => {
   for (const c of chapters)
     await request(app)
       .put(`/api/progress/${c.id}`)
-      .send({ positionSeconds: c.duration_seconds, completed: true })
+      .send(
+        await progressBody(
+          app,
+          { positionSeconds: c.duration_seconds, completed: true },
+          `/api/progress/${c.id}`,
+        ),
+      )
       .expect(200);
   assert.ok(
     !(await request(app).get("/api/recommendations")).body.stories.some(
@@ -341,26 +379,36 @@ test("missing audio returns a JSON 404 rather than the SPA document", async () =
 });
 
 test("out-of-order saves and duplicate versions cannot rewind progress or duplicate completion events", async () => {
-  const clientId = "12345678-1234-4234-8234-123456789abc";
-  const duration = db
-    .prepare("SELECT duration_seconds FROM chapters WHERE id=101")
-    .get().duration_seconds;
-  const write = (sequence, positionSeconds, completed = false) =>
-    request(app)
-      .put("/api/progress/101")
-      .send({ clientId, sequence, positionSeconds, completed })
-      .expect(200);
-  await write(2, 12);
-  await write(1, 5);
+  const clientId = "12345678-1234-4234-8234-123456789abc",
+    duration = db
+      .prepare("SELECT duration_seconds FROM chapters WHERE id=101")
+      .get().duration_seconds;
+  const body = (sequence, expectedRevision, positionSeconds, extra = {}) => ({
+    clientId,
+    sequence,
+    expectedRevision,
+    positionSeconds,
+    ...extra,
+  });
+  const first = body(2, 0, 12);
+  await request(app).put("/api/progress/101").send(first).expect(200);
+  await request(app)
+    .put("/api/progress/101")
+    .send(body(1, 0, 5))
+    .expect(409);
   assert.equal(
-    (await request(app).get("/api/progress")).body.progress[0].position_seconds,
+    (await request(app).get("/api/progress/101")).body.progress
+      .position_seconds,
     12,
   );
-  await write(3, duration, true);
-  await write(2, 12);
-  await write(3, duration, true);
-  const result = (await request(app).get("/api/progress")).body.progress[0];
-  assert.equal(result.completed, true);
+  const complete = body(3, 1, duration, { completed: true });
+  await request(app).put("/api/progress/101").send(complete).expect(200);
+  await request(app).put("/api/progress/101").send(first).expect(409);
+  await request(app).put("/api/progress/101").send(complete).expect(200);
+  assert.equal(
+    (await request(app).get("/api/progress/101")).body.progress.completed,
+    true,
+  );
   assert.equal(
     db
       .prepare(
@@ -369,10 +417,13 @@ test("out-of-order saves and duplicate versions cannot rewind progress or duplic
       .get().n,
     1,
   );
-  await write(4, 0);
-  await write(3, duration, true);
+  await request(app)
+    .put("/api/progress/101")
+    .send(body(4, 2, 0, { action: "reset" }))
+    .expect(200);
+  await request(app).put("/api/progress/101").send(complete).expect(409);
   assert.equal(
-    (await request(app).get("/api/progress")).body.progress[0].completed,
+    (await request(app).get("/api/progress/101")).body.progress.completed,
     false,
   );
   assert.equal(
@@ -385,17 +436,23 @@ test("out-of-order saves and duplicate versions cannot rewind progress or duplic
   );
 });
 test("invalid progress ordering metadata is rejected without changing saved state", async () => {
-  for (const fields of [
-    { clientId: "bad", sequence: 1 },
-    { clientId: "12345678-1234-4234-8234-123456789abc" },
-    { sequence: 1 },
-    { clientId: "12345678-1234-4234-8234-123456789abc", sequence: 0 },
-    { clientId: "12345678-1234-4234-8234-123456789abc", sequence: 1.5 },
+  const base = {
+    positionSeconds: 5,
+    expectedRevision: 0,
+    clientId: "12345678-1234-4234-8234-123456789abc",
+    sequence: 1,
+  };
+  for (const [fields, status] of [
+    [{ clientId: "bad" }, 400],
+    [{ sequence: undefined }, 428],
+    [{ clientId: undefined }, 428],
+    [{ sequence: 0 }, 400],
+    [{ sequence: 1.5 }, 400],
   ])
     await request(app)
       .put("/api/progress/101")
-      .send({ positionSeconds: 5, ...fields })
-      .expect(400);
+      .send({ ...base, ...fields })
+      .expect(status);
   assert.equal(
     (await request(app).get("/api/progress")).body.progress.length,
     0,

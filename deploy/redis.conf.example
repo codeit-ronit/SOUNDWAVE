@@ -1,0 +1,7 @@
+bind 0.0.0.0
+protected-mode yes
+appendonly yes
+maxmemory 64mb
+maxmemory-policy noeviction
+# Use a generated hex password; no whitespace or shell syntax.
+requirepass REPLACE_WITH_RANDOM_HEX_PASSWORD

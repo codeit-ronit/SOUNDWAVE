@@ -1,0 +1,384 @@
+{
+  "milestone": "M1.4 Paginated Listening History and Privacy Controls",
+  "status": "Implemented and locally verified",
+  "verifiedAt": "2026-11-08T11:29:41.899554+00:00",
+  "branch": "feature/m1-private-playlists",
+  "baseCommit": "b88a82a",
+  "implementationCommit": "b1600779fa503e49d673a82d43713630cf8b45a2",
+  "commitInventoryNote": "Implementation commit above; this verification and CI/roadmap update is a separate subsequent commit, whose own hash is intentionally not self-referenced.",
+  "remoteActions": "NOT RUN / NOT VERIFIED",
+  "pushed": false,
+  "deployed": false,
+  "productionResourcesChanged": false,
+  "environment": {
+    "node": "22.21.1",
+    "postgres": "18.6; own disposable loopback soundwave_ci_history_20261108 database, generated schemas and restore databases",
+    "redis": "7.4.12; dedicated loopback Redis and randomized namespaces",
+    "browser": "Local headless Chrome, Playwright 1.64.1 on Apple Silicon macOS; not a cross-browser or hosted Linux certification",
+    "installation": "Clean npm ci passed in a dotenv-free disposable export; no dependencies added"
+  },
+  "applicationTests": {
+    "command": "TEST_DATABASE_URL=<disposable-local-pg> TEST_REDIS_URL=<dedicated-local-redis> TEST_BACKUP_CONTAINER=<matching-test-container> npm test (also exact CI test runner)",
+    "backend": 195,
+    "frontend": 126,
+    "total": 321,
+    "baseline": 289,
+    "newBackend": 20,
+    "newFrontend": 12,
+    "failed": 0,
+    "skipped": 0,
+    "additionalRun": "Strengthened History tests: 20/20 on both adapters; final frontend rerun:126/126 including explicit tombstone-field stripping from download metadata"
+  },
+  "ciSafetyTests": {
+    "command": "node --test scripts/ci/safety.test.mjs; also CI test runner",
+    "passed": 6,
+    "failed": 0
+  },
+  "browserChecks": [
+    {
+      "suite": "core",
+      "database": "sqlite",
+      "command": "node scripts/browser-smoke.mjs",
+      "passed": 14
+    },
+    {
+      "suite": "keyboard",
+      "database": "sqlite",
+      "command": "node scripts/keyboard-smoke.mjs",
+      "passed": 3
+    },
+    {
+      "suite": "login",
+      "database": "sqlite",
+      "command": "CI browser: auth-smoke.mjs",
+      "passed": 5
+    },
+    {
+      "suite": "playlists",
+      "database": "postgres",
+      "command": "CI browser: playlists-smoke.mjs",
+      "passed": 10
+    },
+    {
+      "suite": "settings",
+      "database": "postgres",
+      "command": "CI browser: settings-smoke.mjs",
+      "passed": 8
+    },
+    {
+      "suite": "queue",
+      "database": "postgres",
+      "command": "CI browser: queue-smoke.mjs",
+      "passed": 14
+    },
+    {
+      "suite": "cross-device",
+      "database": "postgres",
+      "command": "CI browser: cross-device-smoke.mjs",
+      "passed": 10
+    },
+    {
+      "suite": "offline",
+      "database": "sqlite",
+      "command": "CI browser: offline-smoke.mjs",
+      "passed": 13
+    },
+    {
+      "suite": "restart",
+      "database": "sqlite",
+      "command": "CI browser: audit-smoke.mjs",
+      "passed": 7
+    },
+    {
+      "suite": "history",
+      "database": "sqlite",
+      "command": "node scripts/history-smoke.mjs docs/m1-history-browser-sqlite.json",
+      "passed": 7
+    },
+    {
+      "suite": "history",
+      "database": "postgres",
+      "command": "TEST_DATABASE_URL=<disposable-local-pg> node scripts/history-smoke.mjs docs/m1-history-browser-postgres.json; also CI browser",
+      "passed": 7
+    }
+  ],
+  "browserTotal": 98,
+  "browserCountSemantics": "Check groups reported by the scripts, not a count of individual assertions; repeated PG History direct/CI executions counted once.",
+  "localCIGates": {
+    "install": {
+      "mode": "install",
+      "environment": {
+        "database": "soundwave_ci_history_20261108",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "install",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 6769
+        }
+      ]
+    },
+    "test": {
+      "mode": "test",
+      "environment": {
+        "database": "soundwave_ci_history_20261108",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "ci-safety",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 82
+        },
+        {
+          "name": "migrations",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 253
+        },
+        {
+          "name": "tests",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 20842
+        }
+      ]
+    },
+    "build": {
+      "mode": "build",
+      "environment": {
+        "database": "soundwave_ci_history_20261108",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "build",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 2429
+        }
+      ]
+    },
+    "format": {
+      "mode": "format",
+      "environment": {
+        "database": "soundwave_ci_history_20261108",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 2819
+        },
+        {
+          "name": "ci-doc-format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 772
+        }
+      ]
+    },
+    "browser": {
+      "mode": "browser",
+      "environment": {
+        "database": "soundwave_ci_history_20261108",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "login",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 7697
+        },
+        {
+          "name": "playlists",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 9031
+        },
+        {
+          "name": "settings",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8406
+        },
+        {
+          "name": "queue",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 9160
+        },
+        {
+          "name": "cross-device",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 6912
+        },
+        {
+          "name": "history",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 10292
+        },
+        {
+          "name": "offline",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3854
+        },
+        {
+          "name": "restart",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 5666
+        }
+      ]
+    }
+  },
+  "integrationCoverage": {
+    "required": [
+      "postgres: transaction rollback, concurrent completions and stale progress writes",
+      "PostgreSQL fresh concurrent migrations",
+      "postgres: playlist reads/writes reject anonymous sessions",
+      "postgres: concurrent playlist additions serialize",
+      "Redis atomically shares request limits across independent application instances",
+      "real PostgreSQL backup restores all 21",
+      "postgres: account writes serialize concurrent field changes and roll back atomically",
+      "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
+      "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
+      "postgres: rejected valid attempts also reserve their identity and cannot be repurposed",
+      "postgres: progress survives Redis disconnect/reconnect and streaming remains available",
+      "postgres: concurrent history removal and progress updates serialize without resurrection",
+      "postgres: guarded bulk clear is atomic, repeat-safe and does not erase post-clear activity",
+      "postgres: additive history migration preserves bookmarks, completion and revision receipts"
+    ],
+    "missing": [],
+    "zeroSkipped": true
+  },
+  "migrations": [
+    "server/migrations/postgres/013_history.sql",
+    "server/migrations/sqlite/014_history.sql"
+  ],
+  "databaseChanges": {
+    "newTables": 0,
+    "backupTableCount": 21,
+    "users": ["history_revision"],
+    "listening_progress": ["history_removed"],
+    "index": "progress_history_idx(user_id,updated_at DESC,chapter_id DESC) WHERE history_removed=0",
+    "writes": "Transactions with owner-before-chapter lock ordering; owner lock serializes bulk clear/progress/read guard; SQLite uses existing serialized adapter",
+    "preservation": "Fresh and populated migrations/reapply, SQLite import of tombstones and retained target tombstones, actual 21-table PostgreSQL backup/restore fingerprints all pass"
+  },
+  "apiChanges": [
+    "GET /api/history?limit=20&cursor=... default20/max50, exact timestamp/chapter DESC owner-bound cursor; returns entries,nextCursor,historyRevision",
+    "DELETE /api/history/:chapterId with expectedRevision; generic success for missing/foreign entries",
+    "DELETE /api/history with expectedHistoryRevision and confirm:CLEAR_SAVED_HISTORY; repeat-empty no-op, new activity conflicts",
+    "GET current chapter/story chapters expose removed; Continue Listening and visible progress list exclude tombstones"
+  ],
+  "deletionSemantics": {
+    "changes": [
+      "Hide saved bookmarks from History and Continue Listening",
+      "Clear incomplete saved positions to zero",
+      "Preserve row/revision tombstone; increment chapter revision once",
+      "Advance owner history revision once per removal/bulk operation",
+      "Retain old receipt/high-water identities; stale writes conflict; ordinary saves cannot restore tombstones",
+      "Explicit current-revision reset/replay can restore saved progress"
+    ],
+    "retains": [
+      "Completion flags and completed end markers",
+      "Listening events/time totals, analytics rollups and outbox",
+      "Favorites and playlist membership/order",
+      "Current audio and tab-local queue/positions",
+      "Public offline downloads and backups"
+    ],
+    "idempotency": "Repeated individual removal acknowledges existing tombstone without another increment. Empty bulk clear is a no-op; old clear after new activity returns409. Old accepted write retries acknowledge original outcome but return current tombstone, never restore old data.",
+    "privacy": "Bookmark removal is not full data erasure; future playback can still generate listening analytics. No analytics/account deletion API added."
+  },
+  "testsCover": [
+    "Cursor limits/defaults/ties/deleted boundaries/PG microseconds/foreign and malformed cursors",
+    "Anonymous/CSRF/forged IDs and selectors/owner isolation",
+    "Individual and guarded bulk removal/duplicate removal",
+    "Stale device writes, exact prior receipts and explicit replay",
+    "Concurrent delete-update and bulk-clear-update races, proven transaction rollback",
+    "Completion/event/favorite/playlist retention and Continue Listening",
+    "Redis disconnect503 for private history, public range206, recovery and no catalog cache use",
+    "Guest upgrade, login/logout, refresh, pending history reads/mutations during account changes",
+    "Active audio/queue continuity, old queued resets and autoplay cannot restore known tombstones",
+    "Offline cache exclusion, downloads/range/storage-error and existing player/analytics/progress regressions"
+  ],
+  "checks": {
+    "productionBuild": "PASS; exact CI build runner",
+    "formatting": "PASS npm run format:check, CI documentation formatter, additional architecture/roadmap/browser JSON checks",
+    "gitDiffCheck": "PASS",
+    "workflow": "Only job label and existing runner coverage extended; Prettier YAML parser passed. No new actionlint run claimed."
+  },
+  "issuesFoundAndFixed": [
+    "Initial formatting check found server/routes/history.js; formatted and final checks passed",
+    "No unresolved application-test or browser failures at delivery"
+  ],
+  "notRun": [
+    "Remote GitHub Actions, deployment and public demo update",
+    "Optional live-provider, external-email, load/worker-supervisor experiments and cross-browser matrix were not rerun for this listener-only milestone"
+  ],
+  "limitations": [
+    "Removal retains tombstones/receipts/completion/analytics/backups and does not provide full privacy erasure",
+    "Live cursor pages require refresh to see newer/moved entries; active playback can cause an intentional stale-clear409",
+    "Old /progress list remains unpaginated for backward compatibility",
+    "Owner-level locking prioritizes correctness; no new load/performance claims",
+    "Replace/drain old API binaries before enabling removals; old binaries do not enforce tombstones",
+    "Restoring older backups can restore older state/revisions; retire offline writers during recovery",
+    "Queues remain tab-local; downloads device-wide/public; history management requires an online authenticated session",
+    "No general durable offline write queue, creator features or cross-device queue synchronization"
+  ],
+  "changedFiles": [
+    ".github/workflows/ci.yml",
+    "README.md",
+    "client/src/App.jsx",
+    "client/src/History.jsx",
+    "client/src/History.test.jsx",
+    "client/src/PlayerContext.jsx",
+    "client/src/PlayerContext.test.jsx",
+    "client/src/api.js",
+    "client/src/components.jsx",
+    "client/src/offlineMetadata.test.js",
+    "client/src/progressSync.js",
+    "client/src/progressSync.test.js",
+    "client/src/styles.css",
+    "docs/ARCHITECTURE.md",
+    "docs/CI.md",
+    "docs/M1_HISTORY.md",
+    "docs/SOUNDWAVE_V3_ROADMAP.md",
+    "docs/m1-history-browser-postgres.json",
+    "docs/m1-history-browser-sqlite.json",
+    "docs/m1-history-verification.json",
+    "package.json",
+    "scripts/ci/run.mjs",
+    "scripts/history-smoke.mjs",
+    "server/app.js",
+    "server/database/import-sqlite.js",
+    "server/db.js",
+    "server/migrations/postgres/013_history.sql",
+    "server/migrations/sqlite/014_history.sql",
+    "server/repositories/catalog.js",
+    "server/repositories/history-owner.js",
+    "server/repositories/history.js",
+    "server/repositories/listening.js",
+    "server/repositories/progress-error.js",
+    "server/routes/history.js",
+    "server/services/discovery.js",
+    "server/services/history.js",
+    "server/test/backup.test.js",
+    "server/test/history.test.js",
+    "server/test/migration.test.js"
+  ]
+}

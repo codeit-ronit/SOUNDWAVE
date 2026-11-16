@@ -1,4 +1,4 @@
-export function jobHandlers(db, { mail } = {}) {
+export function jobHandlers(db, { mail, privateQueue } = {}) {
   return {
     async analytics_rollup(job) {
       const { day } = JSON.parse(job.payload);
@@ -35,7 +35,20 @@ export function jobHandlers(db, { mail } = {}) {
             new Date().toISOString(),
           );
     },
-    async maintenance() {
+    async maintenance(job) {
+      if (job?.dispatch_topic === "private_audio") {
+        if (!privateQueue)
+          throw Object.assign(Error("Private queue unavailable"), {
+            code: "private_queue_unavailable",
+          });
+        const { dispatchProcessingIntent } =
+          await import("../media/private-queue.js");
+        return dispatchProcessingIntent(
+          db,
+          privateQueue,
+          JSON.parse(job.payload).intentId,
+        );
+      }
       const now = new Date(),
         expired = new Date(now.getTime() - 7 * 86400000).toISOString();
       // Bounded batches avoid long table locks; registered/legacy identities are never removed.

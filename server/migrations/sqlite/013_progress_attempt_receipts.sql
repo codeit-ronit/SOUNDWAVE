@@ -1,0 +1,1 @@
+ALTER TABLE progress_write_versions ADD COLUMN result_code TEXT CHECK(result_code IS NULL OR result_code IN('PROGRESS_CONFLICT','PROGRESS_RESET_REQUIRED','PROGRESS_REVISION_LIMIT'));

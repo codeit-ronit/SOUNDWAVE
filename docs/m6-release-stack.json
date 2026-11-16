@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-14T11:00:50.395Z",
+  "checks": [
+    "standalone release config exposes only loopback TLS proxy in the test; all five images are native linux/arm64",
+    "distinct non-superuser migrator/runtime credentials bootstrap schema; API and worker start in read-only schema-verification mode",
+    "HTTPS secure host-only cookie, CSRF/session and real proxied WAV upload/FFmpeg worker processing work; draft remains private",
+    "moderator provisioning is operator-only; approved content publishes and plays through HTTPS with preserved 200/206/416 semantics",
+    "same-origin production PWA downloads and offline ranges work; revocation blocks fresh online reads through the proxy",
+    "forged forwarding headers cannot bypass the real proxy/API shared request bucket",
+    "recovery quarantine propagates through the production profile: HTTP/ready fail closed and worker refuses work"
+  ],
+  "tls": "Only this disposable local Caddy leaf SPKI is pinned for browser validation; no global TLS ignore or host trust-store change. Public ACME/DNS not verified.",
+  "images": [
+    {
+      "tag": "soundwave:release-api",
+      "architecture": "arm64",
+      "id": "sha256:0bed15573bac43712dac36bc2a06f93b90cdae227f49d2c250861041ae49f7ec",
+      "digests": [
+        "soundwave@sha256:0bed15573bac43712dac36bc2a06f93b90cdae227f49d2c250861041ae49f7ec"
+      ]
+    },
+    {
+      "tag": "soundwave:release-worker",
+      "architecture": "arm64",
+      "id": "sha256:284b2c927ed8a43de1717e939125343eaa528592e29a48dd72a56ede2aca7846",
+      "digests": [
+        "soundwave@sha256:284b2c927ed8a43de1717e939125343eaa528592e29a48dd72a56ede2aca7846"
+      ]
+    },
+    {
+      "tag": "caddy:2-alpine",
+      "architecture": "arm64",
+      "id": "sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0",
+      "digests": [
+        "caddy@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0"
+      ]
+    },
+    {
+      "tag": "postgres:18.6-trixie",
+      "architecture": "arm64",
+      "id": "sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722",
+      "digests": [
+        "postgres@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722"
+      ]
+    },
+    {
+      "tag": "redis:7.4-alpine",
+      "architecture": "arm64",
+      "id": "sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f",
+      "digests": [
+        "redis@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f"
+      ]
+    }
+  ]
+}

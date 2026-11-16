@@ -10,6 +10,8 @@ import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
 import { openDatabase } from "../server/db.js";
 import { connectDatabase } from "../server/database/index.js";
+import { waitForProgressSave, waitForPlaybackEvent } from "./browser-sync.mjs";
+import { captureBrowserFailure } from "./browser-artifacts.mjs";
 const folder = mkdtempSync(join(tmpdir(), "soundwave-independent-audit-"));
 const databasePath = join(folder, "audit.sqlite");
 const reservation = createServer().listen(0, "127.0.0.1");
@@ -19,7 +21,13 @@ await new Promise((r) => reservation.close(r));
 const base = `http://127.0.0.1:${port}`;
 let child,
   browser,
+  page,
   checks = 0;
+const diagnosticEvents = [];
+const record = (event) => {
+  diagnosticEvents.push(event);
+  if (diagnosticEvents.length > 200) diagnosticEvents.shift();
+};
 let childErrors = "";
 let cookies = "",
   csrf = "",
@@ -81,7 +89,58 @@ try {
       process.env.CHROME_PATH || (existsSync(mac) ? mac : undefined),
   };
   browser = await chromium.launch(browserOptions);
-  let page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await page.exposeFunction("recordSoundWaveProbe", record);
+  await page.addInitScript(() => {
+    for (const type of [
+      "loadedmetadata",
+      "seeking",
+      "seeked",
+      "error",
+      "pause",
+      "playing",
+    ])
+      document.addEventListener(
+        type,
+        (event) => {
+          const a = event.target;
+          if (a instanceof HTMLAudioElement)
+            void window.recordSoundWaveProbe({
+              type,
+              time: a.currentTime,
+              paused: a.paused,
+              ready: a.readyState,
+              network: a.networkState,
+              error: a.error?.code || null,
+            });
+        },
+        true,
+      );
+  });
+  page.on("request", (request) => {
+    if (
+      request.method() === "PUT" &&
+      /\/api\/progress\/\d+$/.test(new URL(request.url()).pathname)
+    ) {
+      const body = request.postDataJSON();
+      record({
+        type: "save-request",
+        position: body.positionSeconds,
+        sequence: body.sequence,
+        completed: body.completed,
+      });
+    }
+  });
+  page.on("response", async (response) => {
+    if (new URL(response.url()).pathname === "/api/progress") {
+      const data = await response.json().catch(() => null);
+      record({
+        type: "progress-response",
+        status: response.status(),
+        positions: data?.progress?.map((p) => p.position_seconds),
+      });
+    }
+  });
   const errors = [];
   page.on("pageerror", (err) => errors.push(err.message));
   let progressWrites = 0;
@@ -99,17 +158,22 @@ try {
   await page.waitForFunction(
     () => document.querySelector("audio")?.currentTime > 1.1,
   );
+  const pausedEvent = waitForPlaybackEvent(page, "playback_paused");
   await page
     .locator(".player")
     .getByRole("button", { name: "Pause", exact: true })
     .click();
-  await page.waitForFunction(async () => {
-    const d = await fetch("/api/analytics/overview").then((r) => r.json());
-    return (
-      d.totalListeningSeconds > 0 &&
-      d.recentActivity.some((e) => e.event_type === "playback_paused")
-    );
-  });
+  await pausedEvent;
+  assert.equal(
+    await page.evaluate(async () => {
+      const d = await fetch("/api/analytics/overview").then((r) => r.json());
+      return (
+        d.totalListeningSeconds > 0 &&
+        d.recentActivity.some((e) => e.event_type === "playback_paused")
+      );
+    }),
+    true,
+  );
   await page
     .getByRole("button", {
       name: "Add The Midnight Frequency to your library",
@@ -128,6 +192,10 @@ try {
     "real playback/pause and favorites reach a disk-backed production server",
   );
   const writesBefore = progressWrites;
+  const seekSaved = waitForProgressSave(
+    page,
+    (p) => Math.abs((p?.position_seconds ?? 0) - 7.9) < 0.05,
+  );
   await page
     .getByRole("slider", { name: "Playback position", exact: true })
     .evaluate((input) => {
@@ -140,10 +208,14 @@ try {
         input.dispatchEvent(new Event("input", { bubbles: true }));
       }
     });
-  await page.waitForFunction(async () => {
-    const d = await fetch("/api/progress").then((r) => r.json());
-    return Math.abs((d.progress[0]?.position_seconds ?? 0) - 7.9) < 0.05;
-  });
+  await seekSaved;
+  assert.equal(
+    await page.evaluate(async () => {
+      const d = await fetch("/api/progress").then((r) => r.json());
+      return Math.abs((d.progress[0]?.position_seconds ?? 0) - 7.9) < 0.05;
+    }),
+    true,
+  );
   assert.ok(
     progressWrites - writesBefore <= 2,
     `Slider drag sent ${progressWrites - writesBefore} writes`,
@@ -214,6 +286,7 @@ try {
   const chapters = (await get("/api/stories/1/chapters")).chapters;
   const duration = chapters[0].duration_seconds;
   const clientId = randomUUID();
+  const expectedRevision = (await get("/api/progress/101")).progress.revision;
   for (const [sequence, positionSeconds, completed] of [
     [2, duration, true],
     [1, 0, false],
@@ -226,9 +299,15 @@ try {
         Cookie: cookies,
         "X-CSRF-Token": csrf,
       },
-      body: JSON.stringify({ clientId, sequence, positionSeconds, completed }),
+      body: JSON.stringify({
+        clientId,
+        sequence,
+        positionSeconds,
+        completed,
+        expectedRevision,
+      }),
     });
-    assert.equal(response.status, 200);
+    assert.equal(response.status, sequence === 1 ? 409 : 200);
   }
   const complete = await get("/api/analytics/overview");
   assert.equal(complete.completedChapters, 1);
@@ -275,6 +354,37 @@ try {
   console.log(
     `\n${checks} independent restart/security/browser audit checks passed.`,
   );
+} catch (error) {
+  await captureBrowserFailure(page, "restart");
+  console.error(
+    "RESTART DIAGNOSTICS",
+    JSON.stringify({
+      events: diagnosticEvents,
+      audio: await page
+        ?.evaluate(() => {
+          const a = document.querySelector("audio");
+          return a
+            ? {
+                time: a.currentTime,
+                ready: a.readyState,
+                paused: a.paused,
+                error: a.error?.code || null,
+                source: new URL(a.currentSrc || location.href).pathname,
+              }
+            : null;
+        })
+        .catch(() => null),
+      progress: await get("/api/progress")
+        .then((d) =>
+          d.progress?.map((p) => ({
+            position: p.position_seconds,
+            completed: p.completed,
+          })),
+        )
+        .catch(() => null),
+    }),
+  );
+  throw error;
 } finally {
   if (browser) await browser.close();
   await stop();

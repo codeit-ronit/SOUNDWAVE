@@ -1,6 +1,10 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import fsPromises from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
+import { get as httpGet } from "node:http";
+import { setTimeout as delay } from "node:timers/promises";
 import request from "supertest";
 import { openDatabase, seedDatabase } from "../db.js";
 import { createApp } from "./helpers.js";
@@ -17,6 +21,50 @@ const binary = (res, callback) => {
   res.on("data", (chunk) => parts.push(chunk));
   res.on("end", () => callback(null, Buffer.concat(parts)));
 };
+test("audio descriptor closes when the client disconnects during awaited file stat", async () => {
+  const originalOpen = fsPromises.open;
+  let entered, release, handle, disconnected;
+  const opened = new Promise((r) => (entered = r)),
+    gate = new Promise((r) => (release = r)),
+    closed = new Promise((r) => (disconnected = r));
+  fsPromises.open = async (...args) => {
+    handle = await originalOpen(...args);
+    const stat = handle.stat.bind(handle);
+    handle.stat = async () => {
+      entered();
+      await gate;
+      return stat();
+    };
+    return handle;
+  };
+  syncBuiltinESMExports();
+  const server = app.listen(0, "127.0.0.1");
+  server.on("request", (_req, res) => res.on("close", disconnected));
+  await new Promise((r) => server.once("listening", r));
+  const client = httpGet(
+    `http://127.0.0.1:${server.address().port}/api/chapters/101/stream`,
+  );
+  client.on("error", () => {});
+  try {
+    await opened;
+    client.destroy();
+    await closed;
+    release();
+    for (let i = 0; i < 50 && handle.fd !== -1; i++) await delay(10);
+    assert.equal(
+      handle.fd,
+      -1,
+      "aborted response must explicitly close its opened file descriptor",
+    );
+  } finally {
+    release();
+    client.destroy();
+    if (handle?.fd >= 0) await handle.close();
+    fsPromises.open = originalOpen;
+    syncBuiltinESMExports();
+    await new Promise((r) => server.close(r));
+  }
+});
 test("stream full GET delivers exact file bytes and complete media headers", async () => {
   const res = await request(app)
     .get("/api/chapters/101/stream")

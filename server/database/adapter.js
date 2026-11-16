@@ -1,3 +1,4 @@
+import { telemetry } from "../telemetry.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import pg from "pg";
 // Only PostgreSQL's bounded integer/count parsers are changed; bigint values must stay safe.
@@ -29,20 +30,50 @@ export function sqliteAdapter(raw) {
       Object.fromEntries(
         ["get", "all", "run"].map((method) => [
           method,
-          (...args) => exclusive(() => raw.prepare(sql)[method](...args)),
+          (...args) =>
+            exclusive(async () => {
+              const t = performance.now();
+              try {
+                return raw.prepare(sql)[method](...args);
+              } catch (e) {
+                telemetry(db).observe(
+                  "db_query_ms",
+                  "error",
+                  performance.now() - t,
+                );
+                throw e;
+              } finally {
+                telemetry(db).observe(
+                  "db_query_ms",
+                  method === "run" ? "write" : "read",
+                  performance.now() - t,
+                );
+              }
+            }),
         ]),
       ),
     transaction: (fn) =>
       scope.getStore()
         ? fn()
         : exclusive(async () => {
+            const started = performance.now();
             raw.exec("BEGIN IMMEDIATE");
             try {
               const result = await fn();
               raw.exec("COMMIT");
+              telemetry(db).observe(
+                "db_transaction_ms",
+                "ok",
+                performance.now() - started,
+              );
               return result;
             } catch (error) {
               raw.exec("ROLLBACK");
+              telemetry(db).observe(
+                "db_transaction_ms",
+                "error",
+                performance.now() - started,
+              );
               throw error;
             }
           }),
@@ -104,7 +135,23 @@ export function postgresAdapter(
     prepare: (sql) => {
       const execute = async (args) => {
         const query = bindSql(sql, args);
-        return (scope.getStore() || pool).query(query);
+        const started = performance.now();
+        try {
+          return await (scope.getStore() || pool).query(query);
+        } catch (e) {
+          telemetry(db).observe(
+            "db_query_ms",
+            "error",
+            performance.now() - started,
+          );
+          throw e;
+        } finally {
+          telemetry(db).observe(
+            "db_query_ms",
+            /^\s*(SELECT|WITH)/i.test(sql) ? "read" : "write",
+            performance.now() - started,
+          );
+        }
       };
       return {
         get: async (...args) => (await execute(args)).rows.map(normalize)[0],
@@ -114,6 +161,7 @@ export function postgresAdapter(
     },
     transaction: async (fn) => {
       if (scope.getStore()) return fn();
+      const started = performance.now();
       const client = await pool.connect();
       let connectionError;
       const onError = (error) => {
@@ -125,9 +173,19 @@ export function postgresAdapter(
         const result = await scope.run(client, fn);
         if (connectionError) throw connectionError;
         await client.query("COMMIT");
+        telemetry(db).observe(
+          "db_transaction_ms",
+          "ok",
+          performance.now() - started,
+        );
         return result;
       } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
+        telemetry(db).observe(
+          "db_transaction_ms",
+          "error",
+          performance.now() - started,
+        );
         throw error;
       } finally {
         client.release();

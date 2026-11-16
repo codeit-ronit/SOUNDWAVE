@@ -1,0 +1,11 @@
+{
+  "date": "2026-11-13T13:45:18.685Z",
+  "database": "postgres",
+  "checks": [
+    "upload persists a genuine pending processing intent and outbox; technical validation does not show MP3 ready",
+    "Studio exposes the actual claimed processing stage without simulated percentages",
+    "real BullMQ/FFmpeg output decodes in native MP3 preview while the original WAV stays available and unpublished",
+    "a missing derivative produces a recoverable preview error; explicit revision-guarded retry rebuilds a distinct immutable MP3",
+    "refresh preserves ready output, a controlling PWA never caches private bytes, mobile fits and logout removes private previews"
+  ]
+}

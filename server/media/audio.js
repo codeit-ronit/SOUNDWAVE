@@ -26,9 +26,9 @@ export async function sourceHash(path) {
   for await (const chunk of createReadStream(path)) hash.update(chunk);
   return hash.digest("hex");
 }
-export async function inspectWav(path, { bins = 128 } = {}) {
+export async function inspectWav(path, { bins = 128, handle } = {}) {
   if (!Number.isInteger(bins) || bins < 1 || bins > 1024) throw invalid();
-  const f = await open(path, "r");
+  const f = handle || (await open(path, "r"));
   try {
     const stat = await f.stat();
     if (!stat.isFile() || stat.size < 44 || stat.size > 100 * 1024 * 1024)
@@ -110,7 +110,7 @@ export async function inspectWav(path, { bins = 128 } = {}) {
       waveform: peaks.map((n) => Number(n.toFixed(5))),
     };
   } finally {
-    await f.close();
+    if (!handle) await f.close();
   }
 }
 export async function processChapterMedia(db, { chapterId, hash }) {

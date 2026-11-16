@@ -1,3 +1,4 @@
+import { QueueActions } from "./QueuePanel";
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -127,6 +128,7 @@ export function StoryCard({ story, index, reason }) {
         {story.title}
       </Link>
       <p className="card-subtitle">{reason || story.tagline}</p>
+      <QueueActions story={story} />
     </article>
   );
 }
@@ -189,7 +191,85 @@ export function Player() {
           <button onClick={p.error ? p.retry : p.retrySave}>Retry</button>
         </div>
       )}
+      {p.preferenceError && (
+        <div className="player-notice" role="alert">
+          <AlertCircle size={15} />
+          <span>{p.preferenceError}</span>
+          <Link to="/settings">Open Settings</Link>
+        </div>
+      )}
+      {p.queueError && (
+        <div className="player-notice" role="alert">
+          <span>{p.queueError}</span>
+          <Link to="/queue">Open queue</Link>
+          <button onClick={p.dismissQueueError}>Dismiss</button>
+        </div>
+      )}
+      {p.progressConflict && (
+        <section
+          className="player-conflict"
+          aria-label="Playback progress conflict"
+          role="alert"
+        >
+          <strong>
+            {p.progressConflict.server.removed
+              ? "This chapter was removed from saved history"
+              : p.progressConflict.reason === "unsaved"
+                ? "This device has unsaved progress"
+                : "Another session saved this chapter"}
+          </strong>
+          <span>
+            Latest: {timeLabel(p.progressConflict.server.position_seconds)}
+            {p.progressConflict.server.completed ? " · completed" : ""}. Your
+            audio has not moved.
+          </span>
+          <span>
+            {p.progressConflict.server.removed
+              ? "Keep Removed leaves current audio and queue unchanged. Restore My Position explicitly restores a saved bookmark."
+              : "Resume Latest loads it paused. Keep My Position explicitly saves your current position and reopens a completed chapter when needed."}
+          </span>
+          <div>
+            <button
+              className="button secondary"
+              disabled={p.syncing}
+              onClick={() =>
+                p.resolveProgress(
+                  p.progressConflict.server.removed ? "removed" : "latest",
+                )
+              }
+            >
+              {p.progressConflict.server.removed
+                ? "Keep Removed"
+                : "Resume Latest"}
+            </button>
+            <button
+              className="button secondary"
+              disabled={p.syncing}
+              onClick={() => p.resolveProgress("keep")}
+            >
+              {p.progressConflict.server.removed
+                ? "Restore My Position"
+                : "Keep My Position"}
+            </button>
+          </div>
+        </section>
+      )}
       <div className="player-options">
+        <button
+          className="sync-button"
+          disabled={!p.active || p.syncing}
+          onClick={() => p.refreshProgress(true)}
+        >
+          {p.syncing ? "Checking progress…" : "Refresh Progress"}
+        </button>
+        {p.progressStatus && (
+          <span className="progress-status" role="status">
+            {p.progressStatus}
+          </span>
+        )}
+        <Link to="/queue" className="queue-link">
+          Queue ({p.queue?.upcoming.length || 0})
+        </Link>
         <span className="keyboard-hint">
           Space to play / pause · ← → seek 10s
         </span>

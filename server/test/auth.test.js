@@ -1,3 +1,4 @@
+import { progressBody } from "./progress-body.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -177,7 +178,13 @@ for (const backend of backends) {
         displayName: "Bob",
       });
       await a.write("put", "/library/1").expect(200);
-      await a.write("put", "/progress/101", { positionSeconds: 8 }).expect(200);
+      await a
+        .write(
+          "put",
+          "/progress/101",
+          await progressBody(a, { positionSeconds: 8 }, "/progress/101"),
+        )
+        .expect(200);
       const id = randomUUID();
       const event = {
         id,
@@ -207,12 +214,26 @@ for (const backend of backends) {
         (await b.get("/recommendations")).body.stories.some((s) => s.id === 1),
       );
       await b.write("delete", "/library/1").expect(204);
-      await b.write("put", "/progress/101", { positionSeconds: 2 }).expect(200);
       await b
-        .write("put", "/progress/101", {
-          positionSeconds: 4,
-          userId: a.data.user.id,
-        })
+        .write(
+          "put",
+          "/progress/101",
+          await progressBody(b, { positionSeconds: 2 }, "/progress/101"),
+        )
+        .expect(200);
+      await b
+        .write(
+          "put",
+          "/progress/101",
+          await progressBody(
+            b,
+            {
+              positionSeconds: 4,
+              userId: a.data.user.id,
+            },
+            "/progress/101",
+          ),
+        )
         .expect(400);
       await b
         .write("post", "/analytics/events", {
@@ -337,25 +358,27 @@ for (const backend of backends) {
       const duration = (await a.get("/stories/1/chapters")).body.chapters[0]
         .duration_seconds;
       const clientId = randomUUID();
-      await Promise.all(
+      const results = await Promise.all(
         [1, 2, 3].map((sequence) =>
-          a
-            .write("put", "/progress/101", {
-              positionSeconds: duration,
-              completed: true,
-              clientId,
-              sequence,
-            })
-            .expect(200),
+          a.write("put", "/progress/101", {
+            positionSeconds: duration,
+            completed: true,
+            clientId,
+            sequence,
+            expectedRevision: 0,
+          }),
         ),
       );
+      assert.equal(results.filter((r) => r.status === 200).length, 1);
+      assert.equal(results.filter((r) => r.status === 409).length, 2);
       await a
         .write("put", "/progress/101", {
           positionSeconds: 0,
           clientId,
           sequence: 1,
+          expectedRevision: 0,
         })
-        .expect(200);
+        .expect(409);
       const overview = (await a.get("/analytics/overview")).body;
       assert.equal(overview.completedChapters, 1);
       assert.equal(
@@ -419,7 +442,13 @@ for (const backend of backends) {
       await a.auth("demo");
       const id = a.data.user.id;
       await a.write("put", "/library/1").expect(200);
-      await a.write("put", "/progress/101", { positionSeconds: 7 }).expect(200);
+      await a
+        .write(
+          "put",
+          "/progress/101",
+          await progressBody(a, { positionSeconds: 7 }, "/progress/101"),
+        )
+        .expect(200);
       assert.equal(
         (
           await a.auth("register", {

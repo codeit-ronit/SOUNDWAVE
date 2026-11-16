@@ -1,0 +1,14 @@
+{
+  "date": "2026-11-10T04:29:05.104Z",
+  "database": "postgres",
+  "checks": [
+    "isolated guests see ineligibility and the server rejects creator activation",
+    "registration retains the guest UUID; explicit onboarding activates one private creator profile without staff privileges",
+    "profile edits persist while the same real audio element keeps playing; bio markup remains plain text",
+    "confirmed deactivation/reactivation retain profile and audio; refresh restores the profile and paused listening position",
+    "operator suspension is reflected immediately, prevents reactivation and forged role writes, and leaves favorites/listening available",
+    "logout removes private controls; another guest/account cannot see the previous profile; returning account retains suspension and its own bio",
+    "a failed creator-profile read exposes a recoverable error and retries against real server state",
+    "private creator/session data never enters service-worker caches; mobile layout fits and no uncaught browser errors occur"
+  ]
+}

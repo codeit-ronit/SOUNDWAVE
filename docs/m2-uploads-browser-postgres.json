@@ -1,0 +1,13 @@
+{
+  "date": "2026-11-13T08:07:54.198Z",
+  "database": "postgres",
+  "checks": [
+    "real Studio creates a private chapter and rejects unsupported file selections before reservation",
+    "server rejects a false WAV, UI recovers from validation failure and cleanup releases reserved quota",
+    "actual streamed WAV upload reports transfer progress, validates PCM and decodes in authenticated private preview without publishing",
+    "refresh restores persisted media metadata while public stories, favorites and streaming remain inaccessible",
+    "cancel aborts a pending browser transfer; confirmed reservation cleanup keeps the previous validated audio and avoids duplicate quota",
+    "private deletion requires confirmation, removes preview access and releases quota without changing chapter metadata",
+    "private upload/preview data never enters PWA caches; mobile layout fits and logout removes private controls without browser exceptions"
+  ]
+}

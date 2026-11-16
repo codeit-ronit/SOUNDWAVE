@@ -28,6 +28,20 @@ const tables = [
   "chapter_sources",
   "oauth_identities",
   "oauth_challenges",
+  "playlists",
+  "playlist_items",
+  "user_preferences",
+  "creator_profiles",
+  "creator_id_allocations",
+  "draft_create_receipts",
+  "private_media_assets",
+  "private_media_heads",
+  "private_processing_intents",
+  "private_media_outputs",
+  "story_publications",
+  "publication_chapters",
+  "publication_audit",
+  "publication_receipts",
 ];
 const pool = (url) => {
   const value = new pg.Pool({
@@ -43,9 +57,9 @@ const pool = (url) => {
   value.on("error", () => {});
   return value;
 };
-async function fingerprint(client) {
+async function fingerprint(client, names = tables) {
   const result = {};
-  for (const table of tables)
+  for (const table of names)
     result[table] = (
       await client.query(
         `SELECT COUNT(*)::text AS count,COALESCE(SUM(hashtextextended(to_jsonb(t)::text,0)::numeric),0)::text AS fingerprint FROM public.${table} t`,
@@ -162,6 +176,8 @@ export async function backupDatabase(url, path, { container } = {}) {
       createdAt: new Date().toISOString(),
       sha256: await sha(path),
       tables: counts,
+      privateMediaFiles:
+        "Not included. Restore the matching private storage volume separately and verify checksums before enabling uploads/preview.",
     };
     writeFileSync(path + ".json", JSON.stringify(metadata, null, 2) + "\n", {
       flag: "wx",
@@ -184,6 +200,33 @@ export async function verifyBackup(url, path, { container } = {}) {
   const manifest = JSON.parse(readFileSync(path + ".json", "utf8"));
   if (manifest.version !== 1 || manifest.sha256 !== (await sha(path)))
     throw Error("Archive integrity check failed");
+  const names = Object.keys(manifest.tables || {});
+  const processing = tables.filter(
+    (t) =>
+      ![
+        "story_publications",
+        "publication_chapters",
+        "publication_audit",
+        "publication_receipts",
+      ].includes(t),
+  );
+  const uploads = processing.filter(
+    (t) => !["private_processing_intents", "private_media_outputs"].includes(t),
+  );
+  const drafts = uploads.filter(
+    (t) => !["private_media_assets", "private_media_heads"].includes(t),
+  );
+  const previous = drafts.filter(
+    (t) => !["creator_id_allocations", "draft_create_receipts"].includes(t),
+  );
+  const expected = previous.filter((t) => t !== "creator_profiles");
+  if (
+    ![expected, previous, drafts, uploads, processing, tables].some(
+      (set) =>
+        set.length === names.length && set.every((t) => names.includes(t)),
+    )
+  )
+    throw Error("Unsupported backup table manifest");
   const name = "soundwave_restore_" + randomBytes(12).toString("hex");
   const adminUrl = new URL(url);
   adminUrl.pathname = "/postgres";
@@ -217,12 +260,12 @@ export async function verifyBackup(url, path, { container } = {}) {
     }
     const restored = pool(target.toString());
     try {
-      const actual = await fingerprint(restored);
+      const actual = await fingerprint(restored, names);
       if (JSON.stringify(actual) !== JSON.stringify(manifest.tables))
         throw Error(
           "Restored table fingerprints differ from the snapshot manifest",
         );
-      return { verified: true, tables: tables.length };
+      return { verified: true, tables: names.length };
     } finally {
       await restored.end();
     }

@@ -110,6 +110,7 @@ try {
   pass("container recovery email and same-page reset navigation work together");
   await page
     .getByRole("link", { name: "Return to sign in", exact: true })
+    .and(page.locator("a.button.primary"))
     .click();
   panel = page.getByRole("region", { name: "Your account" });
   await panel.getByLabel("Email", { exact: true }).fill(email);

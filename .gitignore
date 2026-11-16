@@ -6,6 +6,7 @@ server/data/*
 *.log
 .DS_Store
 coverage/
+artifacts/
 
 .vercel/
 
@@ -16,3 +17,8 @@ coverage/
 *.dump.json
 *.backup
 /backups/
+
+# Release configuration must keep filled credentials outside version control.
+**/*.env
+deploy/redis.conf
+deploy/secrets/

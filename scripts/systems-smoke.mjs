@@ -260,6 +260,7 @@ try {
   assert.equal(new URL(page.url()).hash, "");
   await page
     .getByRole("link", { name: "Return to sign in", exact: true })
+    .and(page.locator("a.button.primary"))
     .click();
   const login = page.getByRole("region", { name: "Your account" });
   await login.getByLabel("Email", { exact: true }).fill(email);

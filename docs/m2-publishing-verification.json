@@ -1,0 +1,602 @@
+{
+  "milestone": "M2.6 + M2.7 — Creator publishing, moderation, revocation and audit",
+  "status": "Implemented and locally verified",
+  "verifiedAt": "2026-11-14T05:30:16.650927+00:00",
+  "baseCommit": "1ac0679",
+  "branch": "feature/m1-private-playlists",
+  "commitNote": "Recorded before atomic local delivery commit; see git log for the commit hash.",
+  "remoteActions": "NOT RUN / NOT VERIFIED",
+  "pushed": false,
+  "deployed": false,
+  "productionOrDeveloperDatabaseChanged": false,
+  "applicationTests": {
+    "baseline": 446,
+    "backend": 306,
+    "frontend": 160,
+    "total": 466,
+    "newBackend": 16,
+    "newFrontend": 4,
+    "frontendFiles": 19,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "ciSafety": {
+    "passed": 6,
+    "failed": 0
+  },
+  "environment": {
+    "node": "22.21.1",
+    "ffmpeg": "Real installed FFmpeg 9.0.2 / libmp3lame; real WAV→MP3 fixtures",
+    "databases": "PostgreSQL 18.6, newly created soundwave_ci_publishing_20261114 plus generated disposable schemas; SQLite memory/disk fixtures",
+    "redis": "Dedicated loopback Redis fixture, unique per-test namespaces",
+    "browser": "Local headless Chrome through Playwright",
+    "cleanInstallation": "Dotenv-free source export at /private/tmp/soundwave-publishing-ci; npm ci installed 341 packages, audit reported 0 vulnerabilities; no new dependencies"
+  },
+  "localCiGates": {
+    "install": {
+      "mode": "install",
+      "environment": {
+        "database": "soundwave_ci_publishing_20261114",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "install",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 7423
+        }
+      ]
+    },
+    "test": {
+      "mode": "test",
+      "environment": {
+        "database": "soundwave_ci_publishing_20261114",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "ci-safety",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 85
+        },
+        {
+          "name": "migrations",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 296
+        },
+        {
+          "name": "tests",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 48620
+        }
+      ]
+    },
+    "build": {
+      "mode": "build",
+      "environment": {
+        "database": "soundwave_ci_publishing_20261114",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "build",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1704
+        }
+      ]
+    },
+    "format": {
+      "mode": "format",
+      "environment": {
+        "database": "soundwave_ci_publishing_20261114",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1588
+        },
+        {
+          "name": "ci-doc-format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 612
+        }
+      ]
+    },
+    "browser": {
+      "mode": "browser",
+      "environment": {
+        "database": "soundwave_ci_publishing_20261114",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "login",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 6612
+        },
+        {
+          "name": "playlists",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8598
+        },
+        {
+          "name": "settings",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 17271
+        },
+        {
+          "name": "queue",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 10572
+        },
+        {
+          "name": "cross-device",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8990
+        },
+        {
+          "name": "history",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 6010
+        },
+        {
+          "name": "creator",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 6941
+        },
+        {
+          "name": "drafts",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8272
+        },
+        {
+          "name": "uploads",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3585
+        },
+        {
+          "name": "processing",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3728
+        },
+        {
+          "name": "publishing",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 4368
+        },
+        {
+          "name": "offline",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3084
+        },
+        {
+          "name": "restart",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 4747
+        }
+      ]
+    }
+  },
+  "requiredIntegrationCoverage": {
+    "required": [
+      "postgres: transaction rollback, concurrent completions and stale progress writes",
+      "PostgreSQL fresh concurrent migrations",
+      "postgres: playlist reads/writes reject anonymous sessions",
+      "postgres: concurrent playlist additions serialize",
+      "Redis atomically shares request limits across independent application instances",
+      "real PostgreSQL backup restores all 32",
+      "postgres: account writes serialize concurrent field changes and roll back atomically",
+      "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
+      "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
+      "postgres: rejected valid attempts also reserve their identity and cannot be repurposed",
+      "postgres: progress survives Redis disconnect/reconnect and streaming remains available",
+      "postgres: concurrent history removal and progress updates serialize without resurrection",
+      "postgres: guarded bulk clear is atomic, repeat-safe and does not erase post-clear activity",
+      "postgres: additive history migration preserves bookmarks, completion and revision receipts",
+      "postgres: creator authorization requires both active role and exact story ownership, including staff",
+      "postgres: concurrent onboarding and suspension serialize; failed creator transactions roll back",
+      "postgres: additive creator migration preserves populated listener state and marks catalog provenance",
+      "PostgreSQL creator import preserves identity, role, suspension and ownership; conflicts roll back",
+      "postgres: creator identity and suspension survive password and Google sign-in on the same account",
+      "postgres: publishing real MP3 requires exact review and revocation gates every public read",
+      "postgres: publication role checks, rights validation, receipts and concurrent decisions serialize",
+      "postgres: publication transaction rollback and publish versus revoke races are safe",
+      "postgres: additive publishing migration preserves processed media without granting visibility",
+      "postgres: real FFmpeg private MP3 conversion is checked, playable and idempotent",
+      "postgres: expired processing fences cannot publish or remove a newer immutable result",
+      "postgres: durable outbox dispatch and Redis-loss replay recover the same processing identity",
+      "postgres: worker crash during transcoding, after output and after commit recovers without duplicate artifacts",
+      "postgres: additive processing migration backfills validated uploads and durable outbox atomically",
+      "postgres: replacement, deletion, archive and suspension cannot publish stale processing output",
+      "postgres: invalid encoder output is rejected and chapter edits fence in-flight intent revisions",
+      "postgres: private upload persists validated PCM, checksums and owner-only range preview",
+      "postgres: quota reservation is shared, idempotent and safe across simultaneous chapters",
+      "postgres: streaming byte limit, interruption and timeout release quota after cleanup",
+      "postgres: suspension and chapter changes during upload prevent attachment",
+      "postgres: replacement and delete races retain only a validated current asset",
+      "postgres: storage failures retain quota until recoverable cleanup succeeds; abandoned leases expire",
+      "postgres: private media additive migration preserves populated drafts and listener state",
+      "PostgreSQL private media import preserves metadata but invalidates unavailable bytes and retained target pointers",
+      "private upload bytes, current pointer and single-use identity survive a real API process restart",
+      "postgres: draft role and ownership checks deny guests, suspended creators and staff bypasses",
+      "postgres: same-resource draft edits conflict while independent resources retain both accepted edits",
+      "postgres: concurrent membership/order writes and suspension races serialize safely",
+      "postgres: allocation, receipts, ordering and revisions roll back together on real constraint failures",
+      "postgres: draft migrations preserve populated catalog and initialize allocation above existing reserved IDs",
+      "PostgreSQL draft import preserves receipts, tombstones and ID high-water marks without overwriting retained collections",
+      "postgres: drafts stay invisible to every listener catalog, streaming and collection API",
+      "postgres: external provenance is read-only to creators and imports cannot overwrite creator ownership"
+    ],
+    "missing": [],
+    "zeroSkipped": true
+  },
+  "browserChecks": [
+    {
+      "suite": "login",
+      "database": "sqlite",
+      "passed": 5,
+      "exitCode": 0
+    },
+    {
+      "suite": "playlists",
+      "database": "postgres",
+      "passed": 10,
+      "exitCode": 0
+    },
+    {
+      "suite": "settings",
+      "database": "postgres",
+      "passed": 8,
+      "exitCode": 0
+    },
+    {
+      "suite": "queue",
+      "database": "postgres",
+      "passed": 14,
+      "exitCode": 0
+    },
+    {
+      "suite": "cross-device",
+      "database": "postgres",
+      "passed": 10,
+      "exitCode": 0
+    },
+    {
+      "suite": "history",
+      "database": "postgres",
+      "passed": 7,
+      "exitCode": 0
+    },
+    {
+      "suite": "creator",
+      "database": "postgres",
+      "passed": 8,
+      "exitCode": 0
+    },
+    {
+      "suite": "drafts",
+      "database": "postgres",
+      "passed": 10,
+      "exitCode": 0
+    },
+    {
+      "suite": "uploads",
+      "database": "postgres",
+      "passed": 7,
+      "exitCode": 0
+    },
+    {
+      "suite": "processing",
+      "database": "postgres",
+      "passed": 5,
+      "exitCode": 0
+    },
+    {
+      "suite": "publishing",
+      "database": "postgres",
+      "passed": 6,
+      "exitCode": 0
+    },
+    {
+      "suite": "offline",
+      "database": "sqlite",
+      "passed": 13,
+      "exitCode": 0
+    },
+    {
+      "suite": "restart",
+      "database": "sqlite",
+      "passed": 7,
+      "exitCode": 0
+    }
+  ],
+  "additionalBrowserChecks": [
+    {
+      "suite": "browser",
+      "database": "sqlite",
+      "exitCode": 0,
+      "passed": 14,
+      "seconds": 8.328
+    },
+    {
+      "suite": "keyboard",
+      "database": "sqlite",
+      "exitCode": 0,
+      "passed": 3,
+      "seconds": 4.01
+    },
+    {
+      "suite": "history",
+      "database": "sqlite",
+      "exitCode": 0,
+      "passed": 7,
+      "seconds": 6.885
+    },
+    {
+      "suite": "creator",
+      "database": "sqlite",
+      "exitCode": 0,
+      "passed": 8,
+      "seconds": 6.663
+    },
+    {
+      "suite": "drafts",
+      "database": "sqlite",
+      "exitCode": 0,
+      "passed": 10,
+      "seconds": 8.163
+    },
+    {
+      "suite": "uploads",
+      "database": "sqlite",
+      "exitCode": 0,
+      "passed": 7,
+      "seconds": 4.148
+    },
+    {
+      "suite": "processing",
+      "database": "sqlite",
+      "exitCode": 0,
+      "passed": 5,
+      "seconds": 3.85
+    },
+    {
+      "suite": "publishing",
+      "database": "sqlite",
+      "exitCode": 0,
+      "passed": 6,
+      "seconds": 4.714
+    }
+  ],
+  "browserTotal": 170,
+  "browserBaseline": 158,
+  "newPublishingBrowserChecks": 12,
+  "browserEvidence": [
+    "docs/m2-publishing-browser-postgres.json",
+    "docs/m2-publishing-browser-sqlite.json"
+  ],
+  "raceRepetitions": [
+    {
+      "run": 1,
+      "exitCode": 0,
+      "seconds": 6.51
+    },
+    {
+      "run": 2,
+      "exitCode": 0,
+      "seconds": 5.165
+    },
+    {
+      "run": 3,
+      "exitCode": 0,
+      "seconds": 5.171
+    },
+    {
+      "run": 4,
+      "exitCode": 0,
+      "seconds": 3.659
+    },
+    {
+      "run": 5,
+      "exitCode": 0,
+      "seconds": 3.493
+    }
+  ],
+  "verified": [
+    "Real private upload and MP3 processing → rights declaration → exact-media review → explicit publication → public catalog/range playback/offline download → staff revocation, on both databases.",
+    "Versioned rights attestation timestamp retained in durable submit audit; declaration is not independent verification. Every submission/approval/publication rehashes actual stored derivative bytes without full buffering.",
+    "Server-derived creator/staff roles and ownership, no self-review/public privilege provisioning, narrowly scoped review output streaming, controlled reasons/notes, admin-only creator suspension.",
+    "Revision/UUID-receipt state transitions, duplicate mutation replay returns current state without new audit, conflicting review and publish/revoke races, synthetic audit failure transaction rollback.",
+    "Content/chapter revisions and exact source/head/output snapshots fence changed/removed/corrupt media; creator suspension and reactivation never restore revoked visibility; repeated old publish receipt and stale production processing handler cannot republish.",
+    "Real Redis cache population/hits, publication revision invalidation, intentionally forced old Redis revision plus live SQL filtering after revocation. Public MP3 server gate does not trust catalog caches.",
+    "Public MP3 full/range/invalid-range/HEAD, actual decoded durations/byte metadata, source WAV preserved, private-owner endpoints deny staff bypass; public objects omit owner/private keys.",
+    "Published creator favorites, playlists and analytics work; revoke hides inaccessible membership without deleting records/events. Existing progress/idempotency/queue/PWA/restart suites pass.",
+    "Both additive publication migrations preserve already processed private media without granting visibility. Actual SQLite→PostgreSQL import preserves audit but withdraws publication and invalidates unavailable private bytes. Populated 32-table PostgreSQL backup restores exact fingerprints, including publication/audit/receipts; old manifests remain supported.",
+    "Final clean-install full application/safety suite, production build, formatting and 170 browser groups passed. Real worker SIGKILL/restart, outbox/Redis-loss recovery and stale-fence checks remain in the full application suite; the publication-specific stale delivery check invokes the production handler after revocation."
+  ],
+  "issuesFoundAndFixed": [
+    {
+      "issue": "Full regression found PostgreSQL 40P01 during publish versus revoke.",
+      "evidence": "Server log showed creator updating story_publications waiting on staff FK key-share while staff FOR UPDATE waited on owner.",
+      "fix": "Sorted FOR NO KEY UPDATE account locks serialize authorization/role changes while permitting FK KEY SHARE; creator owner protection remains through existing authorization.",
+      "verification": "Existing race assertions unchanged; five isolated repetitions (20 checks) and final full PostgreSQL/SQLite suite passed."
+    },
+    {
+      "issue": "Added global moderation link pushed Settings underneath persistent player at baseline viewport.",
+      "fix": "Staff-only dashboard link moved to Creator access; existing listener navigation preserved.",
+      "verification": "Final settings and all browser suites passed; new publishing browser navigates actual staff link."
+    },
+    {
+      "issue": "Review browser selected the shared empty audio element before review preview mounted.",
+      "fix": "Explicit accessible review-audio label and real playback assertion; StrictMode setup restores its src after cleanup replay.",
+      "verification": "Actual moderator MP3 playback passes on both databases; no sleeps or weakened playback assertions."
+    },
+    {
+      "issue": "Initial browser login/post-logout actions raced session bootstrap.",
+      "fix": "Wait for rendered account control; explicit post-logout isolated guest creation before exact 403 assertion.",
+      "verification": "Both complete browser flows pass."
+    },
+    {
+      "issue": "Historical schema simulations needed newer dependent publication tables removed/restored.",
+      "fix": "Adjust disposable predecessor fixtures and restore their runtime dependencies, preserving all existing state-preservation assertions."
+    },
+    {
+      "issue": "First formatting gate detected an unformatted new router.",
+      "fix": "Formatted router; final formatting gate passed."
+    },
+    {
+      "issue": "Mutation response contained status/audit but no metadata; moderator UI discarded the already reviewed title after a decision.",
+      "fix": "Merge status/audit into the current review view, keeping preview gated by state. Remove outdated creator UI copy about unavailable publishing.",
+      "verification": "Added metadata retention assertion; final full 160 frontend/306 backend checks and both browser publication journeys passed."
+    }
+  ],
+  "schema": {
+    "postgres": "server/migrations/postgres/018_publishing.sql",
+    "sqlite": "server/migrations/sqlite/019_publishing.sql",
+    "newTables": [
+      "story_publications",
+      "publication_chapters",
+      "publication_audit",
+      "publication_receipts"
+    ],
+    "backupTables": 32,
+    "destructiveMigrations": false
+  },
+  "contract": {
+    "reviewUnit": "Story-level, all active chapters and exact immutable derivatives",
+    "lifecycle": "draft → submitted → approved → published → unpublished; rejected/withdrawn/revoked supported",
+    "rightsTerms": "creator-rights-v1; explicit recorded declaration only",
+    "mutationPreconditions": "expectedRevision (initial 0) + UUID requestId; existing session/CSRF/account scope",
+    "republish": "Unchanged voluntary unpublish may reuse approval; changes or staff revocation/suspension require fresh submission/reapproval",
+    "privacy": "Revocation blocks new server-authorized public reads/downloads and preserves listening records. Previously downloaded/buffered/exported/disconnected copies cannot reliably be recalled."
+  },
+  "limitations": [
+    "Local private filesystem only; no new public deployment, remote Actions run, production-capacity or cross-browser evidence.",
+    "Submission/approval/publication perform bounded streaming integrity I/O inside owner-locked transactions; 100-chapter high-contention latency is not benchmarked and requires M3/M4 hardening.",
+    "Previously downloaded/buffered/in-flight copies cannot be recalled. Offline or HEAD-timeout playback can retain a prior device copy; successful online 404/410 blocks playback and removes cached audio. Cached metadata/exported files may remain.",
+    "Checksummed readiness is not rights verification or automated content moderation. No payments, scheduled release, AI, public object store/CDN or automated takedown notices.",
+    "Audit has no HTTP update/delete API, but database operators can modify rows; no cryptographic tamper-proof claim. UI lists 50 pending submissions and last 100 audit entries; long-term retention/export remain follow-up.",
+    "SQL and filesystem are not jointly atomic. Backup requires matching private-volume snapshot; restored older backups must reconcile later revocations before public access. Subsequent disk corruption/outages need recovery/monitoring.",
+    "New publishing workflow was not separately container-deployed or load-tested. Existing real worker recovery tests ran; optional resource-intensive Docker/system/load/SMTP checks were not rerun for this milestone."
+  ],
+  "readiness": "M2.6/M2.7 functional vertical slice locally verified. Ready for M3/M4 security, correctness, performance/observability and recovery hardening; not a final public release or production-readiness certification.",
+  "changedFiles": [
+    ".github/workflows/ci.yml",
+    "README.md",
+    "client/public/sw.js",
+    "client/src/App.jsx",
+    "client/src/Creator.jsx",
+    "client/src/Publication.jsx",
+    "client/src/Publication.test.jsx",
+    "client/src/Studio.jsx",
+    "client/src/api.js",
+    "docs/ARCHITECTURE.md",
+    "docs/CI.md",
+    "docs/M2_PUBLISHING_MODERATION.md",
+    "docs/SOUNDWAVE_V3_ROADMAP.md",
+    "docs/m2-publishing-browser-postgres.json",
+    "docs/m2-publishing-browser-sqlite.json",
+    "docs/m2-publishing-verification.json",
+    "package.json",
+    "scripts/ci/run.mjs",
+    "scripts/publishing-smoke.mjs",
+    "server/app.js",
+    "server/database/import-sqlite.js",
+    "server/db.js",
+    "server/migrations/postgres/018_publishing.sql",
+    "server/migrations/sqlite/019_publishing.sql",
+    "server/operations/backup.js",
+    "server/repositories/catalog.js",
+    "server/repositories/history.js",
+    "server/repositories/playlists.js",
+    "server/routes/api.js",
+    "server/routes/publications.js",
+    "server/routes/published-audio.js",
+    "server/routes/stream.js",
+    "server/services/creator-operator.js",
+    "server/services/creators.js",
+    "server/services/drafts.js",
+    "server/services/private-media.js",
+    "server/services/publication-visibility.js",
+    "server/services/publications.js",
+    "server/test/backup.test.js",
+    "server/test/creators.test.js",
+    "server/test/drafts.test.js",
+    "server/test/migration.test.js",
+    "server/test/private-media-import.test.js",
+    "server/test/private-media.test.js",
+    "server/test/private-processing.test.js",
+    "server/test/publishing-helpers.js",
+    "server/test/publishing.test.js"
+  ],
+  "verifiedSourceHashes": {
+    ".github/workflows/ci.yml": "1c16f738101c3eaaa9f5f2800ab0d158c5d405aca5a0c4ab8b9b578755180b17",
+    "client/public/sw.js": "9c833489ef1ad737bfd0e928a201b38ca12114011c8ff286476ddf9aca4d8669",
+    "client/src/App.jsx": "914ea2240bc6da7421536483684cfdb5496d28297fbc4844b6a16a5164f1305f",
+    "client/src/Creator.jsx": "1849b7d9a3629d8bbabfbfae0db43fa0c27caed51cb06604353efb90a2779dfe",
+    "client/src/Publication.jsx": "2bb39c887852248e0ee630c873b250b2ab7a9578ace24a9e027e0fe0bdf18620",
+    "client/src/Publication.test.jsx": "894041ef9297b904e842a280ab0e2e8dc74461f63b18833cfb45d32b40807590",
+    "client/src/Studio.jsx": "6b2507d5c0987adede8b4200f504b88e8cc942da17e2f394ff94af8715d107f9",
+    "client/src/api.js": "7e202bebd54d004e1e8c47579ca22622d235f977da19a6699f8c8d48de67246b",
+    "package.json": "290a000c457265550e7774bf9fec4c0140c6843c52bfb44ce10d6fac600ea91d",
+    "scripts/ci/run.mjs": "17a7fc52099f8594d3aea5e78e36cf0e5024c641963c5d65e0cc3799fd1f884e",
+    "scripts/publishing-smoke.mjs": "02fd28d09b14995c2b1e4c0891ef3e814a617ff835abfc1fbc77fb987c6e43b9",
+    "server/app.js": "59f80efd47e1c639cd8d70120344662122ba4f27b290ffe4e6711511d31dd82c",
+    "server/database/import-sqlite.js": "b7b34a9d561e8a5ac8a690c5b3a990121ccad0d36a5a04609efc4a6ca30de285",
+    "server/db.js": "33953bc027ff776117358bd186bb85b871be29a089dafb756b33f44843e70369",
+    "server/migrations/postgres/018_publishing.sql": "491677581125c88d2c9d348017e7314fd20973e5d64da297f0c90fe46b1d4ce2",
+    "server/migrations/sqlite/019_publishing.sql": "3e13e291a80d7faed6319ab15409314e6d1ebb6ebc6f242f3ca1754b9e1d74c2",
+    "server/operations/backup.js": "4eda6187bded6e5800453e1b49243c812792ef8686b52bfd55894da19f02f39f",
+    "server/repositories/catalog.js": "dbbe99c916cbc96968e6c1ed73ded7b55bab48691f1802ecbb6a307969e2836c",
+    "server/repositories/history.js": "3d0e0653c0db2f5bce3bd50ab5383486904bca5696641e43420c6dbba3738b66",
+    "server/repositories/playlists.js": "76244101768e006657be58ba5d7e1c335c962b651b36460b815ba414e792d552",
+    "server/routes/api.js": "b106123660fd2c9964e41f5e9b6e222ea8bdda42b5b24a0102e7554fa6f11f6e",
+    "server/routes/publications.js": "19b199e3ab1a83f545bbfd0967d6db5f4cd63e49b558f922a585a65d6b64d73c",
+    "server/routes/published-audio.js": "ff846f82c2079a2d2b562fea6750a0f4df1d89e7446c45e745151675b0b5ab0a",
+    "server/routes/stream.js": "d9bede5336ee57fecc8aed370ba65ed87366b1732c31e8c6ddef42269c200e4c",
+    "server/services/creator-operator.js": "c2d3f22e929e882b39c32300a26d6f31ed185165b9d72c25f067b7b069bd381b",
+    "server/services/creators.js": "f3f295f9f491b3145fec8dc7c90f352804b2bb71e05337802694fe67c3ad016d",
+    "server/services/drafts.js": "43dfe3954a23ce76ed04ce54c6ea7701bf773267bdd1a50b0599f26f58516251",
+    "server/services/private-media.js": "e0b2679a55c7397f5d76f9987e22b5f8ca41c613fb5e0ec9451f35714125afa4",
+    "server/services/publication-visibility.js": "08271290e7dbee894ccff64e9fd7d03f4941467f15aafb4ff50b51610f0bff58",
+    "server/services/publications.js": "9f34716425e45b309b19f1540242d8282290009742337f564020e0ba1dba5590",
+    "server/test/backup.test.js": "39205354e500dea7fcfa499ec70e0dd9322b2a6db82f2f787d5d41b69ac92c08",
+    "server/test/creators.test.js": "1ebf95849cc65045b43a5f80accf3bcb34144d076458b40d6a96dcebd726f91a",
+    "server/test/drafts.test.js": "886f2a414af113890fed3ee1fa3846345265949520272fa98414574fc4d7e735",
+    "server/test/migration.test.js": "ca63287b1862630c05ceafc33311b52e3a113d87aa4d6fd588a1a54cfa4a9af3",
+    "server/test/private-media-import.test.js": "5632be3c77bae0b0c6148e908281ecca78c9b0eef6be5678483c98a59165f40e",
+    "server/test/private-media.test.js": "cbe81f13b8e010f1655738062250cf7356efc58c14cb31447fc3070968f07b96",
+    "server/test/private-processing.test.js": "870557aababcd81b62bc42b60c0e1672ada0c061b40fb9af4a9f462ce48a9138",
+    "server/test/publishing-helpers.js": "e7e5deac094fb7ac60ec1af9672edfdf5c5b7f63ac8170320959056b2043382c",
+    "server/test/publishing.test.js": "66b6bf44591979d61f2e1d483a80c9b6d27137189d338c8e835b7e4c747d42f5"
+  },
+  "finalFocusedBrowserRecheck": "After final moderator decision metadata retention and creator-copy correction, both six-check publication browser journeys ran again on the final build. No repeat groups added to the 170 unique total."
+}

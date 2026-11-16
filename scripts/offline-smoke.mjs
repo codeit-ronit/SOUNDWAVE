@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 import { openDatabase, seedDatabase } from "../server/db.js";
 import { createApp } from "../server/app.js";
+import { captureBrowserFailure } from "./browser-artifacts.mjs";
 const directory = mkdtempSync(join(tmpdir(), "soundwave-offline-"));
 const db = openDatabase(join(directory, "demo.sqlite"));
 seedDatabase(db);
@@ -107,9 +108,17 @@ try {
   check(
     "explicit download stores exactly one complete 200 response, matching the file size",
   );
+  const speedSaved = page.waitForResponse(
+    async (response) =>
+      new URL(response.url()).pathname === "/api/settings" &&
+      response.request().method() === "PUT" &&
+      response.ok() &&
+      (await response.json()).settings.playbackSpeed === 1.5,
+  );
   await page
     .getByRole("combobox", { name: "Playback speed", exact: true })
     .selectOption("1.5");
+  await speedSaved;
   await page.reload();
   await page.waitForFunction(
     () =>
@@ -378,24 +387,7 @@ try {
     `\n${checks} advanced player / PWA / offline browser checks passed.`,
   );
 } catch (error) {
-  console.error(
-    "OFFLINE DEBUG",
-    await page
-      ?.evaluate(() => ({
-        url: location.href,
-        online: navigator.onLine,
-        body: document.body.innerText,
-        html: document.documentElement.outerHTML.slice(0, 1200),
-        controlled: Boolean(navigator.serviceWorker.controller),
-      }))
-      .catch(() => null),
-  );
-  await page
-    ?.screenshot({
-      path: "/private/tmp/soundwave-offline-failure.png",
-      fullPage: true,
-    })
-    .catch(() => {});
+  await captureBrowserFailure(page, "offline");
   throw error;
 } finally {
   if (browser) await browser.close();

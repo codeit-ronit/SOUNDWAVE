@@ -1,3 +1,4 @@
+import { publishedAudio } from "./published-audio.js";
 import { Router } from "express";
 import { open, realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -23,7 +24,7 @@ export function parseRange(header, size) {
   return { start: first, end: Math.min(last ?? size - 1, size - 1) };
 }
 
-export function createAudioHandler(db) {
+export function createAudioHandler(db, config, storage) {
   const root = fileURLToPath(new URL("../public/audio/", import.meta.url));
   async function serve(req, res, next) {
     let handle;
@@ -32,8 +33,17 @@ export function createAudioHandler(db) {
         return res
           .status(400)
           .json({ error: { message: "Invalid chapter ID." } });
+      const creator = await db
+        .prepare(
+          "SELECT s.ownership_kind FROM chapters c JOIN stories s ON s.id=c.story_id WHERE c.id=?",
+        )
+        .get(Number(req.params.id));
+      if (creator?.ownership_kind === "creator")
+        return publishedAudio(db, config, storage, req, res, next);
       const chapter = await db
-        .prepare("SELECT audio_url FROM chapters WHERE id=?")
+        .prepare(
+          "SELECT c.audio_url FROM chapters c JOIN stories s ON s.id=c.story_id WHERE c.id=? AND s.ownership_kind IN ('system','external')",
+        )
         .get(Number(req.params.id));
       if (!chapter)
         return res
@@ -97,6 +107,13 @@ export function createAudioHandler(db) {
           .json({ error: { message: "Audio file not found." } });
       handle = await open(path, "r");
       const stat = await handle.stat();
+      // The browser can disconnect during an awaited open/stat. Its close event
+      // has already fired, so the later stream close listener cannot release this fd.
+      if (res.destroyed) {
+        await handle.close();
+        handle = null;
+        return;
+      }
       if (!stat.isFile()) {
         await handle.close();
         handle = null;
@@ -161,9 +178,9 @@ export function createAudioHandler(db) {
   return serve;
 }
 
-export function streamRouter(db) {
+export function streamRouter(db, config, storage) {
   const router = Router();
-  const serve = createAudioHandler(db);
+  const serve = createAudioHandler(db, config, storage);
   router.route("/chapters/:id/stream").get(serve).head(serve);
   return router;
 }
@@ -173,7 +190,9 @@ export function legacyAudioRouter(db) {
   const serve = createAudioHandler(db);
   const legacy = async (req, res, next) => {
     const chapter = await db
-      .prepare("SELECT id FROM chapters WHERE audio_url=?")
+      .prepare(
+        "SELECT c.id FROM chapters c JOIN stories s ON s.id=c.story_id WHERE c.audio_url=? AND s.ownership_kind IN ('system','external') ORDER BY c.id LIMIT 1",
+      )
       .get(`/audio/${req.params.filename}`);
     if (!chapter)
       return res

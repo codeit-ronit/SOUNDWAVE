@@ -1,3 +1,4 @@
+import { progressBody } from "./progress-body.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
@@ -69,7 +70,13 @@ test("oversized JSON and malformed URI requests return bounded JSON errors witho
     const app = createApp(db);
     const big = await request(app)
       .put("/api/progress/101")
-      .send({ positionSeconds: 5, padding: "x".repeat(9000) })
+      .send(
+        await progressBody(
+          app,
+          { positionSeconds: 5, padding: "x".repeat(9000) },
+          "/api/progress/101",
+        ),
+      )
       .expect(413);
     assert.equal(typeof big.body.error.message, "string");
     assert.equal(big.body.error.stack, undefined);

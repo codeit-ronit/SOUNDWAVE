@@ -1,0 +1,426 @@
+{
+  "milestone": "M2.2 Private Draft Story and Chapter CRUD",
+  "status": "Implemented and locally verified",
+  "verifiedAt": "2026-11-13T07:14:28.435872+00:00",
+  "branch": "feature/m1-private-playlists",
+  "baseCommit": "727d457",
+  "commitNote": "Evidence recorded before its own atomic delivery commit; inspect git log for the commit hash.",
+  "remoteActions": "NOT RUN / NOT VERIFIED",
+  "pushed": false,
+  "deployed": false,
+  "productionResourcesChanged": false,
+  "developerDataChanged": false,
+  "environment": {
+    "node": "22.21.1",
+    "postgres": "18.6; dedicated loopback soundwave_ci_drafts_20261110 database; generated schemas and restore databases",
+    "redis": "7.4.12; dedicated loopback fixture and generated test namespaces",
+    "browser": "Headless local Google Chrome via Playwright 1.64.1 on Apple Silicon macOS",
+    "installation": "Clean npm ci in dotenv-free disposable export: 341 packages installed; no new dependencies"
+  },
+  "applicationTests": {
+    "baseline": 355,
+    "backend": 248,
+    "frontend": 145,
+    "total": 393,
+    "newBackend": 27,
+    "newFrontend": 11,
+    "failed": 0,
+    "skipped": 0,
+    "frontendFiles": 16,
+    "command": "node scripts/ci/run.mjs test in clean export; explicit disposable TEST_DATABASE_URL, TEST_REDIS_URL and matching TEST_BACKUP_CONTAINER"
+  },
+  "ciSafetyTests": {
+    "passed": 6,
+    "failed": 0,
+    "command": "node --test scripts/ci/safety.test.mjs, via CI test gate"
+  },
+  "browserChecks": [
+    {
+      "suite": "login",
+      "database": "sqlite",
+      "passed": 5,
+      "command": "node scripts/ci/run.mjs browser → scripts/auth-smoke.mjs"
+    },
+    {
+      "suite": "playlists",
+      "database": "postgres",
+      "passed": 10,
+      "command": "node scripts/ci/run.mjs browser → scripts/playlists-smoke.mjs"
+    },
+    {
+      "suite": "settings",
+      "database": "postgres",
+      "passed": 8,
+      "command": "node scripts/ci/run.mjs browser → scripts/settings-smoke.mjs"
+    },
+    {
+      "suite": "queue",
+      "database": "postgres",
+      "passed": 14,
+      "command": "node scripts/ci/run.mjs browser → scripts/queue-smoke.mjs"
+    },
+    {
+      "suite": "cross-device",
+      "database": "postgres",
+      "passed": 10,
+      "command": "node scripts/ci/run.mjs browser → scripts/cross-device-smoke.mjs"
+    },
+    {
+      "suite": "history",
+      "database": "postgres",
+      "passed": 7,
+      "command": "node scripts/ci/run.mjs browser → scripts/history-smoke.mjs"
+    },
+    {
+      "suite": "creator",
+      "database": "postgres",
+      "passed": 8,
+      "command": "node scripts/ci/run.mjs browser → scripts/creator-smoke.mjs"
+    },
+    {
+      "suite": "drafts",
+      "database": "postgres",
+      "passed": 10,
+      "command": "node scripts/ci/run.mjs browser → scripts/drafts-smoke.mjs"
+    },
+    {
+      "suite": "offline",
+      "database": "sqlite",
+      "passed": 13,
+      "command": "node scripts/ci/run.mjs browser → scripts/offline-smoke.mjs"
+    },
+    {
+      "suite": "restart",
+      "database": "sqlite",
+      "passed": 7,
+      "command": "node scripts/ci/run.mjs browser → scripts/audit-smoke.mjs"
+    },
+    {
+      "suite": "browser-smoke",
+      "database": "sqlite",
+      "passed": 14,
+      "command": "node scripts/browser-smoke.mjs (TEST_DATABASE_URL unset)"
+    },
+    {
+      "suite": "keyboard-smoke",
+      "database": "sqlite",
+      "passed": 3,
+      "command": "node scripts/keyboard-smoke.mjs (TEST_DATABASE_URL unset)"
+    },
+    {
+      "suite": "history-smoke",
+      "database": "sqlite",
+      "passed": 7,
+      "command": "node scripts/history-smoke.mjs (TEST_DATABASE_URL unset)"
+    },
+    {
+      "suite": "creator-smoke",
+      "database": "sqlite",
+      "passed": 8,
+      "command": "node scripts/creator-smoke.mjs (TEST_DATABASE_URL unset)"
+    },
+    {
+      "suite": "drafts",
+      "database": "sqlite",
+      "passed": 10,
+      "command": "node scripts/drafts-smoke.mjs docs/m2-drafts-browser-sqlite.json"
+    }
+  ],
+  "browserCheckTotal": 134,
+  "previousBrowserBaseline": 114,
+  "newStudioBrowserChecks": 20,
+  "standaloneDraftBrowserEvidence": [
+    "docs/m2-drafts-browser-sqlite.json",
+    "docs/m2-drafts-browser-postgres.json"
+  ],
+  "localCiGates": {
+    "install": {
+      "mode": "install",
+      "environment": {
+        "database": "soundwave_ci_drafts_20261110",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "install",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 6604
+        }
+      ]
+    },
+    "test": {
+      "mode": "test",
+      "environment": {
+        "database": "soundwave_ci_drafts_20261110",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "ci-safety",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 81
+        },
+        {
+          "name": "migrations",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 278
+        },
+        {
+          "name": "tests",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 26263
+        }
+      ]
+    },
+    "build": {
+      "mode": "build",
+      "environment": {
+        "database": "soundwave_ci_drafts_20261110",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "build",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 5225
+        }
+      ]
+    },
+    "format": {
+      "mode": "format",
+      "environment": {
+        "database": "soundwave_ci_drafts_20261110",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1802
+        },
+        {
+          "name": "ci-doc-format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 561
+        }
+      ]
+    },
+    "browser": {
+      "mode": "browser",
+      "environment": {
+        "database": "soundwave_ci_drafts_20261110",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "login",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 5864
+        },
+        {
+          "name": "playlists",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 7880
+        },
+        {
+          "name": "settings",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8858
+        },
+        {
+          "name": "queue",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 9056
+        },
+        {
+          "name": "cross-device",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 7085
+        },
+        {
+          "name": "history",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 5814
+        },
+        {
+          "name": "creator",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 6409
+        },
+        {
+          "name": "drafts",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 8357
+        },
+        {
+          "name": "offline",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3491
+        },
+        {
+          "name": "restart",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 4482
+        }
+      ]
+    }
+  },
+  "requiredIntegrationCoverage": {
+    "required": [
+      "postgres: transaction rollback, concurrent completions and stale progress writes",
+      "PostgreSQL fresh concurrent migrations",
+      "postgres: playlist reads/writes reject anonymous sessions",
+      "postgres: concurrent playlist additions serialize",
+      "Redis atomically shares request limits across independent application instances",
+      "real PostgreSQL backup restores all 24",
+      "postgres: account writes serialize concurrent field changes and roll back atomically",
+      "postgres: cross-device CAS permits one simultaneous writer and rejects stale device state",
+      "postgres: populated revision migration preserves progress, completion, events and old client high-water marks",
+      "postgres: rejected valid attempts also reserve their identity and cannot be repurposed",
+      "postgres: progress survives Redis disconnect/reconnect and streaming remains available",
+      "postgres: concurrent history removal and progress updates serialize without resurrection",
+      "postgres: guarded bulk clear is atomic, repeat-safe and does not erase post-clear activity",
+      "postgres: additive history migration preserves bookmarks, completion and revision receipts",
+      "postgres: creator authorization requires both active role and exact story ownership, including staff",
+      "postgres: concurrent onboarding and suspension serialize; failed creator transactions roll back",
+      "postgres: additive creator migration preserves populated listener state and marks catalog provenance",
+      "PostgreSQL creator import preserves identity, role, suspension and ownership; conflicts roll back",
+      "postgres: creator identity and suspension survive password and Google sign-in on the same account",
+      "postgres: draft role and ownership checks deny guests, suspended creators and staff bypasses",
+      "postgres: same-resource draft edits conflict while independent resources retain both accepted edits",
+      "postgres: concurrent membership/order writes and suspension races serialize safely",
+      "postgres: allocation, receipts, ordering and revisions roll back together on real constraint failures",
+      "postgres: draft migrations preserve populated catalog and initialize allocation above existing reserved IDs",
+      "PostgreSQL draft import preserves receipts, tombstones and ID high-water marks without overwriting retained collections",
+      "postgres: drafts stay invisible to every listener catalog, streaming and collection API",
+      "postgres: external provenance is read-only to creators and imports cannot overwrite creator ownership"
+    ],
+    "missing": [],
+    "zeroSkipped": true
+  },
+  "additionalChecks": {
+    "rootFormatting": "npm run format:check passed",
+    "documentationFormatting": "Updated contract, architecture, CI and roadmap formatted; mandatory CI doc check passed",
+    "productionBuild": "npm run build via exact CI build gate passed",
+    "diffWhitespace": "git diff --check passed",
+    "freshMigrations": "Full tests verify fresh and populated PostgreSQL/SQLite migration, checksum reapplication and allocation above occupied reserved IDs",
+    "backupRestore": "Real populated 24-table PostgreSQL archive restored to a separate generated database with fingerprint equality, retained archived/removed state, receipts and counters",
+    "sqliteImport": "New transactional import fixture verifies creation retry identity, retained target collection, high-water reconciliation and conflict rollback"
+  },
+  "schema": {
+    "postgresMigration": "server/migrations/postgres/015_creator_drafts.sql",
+    "sqliteMigration": "server/migrations/sqlite/016_creator_drafts.sql",
+    "newTables": ["creator_id_allocations", "draft_create_receipts"],
+    "extendedTables": ["stories", "chapters"],
+    "backupTableCount": 24,
+    "privateIdRange": "900000000–999999999, independent story/chapter counters"
+  },
+  "authorization": "Session-derived registered active creator AND exact story owner, including staff; current account/status checked and locked within the same outer transaction. No private Redis/PWA cache.",
+  "concurrency": "Story metadata/membership/order use parent revisions; child metadata uses child revisions. Account-first locking serializes suspension and owner writes. Atomic two-phase order avoids unique-position collisions. Stale revisions return 409 with authorized current detail.",
+  "retrySemantics": "Durable owner/UUID creation receipts bind canonical payload and result FKs. Exact create retries return 200 replayed/current state even after archive/removal; changed payload returns 409. Other mutations use revision preconditions, requiring explicit review after uncertainty.",
+  "lifecycle": "Draft to irreversible read-only archived; removed chapters retain ID/revision outside active order. No successful ID is reused. Limits: 100 retained stories, 100 active/500 retained chapters per story.",
+  "regressionsFoundAndFixed": [
+    "Additive draft columns would expand SELECT-star public JSON; explicit serializer exclusions retain the existing listener contract and are asserted on both databases.",
+    "The predecessor SQLite migration fixture could not drop ownership columns while new indexes/FKs referenced them; isolated fixture dependency cleanup fixes the failure without weakening preservation assertions.",
+    "Chapter append normalizes existing private order transactionally before choosing the next position, avoiding collisions with sparse legacy private ordering.",
+    "Early browser test failures came from incorrect expected eligibility wording, missing required metadata, expecting registration 201 instead of its established 200 contract, and registering a second account before initial guest-session readiness. Assertions now follow the actual documented contracts and wait for session readiness; no sleeps or weakened product guarantees were added."
+  ],
+  "limitations": [
+    "Metadata-only private drafts: no audio uploads, previews, publishing, moderation, hard deletion or restore/undo.",
+    "Internal empty audio URL and duration=1 placeholders satisfy the legacy chapter schema; they are not actual media and are omitted/blocked from listener, Studio-media and worker flows.",
+    "Create retry keys/local edits are tab-memory only; unmount, browser refresh or account switch can lose a key. Accepted resources remain listed; there is no durable offline Studio write queue.",
+    "Internal My Stories confirms dirty/unknown state; general navigation has no global unsaved-change blocker.",
+    "Archive/removal retain records and receipts subject to documented caps; retention cleanup is future work.",
+    "Legacy 21/22-table manifest shapes are accepted; a current archive with an older-shaped manifest is not a complete historical archive-version restore drill.",
+    "Only local Chrome was exercised. Remote Actions, other browsers, public deployment and production capacity are not verified.",
+    "Optional systems/SMTP/load jobs were not rerun for this metadata-only milestone."
+  ],
+  "nextMilestonePrerequisites": [
+    "Define private asset ownership, lifecycle/FKs and storage adapter/object-key rules.",
+    "Add quarantine, strict byte/type/size limits, authenticated bounded access and orphan cleanup/retry contracts before uploads.",
+    "Keep private assets out of public streaming/offline caches until publishing/rights policy has dedicated tests."
+  ],
+  "changedFiles": [
+    ".github/workflows/ci.yml",
+    "README.md",
+    "client/src/App.jsx",
+    "client/src/Studio.jsx",
+    "client/src/Studio.test.jsx",
+    "client/src/api.js",
+    "client/src/styles.css",
+    "docs/ARCHITECTURE.md",
+    "docs/CI.md",
+    "docs/M2_CREATOR_DRAFTS.md",
+    "docs/SOUNDWAVE_V3_ROADMAP.md",
+    "docs/m2-creator-drafts-verification.json",
+    "docs/m2-drafts-browser-postgres.json",
+    "docs/m2-drafts-browser-sqlite.json",
+    "package.json",
+    "scripts/ci/run.mjs",
+    "scripts/drafts-smoke.mjs",
+    "server/app.js",
+    "server/database/import-sqlite.js",
+    "server/db.js",
+    "server/migrations/postgres/015_creator_drafts.sql",
+    "server/migrations/sqlite/016_creator_drafts.sql",
+    "server/operations/backup.js",
+    "server/repositories/catalog.js",
+    "server/repositories/drafts.js",
+    "server/routes/drafts.js",
+    "server/services/draft-contract.js",
+    "server/services/drafts.js",
+    "server/test/backup.test.js",
+    "server/test/creators.test.js",
+    "server/test/drafts-import.test.js",
+    "server/test/drafts.test.js",
+    "server/test/migration.test.js"
+  ],
+  "verifiedSourceHashes": {
+    ".github/workflows/ci.yml": "173eb1a6c3afc37623b7d0f2865524aad8b62eea516e548bdf1238d6b97a2820",
+    "client/src/App.jsx": "de05d78583ac95fa9d4bc7c8e9aa979df305b33fad1244de171eea2c826ed4f3",
+    "client/src/Studio.jsx": "de25fa6e37a517cf297dcc5d3c9837e3b5df0193d5f52e8fb2597f81d21c0093",
+    "client/src/Studio.test.jsx": "c999e1eb336d029f037160be9d36cca6fe4d0a5e7c2129208878238b89431527",
+    "client/src/api.js": "d1c8d32f10e843e2530c3c9f8b09ece2e14b98ba86a52541c7e2892c089e6f06",
+    "client/src/styles.css": "649e0d635438891481879250011ec7ed136cb99572387ae3027af8595d774ced",
+    "scripts/ci/run.mjs": "94093dac30fe89fbb29be82a11e2d530059b2b57e0cdb782cca69999fed94926",
+    "scripts/drafts-smoke.mjs": "26343c1bd849fc9356f5d94d9d71e072b00f4a3791820ec06c647f6251aa3504",
+    "server/app.js": "37beaf6e6d59200344cfdc89f342605b5971f091b53d7e105b5bcb4fe6cd1aed",
+    "server/database/import-sqlite.js": "9f9b818a08c009b803ff02f2246529069e7a0b6682ec5ebf7e558999a03a3a64",
+    "server/db.js": "7d1ccab498a31af1a3e866b461daa0239aeb2e2038268b5abe92fe4c06492733",
+    "server/migrations/postgres/015_creator_drafts.sql": "8651b3e3e379e210ca393c0a1c75203c2c366941f2ba686b22a5295c0927bcb5",
+    "server/migrations/sqlite/016_creator_drafts.sql": "ca594c1833d0b8bae5eaf1ecad3f126760c910f3d1c80654e814ed4569efedd2",
+    "server/operations/backup.js": "09ffd701db0598af10b364eff549540be212f0b40f2167f33e26224affbc3b56",
+    "server/repositories/catalog.js": "7c42bc54e36a42a6dc9c92f5d9bc3366de95eccf7a8a787b2648f6a82a033c0b",
+    "server/repositories/drafts.js": "c5d5f8636d7055b46eec11f8d5a92c07d249000f37177ec484eef493b02a26bc",
+    "server/routes/drafts.js": "3527da89c1712ad44ca08386b3ae87a6df0918e28cbc656041aec20be65e193e",
+    "server/services/draft-contract.js": "9c639a4b593408c0c61a4ee80f655f38ce0355c270f8dfada61a1717c027819d",
+    "server/services/drafts.js": "094ab605aab97837f0e8b4199102f4cdbd86282dd85b2c88a7723d9743157191",
+    "server/test/backup.test.js": "4569e79dbf5fc3287669dc50ff8be2afc8e76ded7ec2b7d6e222d89fba237a31",
+    "server/test/creators.test.js": "8018f38702f7ca08b04484d1363c7f8d87d7cea48c425dc7ccfcf4b61793fb13",
+    "server/test/drafts-import.test.js": "d58e9eaf8daa01c8f172f0c4a0141b03fdfd19ff44c3344879f4622b3a496363",
+    "server/test/drafts.test.js": "9dc21b350bfa8a21e040ad566142a62fc8ebff0de3ee91bc82cf06750d8d5985",
+    "server/test/migration.test.js": "a4f031244ddb1359da947128428244efd876b3329dc5da5070c9edef8bb6bd26"
+  }
+}

@@ -1,0 +1,364 @@
+{
+  "milestone": "M6.1 early CI",
+  "date": "2026-11-07",
+  "baseCommit": "33d07ec",
+  "browserHarnessCommit": "4543017",
+  "branch": "feature/m1-private-playlists",
+  "remoteGitHubActions": {
+    "status": "NOT RUN / NOT VERIFIED",
+    "reason": "No push, PR, workflow dispatch or external settings changes authorized/performed."
+  },
+  "workflow": {
+    "file": ".github/workflows/ci.yml",
+    "sha256": "a9f282f662a5e5e1e4637aed2226269a2db192909896d8011c7ff38d5ca34d2d",
+    "validation": "actionlint v1.7.7 passed; official pinned action release SHAs and Node 24 action runtimes inspected; application jobs select Node 22"
+  },
+  "environment": {
+    "node": "22.21.1",
+    "os": "macOS/darwin",
+    "arch": "arm64",
+    "postgres": "18.6, fresh soundwave_ci_* database on dedicated local test PostgreSQL server",
+    "redis": "7.4, new dedicated loopback container",
+    "mail": "new local-only Mailpit capture",
+    "browser": "Playwright-installed Chromium 156.0.8078.4 (mac-arm64)",
+    "installation": "clean export without dotenv, node_modules or prior client/dist; npm ci via exact CI runner"
+  },
+  "summary": {
+    "applicationBackend": 141,
+    "applicationFrontend": 37,
+    "applicationTotal": 178,
+    "applicationFailures": 0,
+    "applicationSkipped": 0,
+    "ciSafetyTests": 6,
+    "mandatoryBrowserChecks": 35,
+    "additionalCoreBrowserChecks": 14,
+    "optionalSystemsChecks": 7,
+    "optionalWorkerCrashChecks": 4,
+    "optionalDemoSupervisorChecks": 5,
+    "optionalHttpRequests": 4000,
+    "optionalHttpErrors": 0,
+    "remoteCiPassingClaim": false
+  },
+  "localRunnerModes": {
+    "install": {
+      "mode": "install",
+      "environment": {
+        "database": "soundwave_ci_m6_20261107",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "install",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 12166
+        }
+      ]
+    },
+    "test": {
+      "mode": "test",
+      "environment": {
+        "database": "soundwave_ci_m6_20261107",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "ci-safety",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 108
+        },
+        {
+          "name": "migrations",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3458
+        },
+        {
+          "name": "tests",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 16596
+        }
+      ]
+    },
+    "build": {
+      "mode": "build",
+      "environment": {
+        "database": "soundwave_ci_m6_20261107",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "build",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 2011
+        }
+      ]
+    },
+    "format": {
+      "mode": "format",
+      "environment": {
+        "database": "soundwave_ci_m6_20261107",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1515
+        },
+        {
+          "name": "ci-doc-format",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 447
+        }
+      ]
+    },
+    "browsers": {
+      "mode": "browsers",
+      "environment": {
+        "database": "soundwave_ci_m6_20261107",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "browser-install",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 85114
+        }
+      ]
+    },
+    "browser": {
+      "mode": "browser",
+      "environment": {
+        "database": "soundwave_ci_m6_20261107",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "login",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 19874
+        },
+        {
+          "name": "playlists",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 9793
+        },
+        {
+          "name": "offline",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 4127
+        },
+        {
+          "name": "restart",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 7549
+        }
+      ]
+    },
+    "extended": {
+      "mode": "extended",
+      "environment": {
+        "database": "soundwave_ci_m6_20261107",
+        "postgresHost": "127.0.0.1",
+        "redisHost": "127.0.0.1"
+      },
+      "results": [
+        {
+          "name": "systems",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 12934
+        },
+        {
+          "name": "worker-restart",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 2830
+        },
+        {
+          "name": "demo-supervisor",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1747
+        },
+        {
+          "name": "http-load",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 9529
+        }
+      ]
+    }
+  },
+  "requiredIntegrationCoverage": {
+    "required": [
+      "postgres: transaction rollback, concurrent completions and stale progress writes",
+      "PostgreSQL fresh concurrent migrations",
+      "postgres: playlist reads/writes reject anonymous sessions",
+      "postgres: concurrent playlist additions serialize",
+      "Redis atomically shares request limits across independent application instances",
+      "real PostgreSQL backup restores all 20"
+    ],
+    "missing": [],
+    "zeroSkipped": true
+  },
+  "logs": [
+    {
+      "name": "browser-install.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/browser-install.log",
+      "sha256": "3991c98f97d2a128a9d532d21c220b8661acc498a1fd2ac0d015888930bf2681"
+    },
+    {
+      "name": "build.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/build.log",
+      "sha256": "752579800459b66093dc4c2ac625e44af050d2a8ef9b6fe3d6a843518885d0ef"
+    },
+    {
+      "name": "ci-doc-format.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/ci-doc-format.log",
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "name": "ci-safety.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/ci-safety.log",
+      "sha256": "c8e5519156fc2a3ba4878ad8d69e54a72323730741b25a3afd6bf775e59370d8"
+    },
+    {
+      "name": "demo-supervisor.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/demo-supervisor.log",
+      "sha256": "beb1a9c5e247812488e5402caa0599b8c643e96b06230e0ef12b1e6c82d985af"
+    },
+    {
+      "name": "format.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/format.log",
+      "sha256": "7dd0aa7dbf19ef108b19b4c8c328c581c3daabd96a48f8b9d8ef937b1b3ce801"
+    },
+    {
+      "name": "http-load.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/http-load.log",
+      "sha256": "4adbe80a9ffdefb194f49e6315066918671143d59935b37f95d5aa18dd68514d"
+    },
+    {
+      "name": "install.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/install.log",
+      "sha256": "3942055b7b347d86858f5b52bb270024fea4bc5848df6d2ca9c5a288a60025e8"
+    },
+    {
+      "name": "login.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/login.log",
+      "sha256": "2e9d64db164ba3322e7e3c82413cceea03c7ba9a8cd9ffda5877580aff29b83a"
+    },
+    {
+      "name": "migrations.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/migrations.log",
+      "sha256": "868e82210bc07480a8ec92f39f1cde94652ff31d8d240d638c8727464c131b19"
+    },
+    {
+      "name": "offline.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/offline.log",
+      "sha256": "e9d776d051b5b00fc6e9b2efe17107d8da34a072ecf58536ec3503263a33c743"
+    },
+    {
+      "name": "playlists.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/playlists.log",
+      "sha256": "02c133d87a2a27ad312b67c10f6bbd46d95e36528835315755d1445a602ca1fd"
+    },
+    {
+      "name": "restart.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/restart.log",
+      "sha256": "2cdeb8bfc5dd4db73de4f9f01bbf246f7a17b18a20fc528d77fcbe3e5dfad5d4"
+    },
+    {
+      "name": "systems.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/systems.log",
+      "sha256": "83619f22bf4d83bd6178879089e3ac221fa93b8694ca082d7d089f83e864651c"
+    },
+    {
+      "name": "tests.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/tests.log",
+      "sha256": "7fdf781b4208c91491ea938ddee06166255b49043be3095828733cfc15636898"
+    },
+    {
+      "name": "worker-restart.log",
+      "localLog": "/private/tmp/soundwave-ci-clean/artifacts/ci/logs/worker-restart.log",
+      "sha256": "d320e976b4aa2a88c6abde11a15f33f8d28ceebeddfdb8826103148b2e67ae21"
+    }
+  ],
+  "additionalChecks": {
+    "repeatedRestartRuns": "See ci-flake-evidence.json: original 4/5, instrumented 4/5, corrected 5/5; managed Chromium mandatory gate also passed corrected restart.",
+    "coreBrowser": {
+      "status": "PASS",
+      "checks": 14,
+      "log": "/private/tmp/soundwave-ci-core-browser.log",
+      "sha256": "a6d7a1619f3aa0a70b0865a12fa562f2089244899fcac91580dfa5e872f26548"
+    },
+    "realFailurePropagation": {
+      "status": "PASS",
+      "fixture": "Separate disposable export, intentionally closed loopback PG port and fake credentials. Migration failed with ECONNREFUSED; runner returned nonzero; sanitized logs/exit summary retained without fixture password.",
+      "localEvidence": "/private/tmp/soundwave-ci-failure-probe/artifacts/ci/test.json"
+    },
+    "maskedScreenshotAndMetadata": {
+      "status": "PASS",
+      "fixture": "Actual HTML with three credential-bearing input/textarea/account elements, fake URL query/fragment; all three matched masks, JSON retained only /probe; PNG visually inspected.",
+      "localEvidence": "/private/tmp/soundwave-ci-artifact-probe/"
+    }
+  },
+  "m1CommitInventory": {
+    "range": "286dd90..33d07ec",
+    "implementationAndTests": 5,
+    "documentation": 1,
+    "total": 6,
+    "verification": "Compared against git log; original evidence predates its own documentation commit."
+  },
+  "unchangedProduct": {
+    "clientServerDiff": [],
+    "newMigrations": false,
+    "newProductFeatures": false
+  },
+  "notVerified": [
+    "A real GitHub Actions run, Ubuntu service/action provisioning and artifact uploads",
+    "Repository required-check/branch-protection settings",
+    "Linux native dependency/browser platform behavior",
+    "Production resources, deployments or external email delivery"
+  ],
+  "changedFiles": [
+    ".github/workflows/ci.yml",
+    ".gitignore",
+    "README.md",
+    "docs/CI.md",
+    "docs/CI_FLAKE_INVESTIGATION.md",
+    "docs/M1_PLAYLISTS.md",
+    "docs/SOUNDWAVE_V3_ROADMAP.md",
+    "docs/ci-flake-evidence.json",
+    "docs/ci-verification.json",
+    "docs/m1-playlists-verification.json",
+    "package.json",
+    "scripts/audit-smoke.mjs",
+    "scripts/auth-smoke.mjs",
+    "scripts/browser-artifacts.mjs",
+    "scripts/browser-smoke.mjs",
+    "scripts/browser-sync.mjs",
+    "scripts/ci/run.mjs",
+    "scripts/ci/safety.mjs",
+    "scripts/ci/safety.test.mjs",
+    "scripts/offline-smoke.mjs",
+    "scripts/playlists-smoke.mjs"
+  ]
+}

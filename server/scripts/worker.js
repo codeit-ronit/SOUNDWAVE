@@ -1,3 +1,10 @@
+import { telemetry } from "../telemetry.js";
+import {
+  privateProcessingQueue,
+  startPrivateProcessingWorker,
+  runPrivateProcessingRecovery,
+} from "../media/private-queue.js";
+import { runPrivateMediaCleanup } from "../media/private-cleanup.js";
 import { redisInfrastructure } from "../infrastructure/redis.js";
 import { writeFileSync, unlinkSync } from "node:fs";
 import {
@@ -12,8 +19,12 @@ import { retryConnection } from "../database/retry.js";
 import { runWorker } from "../jobs/worker.js";
 import { emailTransport } from "../services/mail.js";
 dotenv.config({ path: new URL("../../.env", import.meta.url), quiet: true });
-const config = loadConfig(),
-  db = await retryConnection(() => connectDatabase()),
+const config = loadConfig();
+if (config.releaseQuarantined)
+  throw Error(
+    "Worker is quarantined; reconcile recovery state before starting jobs.",
+  );
+const db = await retryConnection(() => connectDatabase()),
   mail = emailTransport(config),
   controller = new AbortController();
 for (const signal of ["SIGINT", "SIGTERM"])
@@ -22,6 +33,13 @@ const media =
   config.redisUrl && config.mediaEnabled
     ? { queue: mediaQueue(config), worker: startMediaWorker(db, config) }
     : null;
+const privateQueue =
+  config.redisUrl && config.mediaEnabled
+    ? privateProcessingQueue(config)
+    : null;
+const privateWorker = privateQueue
+  ? startPrivateProcessingWorker(db, config, { signal: controller.signal })
+  : null;
 const healthRedis = media
   ? redisInfrastructure(config.redisUrl, { prefix: config.redisPrefix })
   : null;
@@ -33,9 +51,15 @@ const tick = () =>
     healthFile,
     JSON.stringify({
       pid: process.pid,
+      metrics: telemetry(db).snapshot(),
+      resources: { rss: process.memoryUsage().rss, cpu: process.cpuUsage() },
       at: Date.now(),
       mediaEnabled: !!media,
-      mediaReady: !media || (healthRedis.ready() && media.worker.isRunning()),
+      mediaReady:
+        !media ||
+        (healthRedis.ready() &&
+          media.worker.isRunning() &&
+          privateWorker.isRunning()),
     }),
     { mode: 0o600 },
   );
@@ -43,7 +67,14 @@ tick();
 console.log("SoundWave worker started");
 try {
   await Promise.all([
-    runWorker(db, { mail, signal: controller.signal, onTick: tick }),
+    runWorker(db, {
+      mail,
+      privateQueue,
+      signal: controller.signal,
+      onTick: tick,
+    }),
+    runPrivateMediaCleanup(db, config, controller.signal),
+    runPrivateProcessingRecovery(db, config, controller.signal),
     ...(media
       ? [
           runMediaScheduler(db, media.queue, controller.signal, {
@@ -53,6 +84,8 @@ try {
       : []),
   ]);
 } finally {
+  if (privateWorker) await privateWorker.close();
+  if (privateQueue) await privateQueue.close();
   if (media) {
     await media.worker.close();
     await media.queue.close();
